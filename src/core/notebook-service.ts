@@ -7,8 +7,8 @@ import { parseObsidianLink } from "./obsidian-link";
 export class NotebookService {
   constructor(
     private app: App,
-    private notebookFolder = DEFAULT_NOTEBOOK_FOLDER,
-    private notebookTemplate = "# {{title}}\n",
+    private getNotebookFolder: () => string = () => DEFAULT_NOTEBOOK_FOLDER,
+    private getNotebookTemplate: () => string = () => "# {{title}}\n",
   ) {}
 
   async createOrBindNotebookForTextNode(
@@ -117,7 +117,7 @@ export class NotebookService {
   }
 
   private async ensureNotebookFolder(): Promise<void> {
-    const normalized = normalizePath(this.notebookFolder);
+    const normalized = normalizePath(this.getNotebookFolder());
     const existing = this.app.vault.getAbstractFileByPath(normalized);
     if (existing instanceof TFolder) return;
     if (existing) throw new Error(`${normalized} 已存在，但不是文件夹。`);
@@ -125,16 +125,17 @@ export class NotebookService {
   }
 
   private renderTemplate(title: string): string {
-    return this.notebookTemplate.split("{{title}}").join(title);
+    return this.getNotebookTemplate().split("{{title}}").join(title);
   }
 
   private async createUniqueNotebookPath(title: string): Promise<string> {
     const base = sanitizeFilename(title);
-    let candidate = normalizePath(`${this.notebookFolder}/${base}.md`);
+    const notebookFolder = normalizePath(this.getNotebookFolder());
+    let candidate = normalizePath(`${notebookFolder}/${base}.md`);
     let index = 2;
 
     while (this.app.vault.getAbstractFileByPath(candidate)) {
-      candidate = normalizePath(`${this.notebookFolder}/${base} ${index}.md`);
+      candidate = normalizePath(`${notebookFolder}/${base} ${index}.md`);
       index += 1;
     }
 

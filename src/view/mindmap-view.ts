@@ -30,6 +30,7 @@ import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { DirtyStateManager } from "../core/dirty-state";
 import { showErrorNotice } from "../ui/error-notice";
 import { setButtonA11y, setCanvasA11y } from "../core/accessibility";
+import type { DirtyState } from "../core/dirty-state";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -49,6 +50,7 @@ export class MindmapView extends ItemView {
   private missingNotebookNodeIds = new Set<string>();
   private dirtyState = new DirtyStateManager();
   private saveStatusEl: HTMLElement | null = null;
+  private unsubscribeDirtyState: (() => void) | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -64,11 +66,14 @@ export class MindmapView extends ItemView {
       } catch {
         this.dirtyState.setState("error");
       }
-    });
+    }, () => ({
+      enabled: this.plugin.settings.autoSave,
+      delayMs: this.plugin.settings.autoSaveDelayMs,
+    }));
     this.notebookService = new NotebookService(
       this.app,
-      this.plugin.settings.notebookFolder,
-      this.plugin.settings.notebookTemplate,
+      () => this.plugin.settings.notebookFolder,
+      () => this.plugin.settings.notebookTemplate,
     );
   }
 
@@ -102,6 +107,8 @@ export class MindmapView extends ItemView {
     this.debugOverlay = null;
     this.minimap?.remove();
     this.minimap = null;
+    this.unsubscribeDirtyState?.();
+    this.unsubscribeDirtyState = null;
   }
 
   async refreshNotebookLinks(): Promise<void> {
@@ -163,18 +170,11 @@ export class MindmapView extends ItemView {
       this.renderer?.render();
     };
 
-    this.saveStatusEl = toolbar.createSpan({ cls: "mindmap-save-status", text: "Saved" });
-    this.dirtyState.subscribe((state) => {
+    this.saveStatusEl = toolbar.createSpan({ cls: "mindmap-save-status", text: this.getDirtyStateLabel(this.dirtyState.getState()) });
+    this.unsubscribeDirtyState?.();
+    this.unsubscribeDirtyState = this.dirtyState.subscribe((state) => {
       if (!this.saveStatusEl) return;
-      const label =
-        state === "saved"
-          ? "Saved"
-          : state === "dirty"
-            ? "Unsaved"
-            : state === "saving"
-              ? "Saving..."
-              : "Save error";
-      this.saveStatusEl.setText(label);
+      this.saveStatusEl.setText(this.getDirtyStateLabel(state));
     });
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
@@ -255,6 +255,7 @@ export class MindmapView extends ItemView {
         for (const id of ids) this.selection.add(id);
         this.renderer?.render();
       },
+      getSettings: () => this.plugin.settings,
       onRenderStats: (stats) => {
         this.debugOverlay?.update({
           sample: {
@@ -675,6 +676,16 @@ export class MindmapView extends ItemView {
 
   private markDirty(): void {
     this.dirtyState.setState("dirty");
+  }
+
+  private getDirtyStateLabel(state: DirtyState): string {
+    return state === "saved"
+      ? "Saved"
+      : state === "dirty"
+        ? "Unsaved"
+        : state === "saving"
+          ? "Saving..."
+          : "Save error";
   }
 
   private async exportSvg(): Promise<void> {

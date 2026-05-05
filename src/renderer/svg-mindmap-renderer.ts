@@ -3,7 +3,8 @@ import { App } from "obsidian";
 import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
 import { createSemanticProjection } from "../core/semantic-projection";
-import { cullProjectionToViewport } from "../core/viewport-culling";
+import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport-culling";
+import type { SemanticMindmapSettings } from "../types/settings";
 import { renderProjectedEdges } from "./projected-edge-renderer";
 import { renderProjectedNodes } from "./projected-node-renderer";
 import { InlineTitleEditor } from "./inline-title-editor";
@@ -49,6 +50,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
       onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
       onNodeDragEnd: () => void;
       onBoxSelect: (rect: Rect) => void;
+      getSettings: () => SemanticMindmapSettings;
       onRenderStats?: (stats: {
         mode: "svg" | "hybrid";
         zoom: number;
@@ -122,7 +124,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
 
     let renderNodes = projection.nodes;
     let renderEdges = projection.edges;
-    if (doc.nodes.length > 500) {
+    if (shouldCullProjection(doc.nodes.length, this.options.getSettings())) {
       const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
       renderNodes = culled.nodes;
       renderEdges = culled.edges;

@@ -1,25 +1,28 @@
 export class DebouncedAutosave {
-  private timer: number | null = null;
+  private timer: ReturnType<typeof globalThis.setTimeout> | null = null;
 
   constructor(
     private saveFn: () => Promise<void>,
-    private delayMs = 800,
+    private getConfig: () => { enabled: boolean; delayMs: number } = () => ({ enabled: true, delayMs: 800 }),
   ) {}
 
   schedule(): void {
+    const config = this.getConfig();
+    if (!config.enabled) return;
+
     if (this.timer !== null) {
-      window.clearTimeout(this.timer);
+      globalThis.clearTimeout(this.timer);
     }
 
-    this.timer = window.setTimeout(() => {
+    this.timer = globalThis.setTimeout(() => {
       this.timer = null;
       void this.saveFn();
-    }, this.delayMs);
+    }, config.delayMs);
   }
 
   async flush(): Promise<void> {
     if (this.timer !== null) {
-      window.clearTimeout(this.timer);
+      globalThis.clearTimeout(this.timer);
       this.timer = null;
     }
 

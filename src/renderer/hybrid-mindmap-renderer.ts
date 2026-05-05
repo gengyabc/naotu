@@ -4,12 +4,14 @@ import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { partitionForHybridRender } from "../core/render-partition";
+import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport-culling";
 import { CanvasBackgroundRenderer } from "./canvas-background-renderer";
 import { renderProjectedEdges } from "./projected-edge-renderer";
 import { renderProjectedNodes } from "./projected-node-renderer";
 import { InlineTitleEditor } from "./inline-title-editor";
 import type { RendererAdapter } from "./renderer-adapter";
 import { PerformanceMonitor } from "../core/performance-monitor";
+import type { SemanticMindmapSettings } from "../types/settings";
 
 export class HybridMindmapRenderer implements RendererAdapter {
   private root!: HTMLDivElement;
@@ -53,6 +55,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
       onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
       onNodeDragEnd: () => void;
       onBoxSelect: (rect: Rect) => void;
+      getSettings: () => SemanticMindmapSettings;
       onRenderStats?: (stats: {
         mode: "svg" | "hybrid";
         zoom: number;
@@ -120,7 +123,15 @@ export class HybridMindmapRenderer implements RendererAdapter {
     }
     this.lastProjectedNodes = projection.nodes;
 
-    const partition = partitionForHybridRender(projection.nodes, projection.edges);
+    let renderNodes = projection.nodes;
+    let renderEdges = projection.edges;
+    if (shouldCullProjection(doc.nodes.length, this.options.getSettings())) {
+      const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
+      renderNodes = culled.nodes;
+      renderEdges = culled.edges;
+    }
+
+    const partition = partitionForHybridRender(renderNodes, renderEdges);
     this.performanceMonitor.measure(
       {
         mode: "hybrid",
@@ -137,7 +148,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
           transform: { x: transform.x, y: transform.y, k: transform.k },
         });
         this.svgEdgeLayer.attr("transform", transform.toString());
-        renderProjectedEdges({ edgeLayer: this.svgEdgeLayer, nodes: projection.nodes, edges: partition.svgEdges, onEdgeContextMenu: this.options.onEdgeContextMenu });
+        renderProjectedEdges({ edgeLayer: this.svgEdgeLayer, nodes: renderNodes, edges: partition.svgEdges, onEdgeContextMenu: this.options.onEdgeContextMenu });
         renderProjectedNodes({
           app: this.options.app,
           nodeLayer: this.svgNodeLayer,

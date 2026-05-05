@@ -1,4 +1,5 @@
 import type { ProjectedEdge, ProjectedNode, Rect } from "../types/mindmap";
+import type { SemanticMindmapSettings } from "../types/settings";
 
 export interface CulledProjection {
   nodes: ProjectedNode[];
@@ -35,6 +36,10 @@ export function cullProjectionToViewport(
 
   const visibleEdges = edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
   return { nodes: visibleNodes, edges: visibleEdges };
+}
+
+export function shouldCullProjection(nodeCount: number, settings: Pick<SemanticMindmapSettings, "enableViewportCulling" | "cullingNodeThreshold">): boolean {
+  return settings.enableViewportCulling && nodeCount > settings.cullingNodeThreshold;
 }
 
 function rectIntersects(a: Rect, b: Rect): boolean {
