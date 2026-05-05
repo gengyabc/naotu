@@ -5,6 +5,7 @@ export interface PreviewCacheEntry {
 
 export class PreviewCache {
   private cache = new Map<string, PreviewCacheEntry>();
+  private version = 0;
 
   constructor(private maxEntries = 300) {}
 
@@ -23,6 +24,11 @@ export class PreviewCache {
 
   clear(): void {
     this.cache.clear();
+    this.version += 1;
+  }
+
+  getVersion(): number {
+    return this.version;
   }
 
   private evictIfNeeded(): void {

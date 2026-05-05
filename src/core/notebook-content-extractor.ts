@@ -6,6 +6,7 @@ export async function readNotebookPreviewMarkdown(args: {
   app: App;
   link: string;
   sourcePath: string;
+  storedPath?: string;
   maxLines?: number;
 }): Promise<string | null> {
   const parsed = parseObsidianLink(args.link);
@@ -15,6 +16,7 @@ export async function readNotebookPreviewMarkdown(args: {
     app: args.app,
     link: args.link,
     sourcePath: args.sourcePath,
+    storedPath: args.storedPath,
   });
   if (!file) return null;
 

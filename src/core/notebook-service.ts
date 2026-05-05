@@ -16,7 +16,8 @@ export class NotebookService {
     sourcePath: string,
   ): Promise<{ file: TFile; patch: Partial<MindmapNode> }> {
     const title = sanitizeFilename(node.title || UNTITLED_NODE_TITLE);
-    const existing = this.app.metadataCache.getFirstLinkpathDest(title, sourcePath);
+    await this.ensureNotebookFolder();
+    const existing = this.getNotebookFileInConfiguredFolder(title);
 
     if (existing) {
       return {
@@ -30,7 +31,6 @@ export class NotebookService {
       };
     }
 
-    await this.ensureNotebookFolder();
     const path = await this.createUniqueNotebookPath(title);
     const file = await this.app.vault.create(path, this.renderTemplate(title));
 
@@ -129,6 +129,13 @@ export class NotebookService {
 
   private renderTemplate(title: string): string {
     return this.getNotebookTemplate().split("{{title}}").join(title);
+  }
+
+  private getNotebookFileInConfiguredFolder(title: string): TFile | null {
+    const notebookFolder = normalizePath(this.getNotebookFolder());
+    const path = normalizePath(`${notebookFolder}/${sanitizeFilename(title)}.md`);
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile ? file : null;
   }
 
   private async createUniqueNotebookPath(title: string): Promise<string> {

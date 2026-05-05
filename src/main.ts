@@ -43,8 +43,15 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     );
 
     this.registerEvent(
-      this.app.vault.on("modify", () => {
+      this.app.vault.on("modify", async (file) => {
         globalPreviewCache.clear();
+
+        if (!(file instanceof TFile)) return;
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MINDMAP);
+        for (const leaf of leaves) {
+          const view = leaf.view;
+          if (view instanceof MindmapView) await view.handleVaultModify(file);
+        }
       }),
     );
   }

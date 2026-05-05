@@ -9,6 +9,7 @@ export class MindmapDocumentStore {
   private doc: MindmapDocument = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
   private loadError: Error | null = null;
   private listeners = new Set<() => void>();
+  private lastSyncedRaw: string | null = null;
 
   constructor(private app: App) {}
 
@@ -42,6 +43,7 @@ export class MindmapDocumentStore {
   async openFile(file: TFile): Promise<void> {
     this.file = file;
     const raw = await this.app.vault.read(file);
+    this.lastSyncedRaw = raw;
 
     try {
       this.doc = migrateDocument(JSON.parse(raw));
@@ -64,7 +66,15 @@ export class MindmapDocumentStore {
   async save(): Promise<void> {
     if (!this.file) return;
     if (this.loadError) throw this.loadError;
-    await this.app.vault.modify(this.file, JSON.stringify(this.doc, null, 2));
+
+    const currentRaw = await this.app.vault.read(this.file);
+    if (this.lastSyncedRaw !== null && currentRaw !== this.lastSyncedRaw) {
+      throw new Error("脑图文件已在外部修改，请重新打开后再保存。");
+    }
+
+    const nextRaw = JSON.stringify(this.doc, null, 2);
+    await this.app.vault.modify(this.file, nextRaw);
+    this.lastSyncedRaw = nextRaw;
   }
 
   replaceDocument(doc: MindmapDocument): void {

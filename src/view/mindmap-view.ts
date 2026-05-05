@@ -121,6 +121,37 @@ export class MindmapView extends ItemView {
     this.renderer?.render();
   }
 
+  async handleVaultModify(file: TFile): Promise<void> {
+    if (!this.sourceFile) return;
+
+    if (file.path === this.sourceFile.path) {
+      if (this.dirtyState.getState() === "saving") return;
+      if (this.dirtyState.getState() === "dirty") {
+        this.dirtyState.setState("error");
+        new Notice("脑图文件已在外部更新，当前视图有未保存更改。请重新打开文件以解决冲突。", 6000);
+        return;
+      }
+
+      await this.store.openFile(file);
+      await this.syncNotebookPaths();
+      this.refreshMissingNotebookLinks();
+      const loadError = this.store.getLoadError();
+      this.dirtyState.setState(loadError ? "error" : "saved");
+      if (loadError) showErrorNotice(loadError, "无法重新加载脑图文件");
+      this.renderer?.render();
+      return;
+    }
+
+    const usesModifiedFile = this.store.getDocument().nodes.some((node) => {
+      if (node.kind !== "notebook") return false;
+      return this.notebookService.resolveNotebookFile(node, this.sourceFile?.path ?? "")?.path === file.path;
+    });
+
+    if (!usesModifiedFile) return;
+    this.refreshMissingNotebookLinks();
+    this.renderer?.render();
+  }
+
   private renderView(): void {
     this.contentEl.empty();
 
