@@ -1,7 +1,8 @@
 import { App, normalizePath, TFile } from "obsidian";
-import type { MindmapDocument, MindmapNode, TreeControl } from "../types/mindmap";
+import type { EdgeRelation, EdgeType, MindmapDocument, MindmapNode, TreeControl } from "../types/mindmap";
 import { DEFAULT_MINDMAP_DOCUMENT } from "../constants";
 import { migrateDocument } from "./document-migration";
+import { createId } from "./id";
 
 export class MindmapDocumentStore {
   private file: TFile | null = null;
@@ -97,19 +98,51 @@ export class MindmapDocumentStore {
   }
 
   addMindmapEdge(source: string, target: string): void {
-    if (source === target) return;
+    this.addEdge({ source, target, relation: "mindmap", type: "curve" });
+  }
+
+  addEdge(args: { source: string; target: string; relation: EdgeRelation; type?: EdgeType }): void {
+    if (args.source === args.target) return;
+
     const exists = this.doc.edges.some(
-      (edge) => edge.source === source && edge.target === target && edge.relation === "mindmap",
+      (edge) => edge.source === args.source && edge.target === args.target && edge.relation === args.relation,
     );
+
     if (exists) return;
 
+    if (args.relation === "mindmap") {
+      const alreadyHasParent = this.doc.edges.some(
+        (edge) => edge.relation === "mindmap" && edge.target === args.target,
+      );
+      if (alreadyHasParent) return;
+    }
+
     this.doc.edges.push({
-      id: `edge_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-      source,
-      target,
-      relation: "mindmap",
-      type: "curve",
+      id: createId("edge"),
+      source: args.source,
+      target: args.target,
+      relation: args.relation,
+      type: args.type ?? "curve",
     });
+
+    this.emit();
+  }
+
+  deleteEdge(id: string): void {
+    this.doc.edges = this.doc.edges.filter((edge) => edge.id !== id);
+    this.emit();
+  }
+
+  updateNodePositions(moves: Array<{ id: string; x: number; y: number }>): void {
+    const moveMap = new Map(moves.map((move) => [move.id, move]));
+
+    for (const node of this.doc.nodes) {
+      const move = moveMap.get(node.id);
+      if (!move) continue;
+      node.x = move.x;
+      node.y = move.y;
+    }
+
     this.emit();
   }
 

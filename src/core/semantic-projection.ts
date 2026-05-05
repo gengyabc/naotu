@@ -10,7 +10,16 @@ import { buildHierarchy, getAncestorPath } from "./hierarchy";
 import { resolveFocusNodeId } from "./focus";
 import { clampDetailLevel, getVisualSpec, zoomToBaseDetailLevel } from "./detail-level";
 
-export function createSemanticProjection(doc: MindmapDocument, context: ProjectionContext): SemanticProjection {
+export interface CreateSemanticProjectionExtra {
+  searchResultIds?: Set<string>;
+  connectionSourceId?: string;
+}
+
+export function createSemanticProjection(
+  doc: MindmapDocument,
+  context: ProjectionContext,
+  extra: CreateSemanticProjectionExtra = {},
+): SemanticProjection {
   const hierarchy = buildHierarchy(doc);
   const focusNodeId = resolveFocusNodeId({
     doc,
@@ -73,6 +82,8 @@ export function createSemanticProjection(doc: MindmapDocument, context: Projecti
       isSelected,
       isHovered,
       isAncestorPath,
+      isSearchMatch: extra.searchResultIds?.has(node.id) ?? false,
+      isConnectionSource: extra.connectionSourceId === node.id,
       hasChildren: children.length > 0,
       childrenExpanded,
       showNotebookExpandButton: true,

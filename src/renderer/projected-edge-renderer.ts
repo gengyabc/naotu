@@ -5,6 +5,7 @@ export function renderProjectedEdges(args: {
   edgeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
   nodes: ProjectedNode[];
   edges: ProjectedEdge[];
+  onEdgeContextMenu?: (id: string, x: number, y: number) => void;
 }): void {
   const nodeMap = new Map(args.nodes.map((node) => [node.id, node]));
 
@@ -34,5 +35,10 @@ export function renderProjectedEdges(args: {
 
       const mx = (sx + tx) / 2;
       return `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+    })
+    .on("contextmenu", (event, edge) => {
+      event.preventDefault();
+      event.stopPropagation();
+      args.onEdgeContextMenu?.(edge.id, event.clientX, event.clientY);
     });
 }

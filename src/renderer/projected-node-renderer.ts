@@ -13,6 +13,7 @@ export function renderProjectedNodes(args: {
   nodes: ProjectedNode[];
   transform: ViewTransform;
   sourcePath: string;
+  getSelectedNodeIds: () => string[];
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
@@ -20,6 +21,9 @@ export function renderProjectedNodes(args: {
   onNotebookExpand: (id: string) => void;
   onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
+  onBeforeNodeDragStart: () => void;
+  onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
+  onNodeDragEnd: () => void;
 }): void {
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().remove();
@@ -33,6 +37,39 @@ export function renderProjectedNodes(args: {
   entered.append("foreignObject").attr("class", "mindmap-node-preview").style("display", "none");
 
   const merged = entered.merge(selection);
+
+  const dragBehavior = d3
+    .drag<SVGGElement, ProjectedNode>()
+    .on("start", (event, node) => {
+      event.sourceEvent?.stopPropagation();
+      args.onBeforeNodeDragStart();
+
+      const selectedIds = args.getSelectedNodeIds();
+      if (!selectedIds.includes(node.id)) {
+        args.onSelectNode(node.id, "replace");
+      }
+    })
+    .on("drag", (event, node) => {
+      const selectedIds = args.getSelectedNodeIds();
+      const movingIds = selectedIds.includes(node.id) ? selectedIds : [node.id];
+      const projectedMap = new Map(args.nodes.map((item) => [item.id, item]));
+      const dxWorld = event.dx / args.transform.k;
+      const dyWorld = event.dy / args.transform.k;
+
+      const moves = movingIds
+        .map((id) => {
+          const item = projectedMap.get(id);
+          if (!item) return null;
+          return { id, x: item.worldX + dxWorld, y: item.worldY + dyWorld };
+        })
+        .filter(Boolean) as Array<{ id: string; x: number; y: number }>;
+
+      args.onNodesMove(moves);
+    })
+    .on("end", () => {
+      args.onNodeDragEnd();
+    });
+
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
@@ -48,6 +85,8 @@ export function renderProjectedNodes(args: {
       args.onContextMenu(node.id, event.clientX, event.clientY);
     });
 
+  merged.call(dragBehavior);
+
   merged.each(function (node) {
     const group = d3.select(this);
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
@@ -59,6 +98,8 @@ export function renderProjectedNodes(args: {
     group.classed("is-focus", node.isFocus);
     group.classed("is-selected", node.isSelected);
     group.classed("is-ancestor-path", node.isAncestorPath);
+    group.classed("is-search-match", Boolean(node.isSearchMatch));
+    group.classed("is-connection-source", Boolean(node.isConnectionSource));
 
     group.select<SVGRectElement>("rect.mindmap-node-bg").attr("width", node.displayWidth).attr("height", node.displayHeight);
 

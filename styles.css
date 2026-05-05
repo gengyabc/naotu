@@ -6,9 +6,24 @@
 
 .semantic-mindmap-toolbar {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 8px;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.semantic-mindmap-toolbar input[type="text"] {
+  min-width: 180px;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.semantic-mindmap-toolbar button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 .semantic-mindmap-canvas {
@@ -102,6 +117,7 @@
 
 .mindmap-edge {
   fill: none;
+  cursor: pointer;
   pointer-events: stroke;
 }
 
@@ -115,6 +131,30 @@
   stroke-width: 1.4px;
   stroke-dasharray: 5 5;
   opacity: 0.65;
+}
+
+.mindmap-edge:hover {
+  stroke: var(--interactive-accent);
+}
+
+.mindmap-node.is-search-match .mindmap-node-bg {
+  stroke: var(--text-accent);
+  stroke-width: 3px;
+}
+
+.mindmap-node.is-connection-source .mindmap-node-bg {
+  stroke: var(--interactive-accent);
+  stroke-width: 3px;
+  stroke-dasharray: 4 3;
+}
+
+.selection-box {
+  fill: var(--interactive-accent);
+  fill-opacity: 0.08;
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5px;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
 }
 
 .mindmap-preview-wrapper {

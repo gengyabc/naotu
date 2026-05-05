@@ -54,6 +54,10 @@ export interface MindmapEdge {
   relation: EdgeRelation;
   type: EdgeType;
   label?: string;
+  style?: {
+    stroke?: string;
+    dashed?: boolean;
+  };
 }
 
 export interface Rect {
@@ -90,6 +94,8 @@ export interface ProjectedNode {
   isSelected: boolean;
   isHovered: boolean;
   isAncestorPath: boolean;
+  isSearchMatch?: boolean;
+  isConnectionSource?: boolean;
   hasChildren: boolean;
   childrenExpanded: boolean;
   showNotebookExpandButton: boolean;
