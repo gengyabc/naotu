@@ -9,30 +9,33 @@ export class RadialLayoutEngine {
     if (!rootId) return next;
 
     const nodeMap = new Map(next.nodes.map((node) => [node.id, node]));
+    const subtreeWeights = computeSubtreeWeights(rootId, hierarchy.childrenById);
     const root = nodeMap.get(rootId);
     if (!root) return next;
 
     root.x = 0;
     root.y = 0;
 
-    this.layoutChildren({
+    this.layoutChildrenWeighted({
       nodeId: rootId,
       nodeMap,
       childrenById: hierarchy.childrenById,
+      subtreeWeights,
       depth: 1,
       startAngle: 0,
       endAngle: Math.PI * 2,
-      radialSpacing: 280,
+      radialSpacing: 300,
     });
 
     next.layoutMode = "radial";
     return next;
   }
 
-  private layoutChildren(args: {
+  private layoutChildrenWeighted(args: {
     nodeId: string;
     nodeMap: Map<string, MindmapNode>;
     childrenById: Map<string, string[]>;
+    subtreeWeights: Map<string, number>;
     depth: number;
     startAngle: number;
     endAngle: number;
@@ -41,30 +44,52 @@ export class RadialLayoutEngine {
     const children = args.childrenById.get(args.nodeId) ?? [];
     if (children.length === 0) return;
 
+    const totalWeight = children.reduce((sum, id) => sum + (args.subtreeWeights.get(id) ?? 1), 0);
     const span = normalizeAngleSpan(args.startAngle, args.endAngle);
-    children.forEach((childId, index) => {
-      const node = args.nodeMap.get(childId);
-      if (!node) return;
+    let cursor = args.startAngle;
 
-      const t = children.length === 1 ? 0.5 : index / (children.length - 1);
-      const angle = args.startAngle + span * t;
+    for (const childId of children) {
+      const node = args.nodeMap.get(childId);
+      if (!node) continue;
+
+      const weight = args.subtreeWeights.get(childId) ?? 1;
+      const childSpan = span * (weight / totalWeight);
+      const angle = cursor + childSpan / 2;
       const radius = args.depth * args.radialSpacing;
 
       node.x = Math.cos(angle) * radius;
       node.y = Math.sin(angle) * radius;
 
-      const childSpan = Math.min(Math.PI / 2, Math.max(Math.PI / 8, span / Math.max(children.length, 1)));
-      this.layoutChildren({
+      const nextSpan = Math.min(Math.PI, Math.max(Math.PI / 8, childSpan));
+      this.layoutChildrenWeighted({
         nodeId: childId,
         nodeMap: args.nodeMap,
         childrenById: args.childrenById,
+        subtreeWeights: args.subtreeWeights,
         depth: args.depth + 1,
-        startAngle: angle - childSpan / 2,
-        endAngle: angle + childSpan / 2,
+        startAngle: angle - nextSpan / 2,
+        endAngle: angle + nextSpan / 2,
         radialSpacing: args.radialSpacing,
       });
-    });
+
+      cursor += childSpan;
+    }
   }
+}
+
+function computeSubtreeWeights(rootId: string, childrenById: Map<string, string[]>): Map<string, number> {
+  const weights = new Map<string, number>();
+
+  function dfs(id: string): number {
+    const children = childrenById.get(id) ?? [];
+    let weight = 1;
+    for (const child of children) weight += dfs(child);
+    weights.set(id, weight);
+    return weight;
+  }
+
+  dfs(rootId);
+  return weights;
 }
 
 function normalizeAngleSpan(start: number, end: number): number {

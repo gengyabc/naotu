@@ -8,6 +8,7 @@ export class NotebookService {
   constructor(
     private app: App,
     private notebookFolder = DEFAULT_NOTEBOOK_FOLDER,
+    private notebookTemplate = "# {{title}}\n",
   ) {}
 
   async createOrBindNotebookForTextNode(
@@ -31,7 +32,7 @@ export class NotebookService {
 
     await this.ensureNotebookFolder();
     const path = await this.createUniqueNotebookPath(title);
-    const file = await this.app.vault.create(path, `# ${title}\n`);
+    const file = await this.app.vault.create(path, this.renderTemplate(title));
 
     return {
       file,
@@ -85,6 +86,19 @@ export class NotebookService {
     return { kind: "text", title: node.title, notebook: undefined, link: undefined };
   }
 
+  bindExistingFileAsNotebook(file: TFile): Partial<MindmapNode> {
+    return {
+      kind: "notebook",
+      title: file.basename,
+      notebook: {
+        link: `[[${file.basename}]]`,
+        path: file.path,
+        targetType: "file",
+      },
+      link: `[[${file.basename}]]`,
+    };
+  }
+
   async syncNotebookPathIfMoved(
     node: MindmapNode,
     sourcePath: string,
@@ -108,6 +122,10 @@ export class NotebookService {
     if (existing instanceof TFolder) return;
     if (existing) throw new Error(`${normalized} 已存在，但不是文件夹。`);
     await this.app.vault.createFolder(normalized);
+  }
+
+  private renderTemplate(title: string): string {
+    return this.notebookTemplate.split("{{title}}").join(title);
   }
 
   private async createUniqueNotebookPath(title: string): Promise<string> {

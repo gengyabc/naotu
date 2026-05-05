@@ -3,6 +3,7 @@ import { App } from "obsidian";
 import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
 import { createSemanticProjection } from "../core/semantic-projection";
+import { cullProjectionToViewport } from "../core/viewport-culling";
 import { renderProjectedEdges } from "./projected-edge-renderer";
 import { renderProjectedNodes } from "./projected-node-renderer";
 import { InlineTitleEditor } from "./inline-title-editor";
@@ -41,6 +42,13 @@ export class SvgMindmapRenderer {
       onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
       onNodeDragEnd: () => void;
       onBoxSelect: (rect: Rect) => void;
+      onRenderStats?: (stats: {
+        zoom: number;
+        totalNodes: number;
+        renderedNodes: number;
+        totalEdges: number;
+        renderedEdges: number;
+      }) => void;
     },
   ) {}
 
@@ -98,18 +106,26 @@ export class SvgMindmapRenderer {
       if (forced !== undefined && forced > node.detailLevel) node.detailLevel = forced;
     }
 
+    let renderNodes = projection.nodes;
+    let renderEdges = projection.edges;
+    if (doc.nodes.length > 500) {
+      const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
+      renderNodes = culled.nodes;
+      renderEdges = culled.edges;
+    }
+
     this.edgeWorldLayer.attr("transform", transform.toString());
     renderProjectedEdges({
       edgeLayer: this.edgeWorldLayer,
-      nodes: projection.nodes,
-      edges: projection.edges,
+      nodes: renderNodes,
+      edges: renderEdges,
       onEdgeContextMenu: this.options.onEdgeContextMenu,
     });
 
     renderProjectedNodes({
       app: this.options.app,
       nodeLayer: this.nodeScreenLayer,
-      nodes: projection.nodes,
+      nodes: renderNodes,
       transform: { x: transform.x, y: transform.y, k: transform.k },
       sourcePath: this.options.sourcePath,
       getSelectedNodeIds: this.options.getSelectedNodeIds,
@@ -148,6 +164,14 @@ export class SvgMindmapRenderer {
       onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,
       onNodesMove: this.options.onNodesMove,
       onNodeDragEnd: this.options.onNodeDragEnd,
+    });
+
+    this.options.onRenderStats?.({
+      zoom: transform.k,
+      totalNodes: projection.nodes.length,
+      renderedNodes: renderNodes.length,
+      totalEdges: projection.edges.length,
+      renderedEdges: renderEdges.length,
     });
   }
 

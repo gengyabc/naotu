@@ -1,4 +1,5 @@
 import { ItemView, Menu, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import type SemanticZoomMindmapPlugin from "../main";
 import {
   VIEW_TYPE_MINDMAP,
   DEFAULT_NODE_HEIGHT,
@@ -17,6 +18,8 @@ import { HistoryManager } from "../core/history";
 import { searchNodes } from "../core/search";
 import { createTextNodeNearParent, findParentId, findRootId } from "../core/tree-editing";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
+import { MarkdownFileSuggestModal } from "../ui/file-suggest-modal";
+import { DebugOverlay } from "../ui/debug-overlay";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -30,12 +33,20 @@ export class MindmapView extends ItemView {
   private searchResultIds = new Set<string>();
   private connectionMode = false;
   private connectionSourceId: string | undefined;
+  private debugOverlay: DebugOverlay | null = null;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private plugin: SemanticZoomMindmapPlugin,
+  ) {
     super(leaf);
     this.store = new MindmapDocumentStore(this.app);
     this.autosave = new DebouncedAutosave(() => this.store.save());
-    this.notebookService = new NotebookService(this.app);
+    this.notebookService = new NotebookService(
+      this.app,
+      this.plugin.settings.notebookFolder,
+      this.plugin.settings.notebookTemplate,
+    );
   }
 
   getViewType(): string {
@@ -63,6 +74,8 @@ export class MindmapView extends ItemView {
   async onClose(): Promise<void> {
     await this.autosave.flush();
     this.renderer?.unmount();
+    this.debugOverlay?.remove();
+    this.debugOverlay = null;
   }
 
   async refreshNotebookLinks(): Promise<void> {
@@ -111,6 +124,10 @@ export class MindmapView extends ItemView {
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
     canvas.tabIndex = 0;
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
+
+    if (this.plugin.settings.showDebugOverlay) {
+      this.debugOverlay = new DebugOverlay(canvas);
+    }
 
     this.renderer = new SvgMindmapRenderer({
       app: this.app,
@@ -168,6 +185,9 @@ export class MindmapView extends ItemView {
         this.selection.clear();
         for (const id of ids) this.selection.add(id);
         this.renderer?.render();
+      },
+      onRenderStats: (stats) => {
+        this.debugOverlay?.update(stats);
       },
     });
 
@@ -340,6 +360,25 @@ export class MindmapView extends ItemView {
     if (node.kind === "notebook") {
       menu.addItem((item) => {
         item.setTitle("转为普通节点").setIcon("unlink").onClick(() => this.convertNotebookToText(id));
+      });
+    }
+
+    if (node.kind === "text") {
+      menu.addItem((item) => {
+        item
+          .setTitle("选择已有 notebook...")
+          .setIcon("file-text")
+          .onClick(() => {
+            new MarkdownFileSuggestModal(this.app, (file) => {
+              this.commitHistory();
+              this.store.patchNode(node.id, this.notebookService.bindExistingFileAsNotebook(file));
+              this.selection.setOnly(node.id);
+              this.renderer?.setLastFocusNodeId(node.id);
+              this.renderer?.forceDetailLevel(node.id, 5);
+              this.renderer?.render();
+              this.autosave.schedule();
+            }).open();
+          });
       });
     }
 
