@@ -63,8 +63,9 @@ export class MindmapView extends ItemView {
         this.dirtyState.setState("saving");
         await this.store.save();
         this.dirtyState.setState("saved");
-      } catch {
+      } catch (error) {
         this.dirtyState.setState("error");
+        showErrorNotice(error, "保存失败");
       }
     }, () => ({
       enabled: this.plugin.settings.autoSave,
@@ -91,6 +92,9 @@ export class MindmapView extends ItemView {
     this.history.clear();
     await this.syncNotebookPaths();
     this.refreshMissingNotebookLinks();
+    const loadError = this.store.getLoadError();
+    this.dirtyState.setState(loadError ? "error" : "saved");
+    if (loadError) showErrorNotice(loadError, "无法打开脑图文件");
     this.renderView();
   }
 

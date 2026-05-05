@@ -12,4 +12,17 @@ describe("RadialLayoutEngine", () => {
     expect(root?.x).toBe(0);
     expect(root?.y).toBe(0);
   });
+
+  it("handles cyclic mindmap edges without overflowing", () => {
+    const doc = createSmallTestDocument();
+    doc.edges.push({
+      id: "edge2",
+      source: "child",
+      target: "root",
+      relation: "mindmap",
+      type: "curve",
+    });
+
+    expect(() => new RadialLayoutEngine().layout(doc, "root")).not.toThrow();
+  });
 });

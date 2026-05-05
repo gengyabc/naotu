@@ -26,4 +26,23 @@ describe("createSemanticProjection", () => {
 
     expect(projection.edges.some((edge) => edge.id === "edge1")).toBe(true);
   });
+
+  it("handles cyclic hierarchies without recursing forever", () => {
+    const doc = createSmallTestDocument();
+    doc.edges.push({
+      id: "edge2",
+      source: "child",
+      target: "root",
+      relation: "mindmap",
+      type: "curve",
+    });
+
+    expect(() =>
+      createSemanticProjection(doc, {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["child"],
+      }),
+    ).not.toThrow();
+  });
 });

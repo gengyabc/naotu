@@ -1,8 +1,8 @@
 import { App, normalizePath, TFile, TFolder } from "obsidian";
 import type { MindmapNode } from "../types/mindmap";
 import { DEFAULT_NOTEBOOK_FOLDER, UNTITLED_NODE_TITLE } from "../constants";
+import { parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 import { sanitizeFilename } from "./sanitize-filename";
-import { parseObsidianLink } from "./obsidian-link";
 
 export class NotebookService {
   constructor(
@@ -48,9 +48,12 @@ export class NotebookService {
   resolveNotebookFile(node: MindmapNode, sourcePath: string): TFile | null {
     const link = node.notebook?.link ?? node.link;
     if (!link) return null;
-    const parsed = parseObsidianLink(link);
-    if (!parsed) return null;
-    return this.app.metadataCache.getFirstLinkpathDest(parsed.path, sourcePath);
+    return resolveObsidianLinkFile({
+      app: this.app,
+      link,
+      sourcePath,
+      storedPath: node.notebook?.path,
+    });
   }
 
   async renameNotebookFileForNode(

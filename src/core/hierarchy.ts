@@ -72,7 +72,10 @@ function assignDepth(
 export function getAncestorPath(id: string, hierarchy: MindmapHierarchy): string[] {
   const result: string[] = [];
   let current: string | undefined = id;
+  const visited = new Set<string>();
   while (current) {
+    if (visited.has(current)) break;
+    visited.add(current);
     result.push(current);
     current = hierarchy.parentById.get(current);
   }

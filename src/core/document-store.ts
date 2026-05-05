@@ -7,6 +7,7 @@ import { createId } from "./id";
 export class MindmapDocumentStore {
   private file: TFile | null = null;
   private doc: MindmapDocument = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
+  private loadError: Error | null = null;
   private listeners = new Set<() => void>();
 
   constructor(private app: App) {}
@@ -17,6 +18,14 @@ export class MindmapDocumentStore {
 
   getFile(): TFile | null {
     return this.file;
+  }
+
+  getLoadError(): Error | null {
+    return this.loadError;
+  }
+
+  canSave(): boolean {
+    return this.file !== null && this.loadError === null;
   }
 
   subscribe(listener: () => void): () => void {
@@ -36,8 +45,10 @@ export class MindmapDocumentStore {
 
     try {
       this.doc = migrateDocument(JSON.parse(raw));
-    } catch {
+      this.loadError = null;
+    } catch (error) {
       this.doc = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
+      this.loadError = error instanceof Error ? error : new Error("Failed to load mindmap document.");
     }
 
     this.emit();
@@ -52,6 +63,7 @@ export class MindmapDocumentStore {
 
   async save(): Promise<void> {
     if (!this.file) return;
+    if (this.loadError) throw this.loadError;
     await this.app.vault.modify(this.file, JSON.stringify(this.doc, null, 2));
   }
 
@@ -97,7 +109,10 @@ export class MindmapDocumentStore {
     }
 
     const ids: string[] = [];
+    const visited = new Set<string>();
     const collect = (id: string): void => {
+      if (visited.has(id)) return;
+      visited.add(id);
       ids.push(id);
       for (const child of childrenById.get(id) ?? []) {
         collect(child);

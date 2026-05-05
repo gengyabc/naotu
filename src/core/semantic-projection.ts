@@ -125,7 +125,12 @@ function collectVisibleTree(args: {
   visibleNodeIds: Set<string>;
   focusPathSet: Set<string>;
   zoom: number;
+  visited?: Set<string>;
 }): void {
+  const visited = args.visited ?? new Set<string>();
+  if (visited.has(args.nodeId)) return;
+  visited.add(args.nodeId);
+
   const hNode = args.hierarchy.nodes.get(args.nodeId);
   if (!hNode) return;
 
@@ -135,7 +140,7 @@ function collectVisibleTree(args: {
   const children = args.hierarchy.childrenById.get(args.nodeId) ?? [];
   for (const childId of children) {
     args.visibleNodeIds.add(childId);
-    collectVisibleTree({ ...args, nodeId: childId });
+    collectVisibleTree({ ...args, nodeId: childId, visited });
   }
 }
 

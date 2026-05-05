@@ -1,6 +1,6 @@
 import { App } from "obsidian";
 import { globalPreviewCache } from "./preview-cache";
-import { parseObsidianLink } from "./obsidian-link";
+import { parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 
 export async function readNotebookPreviewMarkdown(args: {
   app: App;
@@ -11,7 +11,11 @@ export async function readNotebookPreviewMarkdown(args: {
   const parsed = parseObsidianLink(args.link);
   if (!parsed) return null;
 
-  const file = args.app.metadataCache.getFirstLinkpathDest(parsed.path, args.sourcePath);
+  const file = resolveObsidianLinkFile({
+    app: args.app,
+    link: args.link,
+    sourcePath: args.sourcePath,
+  });
   if (!file) return null;
 
   const cacheKey = `${file.path}::${parsed.subpath ?? ""}`;

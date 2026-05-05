@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
-import { parseObsidianLink } from "./obsidian-link";
+import { doesSubpathExist, parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 
 export interface MissingNotebookLink {
   nodeId: string;
@@ -24,8 +24,13 @@ export function findMissingNotebookLinks(args: {
     const parsed = parseObsidianLink(link);
     if (!parsed) continue;
 
-    const file = args.app.metadataCache.getFirstLinkpathDest(parsed.path, args.sourcePath);
-    if (!file) {
+    const file = resolveObsidianLinkFile({
+      app: args.app,
+      link,
+      sourcePath: args.sourcePath,
+      storedPath: node.notebook?.path,
+    });
+    if (!file || !doesSubpathExist({ app: args.app, file, targetType: parsed.targetType, subpath: parsed.subpath })) {
       result.push({ nodeId: node.id, title: node.title, link });
     }
   }
@@ -46,6 +51,11 @@ export function isNotebookLinkMissing(args: {
   const parsed = parseObsidianLink(link);
   if (!parsed) return true;
 
-  const file = args.app.metadataCache.getFirstLinkpathDest(parsed.path, args.sourcePath);
-  return !(file instanceof TFile);
+  const file = resolveObsidianLinkFile({
+    app: args.app,
+    link,
+    sourcePath: args.sourcePath,
+    storedPath: args.node.notebook?.path,
+  });
+  return !(file instanceof TFile) || !doesSubpathExist({ app: args.app, file, targetType: parsed.targetType, subpath: parsed.subpath });
 }
