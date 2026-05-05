@@ -1,0 +1,44 @@
+import type { MindmapDocument, MindmapNode } from "../types/mindmap";
+
+export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocument {
+  const doc = input as MindmapDocument;
+
+  return {
+    version: 1,
+    title: doc.title ?? "Untitled Mindmap",
+    layoutMode: doc.layoutMode ?? "radial",
+    viewport: doc.viewport ?? { x: 0, y: 0, zoom: 1 },
+    nodes: Array.isArray(doc.nodes) ? doc.nodes.map(migrateNode) : [],
+    edges: Array.isArray(doc.edges)
+      ? doc.edges.map((edge) => ({
+          ...edge,
+          relation: edge.relation ?? "mindmap",
+          type: edge.type ?? "curve",
+        }))
+      : [],
+  };
+}
+
+function migrateNode(node: MindmapNode): MindmapNode {
+  const next: MindmapNode = {
+    ...node,
+    kind: node.kind ?? "text",
+    treeControl: node.treeControl ?? "auto",
+  };
+
+  if (next.link && !next.notebook) {
+    next.kind = "notebook";
+    next.notebook = {
+      link: next.link,
+      targetType: detectNotebookTargetType(next.link),
+    };
+  }
+
+  return next;
+}
+
+export function detectNotebookTargetType(link: string): "file" | "heading" | "block" {
+  if (link.includes("#^")) return "block";
+  if (link.includes("#")) return "heading";
+  return "file";
+}

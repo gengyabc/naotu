@@ -1,0 +1,10 @@
+{
+  "id": "semantic-zoom-mindmap",
+  "name": "Semantic Zoom Mindmap",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "A semantic zoom mindmap plugin for Obsidian with focus-protected hierarchical semantic zoom and radial layout",
+  "author": "",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

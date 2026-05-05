@@ -1,0 +1,113 @@
+export type MindmapVersion = 1;
+
+export type NodeKind = "text" | "notebook";
+export type EdgeRelation = "mindmap" | "reference";
+export type EdgeType = "line" | "curve";
+export type TreeControl = "auto" | "manual-expanded" | "manual-collapsed";
+export type LayoutMode = "radial" | "free";
+export type NodeDetailLevel = 0 | 1 | 2 | 3 | 4 | 5;
+
+export interface MindmapDocument {
+  version: MindmapVersion;
+  title: string;
+  layoutMode: LayoutMode;
+  viewport: MindmapViewport;
+  nodes: MindmapNode[];
+  edges: MindmapEdge[];
+}
+
+export interface MindmapViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface MindmapNode {
+  id: string;
+  kind: NodeKind;
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  treeControl: TreeControl;
+  notebook?: NotebookBinding;
+  link?: string;
+  tags?: string[];
+  importance?: number;
+  style?: {
+    fill?: string;
+    stroke?: string;
+  };
+}
+
+export interface NotebookBinding {
+  link: string;
+  path?: string;
+  targetType: "file" | "heading" | "block";
+}
+
+export interface MindmapEdge {
+  id: string;
+  source: string;
+  target: string;
+  relation: EdgeRelation;
+  type: EdgeType;
+  label?: string;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ProjectionContext {
+  zoom: number;
+  viewportWorldRect: Rect;
+  selectedNodeIds: string[];
+  hoveredNodeId?: string;
+  lastFocusNodeId?: string;
+}
+
+export interface ProjectedNode {
+  id: string;
+  sourceNodeId: string;
+  kind: NodeKind;
+  title: string;
+  notebook?: NotebookBinding;
+  notebookExists?: boolean;
+  worldX: number;
+  worldY: number;
+  projectedX: number;
+  projectedY: number;
+  displayWidth: number;
+  displayHeight: number;
+  detailLevel: NodeDetailLevel;
+  isRoot: boolean;
+  isFocus: boolean;
+  isSelected: boolean;
+  isHovered: boolean;
+  isAncestorPath: boolean;
+  hasChildren: boolean;
+  childrenExpanded: boolean;
+  showNotebookExpandButton: boolean;
+}
+
+export interface ProjectedEdge {
+  id: string;
+  source: string;
+  target: string;
+  relation: EdgeRelation;
+  type: EdgeType;
+  label?: string;
+}
+
+export interface SemanticProjection {
+  rootNodeId?: string;
+  focusNodeId?: string;
+  visibleNodeIds: Set<string>;
+  nodes: ProjectedNode[];
+  edges: ProjectedEdge[];
+}

@@ -1,0 +1,135 @@
+.semantic-mindmap-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.semantic-mindmap-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.semantic-mindmap-canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.semantic-mindmap-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.semantic-mindmap-svg {
+  width: 100%;
+  height: 100%;
+  background: var(--background-primary);
+}
+
+.inline-editor-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mindmap-inline-title-input {
+  position: absolute;
+  z-index: 20;
+  pointer-events: auto;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 14px;
+  font-family: var(--font-interface);
+  outline: none;
+}
+
+.mindmap-node-bg {
+  fill: var(--background-primary);
+  stroke: var(--background-modifier-border);
+  stroke-width: 1.2px;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
+}
+
+.mindmap-node.is-selected .mindmap-node-bg,
+.mindmap-node.is-focus .mindmap-node-bg {
+  stroke: var(--interactive-accent);
+  stroke-width: 2.4px;
+}
+
+.mindmap-node.is-ancestor-path .mindmap-node-bg {
+  stroke-width: 1.6px;
+}
+
+.mindmap-node-title {
+  fill: var(--text-normal);
+  font-weight: 600;
+  pointer-events: auto;
+  cursor: text;
+}
+
+.mindmap-node-kind-badge {
+  fill: var(--text-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.mindmap-node-tree-toggle {
+  fill: var(--text-muted);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mindmap-node-tree-toggle:hover {
+  fill: var(--interactive-accent);
+}
+
+.mindmap-node-notebook-expand {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mindmap-node-notebook-expand:hover {
+  color: var(--interactive-accent);
+}
+
+.mindmap-edge {
+  fill: none;
+  pointer-events: stroke;
+}
+
+.mindmap-edge-mindmap {
+  stroke: var(--background-modifier-border);
+  stroke-width: 2px;
+}
+
+.mindmap-edge-reference {
+  stroke: var(--text-muted);
+  stroke-width: 1.4px;
+  stroke-dasharray: 5 5;
+  opacity: 0.65;
+}
+
+.mindmap-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 12px;
+}
+
+.mindmap-preview-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+}
