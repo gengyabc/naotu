@@ -3,20 +3,25 @@ import { App } from "obsidian";
 import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
 import { createSemanticProjection } from "../core/semantic-projection";
-import { cullProjectionToViewport } from "../core/viewport-culling";
+import { partitionForHybridRender } from "../core/render-partition";
+import { CanvasBackgroundRenderer } from "./canvas-background-renderer";
 import { renderProjectedEdges } from "./projected-edge-renderer";
 import { renderProjectedNodes } from "./projected-node-renderer";
 import { InlineTitleEditor } from "./inline-title-editor";
 import type { RendererAdapter } from "./renderer-adapter";
 import { PerformanceMonitor } from "../core/performance-monitor";
 
-export class SvgMindmapRenderer implements RendererAdapter {
+export class HybridMindmapRenderer implements RendererAdapter {
+  private root!: HTMLDivElement;
+  private canvas!: HTMLCanvasElement;
   private svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
-  private edgeWorldLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
-  private nodeScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
-  private inlineEditorLayer!: HTMLDivElement;
+  private svgEdgeLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private svgNodeLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
   private overlayScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private inlineEditorLayer!: HTMLDivElement;
   private zoomBehavior!: d3.ZoomBehavior<SVGSVGElement, unknown>;
+  private canvasRenderer = new CanvasBackgroundRenderer();
+  private performanceMonitor = new PerformanceMonitor();
   private hoveredNodeId: string | undefined;
   private lastFocusNodeId: string | undefined;
   private forcedDetailLevel = new Map<string, NodeDetailLevel>();
@@ -27,7 +32,6 @@ export class SvgMindmapRenderer implements RendererAdapter {
   private selectionStartWorld: { x: number; y: number } | null = null;
   private dragging = false;
   private renderScheduled = false;
-  private performanceMonitor = new PerformanceMonitor();
 
   constructor(
     private options: {
@@ -64,23 +68,20 @@ export class SvgMindmapRenderer implements RendererAdapter {
   mount(): void {
     this.options.container.empty();
     this.options.container.addClass("semantic-mindmap-container");
-
-    this.svg = d3.select(this.options.container).append("svg").attr("class", "semantic-mindmap-svg").attr("width", "100%").attr("height", "100%");
-    this.edgeWorldLayer = this.svg.append("g").attr("class", "edge-world-layer");
-    this.nodeScreenLayer = this.svg.append("g").attr("class", "node-screen-layer");
+    this.root = this.options.container.createDiv({ cls: "hybrid-renderer-root" });
+    this.canvas = this.root.createEl("canvas", { cls: "hybrid-background-canvas" });
+    this.svg = d3.select(this.root).append("svg").attr("class", "hybrid-interaction-svg").attr("width", "100%").attr("height", "100%");
+    this.svgEdgeLayer = this.svg.append("g").attr("class", "svg-edge-layer");
+    this.svgNodeLayer = this.svg.append("g").attr("class", "svg-node-layer");
     this.overlayScreenLayer = this.svg.append("g").attr("class", "overlay-screen-layer");
     this.overlayScreenLayer.append("rect").attr("class", "selection-box").style("display", "none");
-    this.inlineEditorLayer = this.options.container.createDiv({ cls: "inline-editor-layer" });
+    this.inlineEditorLayer = this.root.createDiv({ cls: "inline-editor-layer" });
 
-    this.zoomBehavior = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.12, 4])
-      .on("zoom", (event) => {
-        const t = event.transform;
-        this.options.onViewportChange(t.x, t.y, t.k);
-        this.scheduleRender();
-      });
-
+    this.zoomBehavior = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.12, 4]).on("zoom", (event) => {
+      const t = event.transform;
+      this.options.onViewportChange(t.x, t.y, t.k);
+      this.scheduleRender();
+    });
     this.svg.call(this.zoomBehavior);
     this.bindBoxSelect();
     const viewport = this.options.getDocument().viewport;
@@ -115,35 +116,28 @@ export class SvgMindmapRenderer implements RendererAdapter {
       if (forced !== undefined && forced > node.detailLevel) node.detailLevel = forced;
     }
 
-    let renderNodes = projection.nodes;
-    let renderEdges = projection.edges;
-    if (doc.nodes.length > 500) {
-      const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
-      renderNodes = culled.nodes;
-      renderEdges = culled.edges;
-    }
-
+    const partition = partitionForHybridRender(projection.nodes, projection.edges);
     this.performanceMonitor.measure(
       {
-        mode: "svg",
+        mode: "hybrid",
         nodeCount: projection.nodes.length,
         edgeCount: projection.edges.length,
-        renderedNodeCount: renderNodes.length,
-        renderedEdgeCount: renderEdges.length,
+        renderedNodeCount: partition.svgNodes.length + partition.canvasNodes.length,
+        renderedEdgeCount: partition.svgEdges.length + partition.canvasEdges.length,
       },
       () => {
-        this.edgeWorldLayer.attr("transform", transform.toString());
-        renderProjectedEdges({
-          edgeLayer: this.edgeWorldLayer,
-          nodes: renderNodes,
-          edges: renderEdges,
-          onEdgeContextMenu: this.options.onEdgeContextMenu,
+        this.canvasRenderer.render({
+          canvas: this.canvas,
+          nodes: partition.canvasNodes,
+          edges: partition.canvasEdges,
+          transform: { x: transform.x, y: transform.y, k: transform.k },
         });
-
+        this.svgEdgeLayer.attr("transform", transform.toString());
+        renderProjectedEdges({ edgeLayer: this.svgEdgeLayer, nodes: projection.nodes, edges: partition.svgEdges, onEdgeContextMenu: this.options.onEdgeContextMenu });
         renderProjectedNodes({
           app: this.options.app,
-          nodeLayer: this.nodeScreenLayer,
-          nodes: renderNodes,
+          nodeLayer: this.svgNodeLayer,
+          nodes: partition.svgNodes,
           transform: { x: transform.x, y: transform.y, k: transform.k },
           sourcePath: this.options.sourcePath,
           getSelectedNodeIds: this.options.getSelectedNodeIds,
@@ -193,19 +187,46 @@ export class SvgMindmapRenderer implements RendererAdapter {
     );
 
     if (transform.k < 0.45) this.clearForcedDetailExcept();
-
     const sample = this.performanceMonitor.getLastSample();
     this.options.onRenderStats?.({
-      mode: "svg",
+      mode: "hybrid",
       zoom: transform.k,
       totalNodes: projection.nodes.length,
-      renderedNodes: renderNodes.length,
+      renderedNodes: partition.svgNodes.length + partition.canvasNodes.length,
       totalEdges: projection.edges.length,
-      renderedEdges: renderEdges.length,
+      renderedEdges: partition.svgEdges.length + partition.canvasEdges.length,
       durationMs: sample?.durationMs ?? 0,
       averageDurationMs: this.performanceMonitor.getAverageDuration(),
       isSlow: this.performanceMonitor.isSlow(),
     });
+  }
+
+  setSearchResultIds(ids: Set<string>): void {
+    this.searchResultIds = new Set(ids);
+  }
+
+  setConnectionState(state: { enabled: boolean; sourceId?: string }): void {
+    this.connectionEnabled = state.enabled;
+    this.connectionSourceId = state.sourceId;
+  }
+
+  setLastFocusNodeId(id: string): void {
+    this.lastFocusNodeId = id;
+  }
+
+  forceDetailLevel(id: string, level: number): void {
+    this.forcedDetailLevel.set(id, level as NodeDetailLevel);
+  }
+
+  focusNode(id: string): void {
+    const node = this.options.getDocument().nodes.find((item) => item.id === id);
+    if (!node) return;
+    const rect = this.options.container.getBoundingClientRect();
+    const current = d3.zoomTransform(this.svg.node()!);
+    const k = Math.max(current.k, 1.2);
+    const x = rect.width / 2 - node.x * k;
+    const y = rect.height / 2 - node.y * k;
+    this.svg.transition().duration(250).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
   }
 
   private scheduleRender(): void {
@@ -223,36 +244,6 @@ export class SvgMindmapRenderer implements RendererAdapter {
     }
   }
 
-  setSearchResultIds(ids: Set<string>): void {
-    this.searchResultIds = new Set(ids);
-  }
-
-  setConnectionState(state: { enabled: boolean; sourceId?: string }): void {
-    this.connectionEnabled = state.enabled;
-    this.connectionSourceId = state.sourceId;
-  }
-
-  setLastFocusNodeId(id: string): void {
-    this.lastFocusNodeId = id;
-  }
-
-  forceDetailLevel(id: string, level: NodeDetailLevel): void {
-    this.forcedDetailLevel.set(id, level);
-  }
-
-  focusNode(id: string): void {
-    const node = this.options.getDocument().nodes.find((item) => item.id === id);
-    if (!node) return;
-
-    const rect = this.options.container.getBoundingClientRect();
-    const current = d3.zoomTransform(this.svg.node()!);
-    const k = Math.max(current.k, 1.2);
-    const x = rect.width / 2 - node.x * k;
-    const y = rect.height / 2 - node.y * k;
-
-    this.svg.transition().duration(250).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
-  }
-
   private getViewportWorldRect(): { x: number; y: number; width: number; height: number } {
     const transform = d3.zoomTransform(this.svg.node()!);
     const rect = this.options.container.getBoundingClientRect();
@@ -265,9 +256,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
     this.svg.on("mousedown.boxselect", (event) => {
       if (!event.shiftKey) return;
       if ((event.target as Element).closest(".mindmap-node")) return;
-
       event.preventDefault();
-
       const transform = d3.zoomTransform(this.svg.node()!);
       const [x, y] = transform.invert(d3.pointer(event, this.svg.node()));
       this.selecting = true;
@@ -276,36 +265,22 @@ export class SvgMindmapRenderer implements RendererAdapter {
 
     this.svg.on("mousemove.boxselect", (event) => {
       if (!this.selecting || !this.selectionStartWorld) return;
-
       const transform = d3.zoomTransform(this.svg.node()!);
-      const startScreen = [
-        this.selectionStartWorld.x * transform.k + transform.x,
-        this.selectionStartWorld.y * transform.k + transform.y,
-      ];
+      const startScreen = [this.selectionStartWorld.x * transform.k + transform.x, this.selectionStartWorld.y * transform.k + transform.y];
       const currentScreen = d3.pointer(event, this.svg.node());
-
       const x = Math.min(startScreen[0], currentScreen[0]);
       const y = Math.min(startScreen[1], currentScreen[1]);
       const width = Math.abs(currentScreen[0] - startScreen[0]);
       const height = Math.abs(currentScreen[1] - startScreen[1]);
-
-      this.overlayScreenLayer
-        .select<SVGRectElement>("rect.selection-box")
-        .style("display", null)
-        .attr("x", x)
-        .attr("y", y)
-        .attr("width", width)
-        .attr("height", height);
+      this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", null).attr("x", x).attr("y", y).attr("width", width).attr("height", height);
     });
 
     this.svg.on("mouseup.boxselect", (event) => {
       if (!this.selecting || !this.selectionStartWorld) return;
-
       const transform = d3.zoomTransform(this.svg.node()!);
       const [x2, y2] = transform.invert(d3.pointer(event, this.svg.node()));
       const rect = normalizeRect(this.selectionStartWorld.x, this.selectionStartWorld.y, x2, y2);
       this.options.onBoxSelect(rect);
-
       this.selecting = false;
       this.selectionStartWorld = null;
       this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");

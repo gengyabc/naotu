@@ -8,7 +8,9 @@ import type {
 } from "../types/mindmap";
 import { buildHierarchy, getAncestorPath } from "./hierarchy";
 import { resolveFocusNodeId } from "./focus";
-import { clampDetailLevel, getVisualSpec, zoomToBaseDetailLevel } from "./detail-level";
+import { getVisualSpec } from "./detail-level";
+import { computeSemanticDetailLevel } from "./semantic-zoom-policy";
+import { relaxProjectedNodes } from "./layout-relaxation";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -44,7 +46,7 @@ export function createSemanticProjection(
   includeReferenceNeighbors({ doc, hierarchy, visibleNodeIds, viewportWorldRect: context.viewportWorldRect });
 
   let projectedNodes: ProjectedNode[] = [];
-  const base = zoomToBaseDetailLevel(context.zoom);
+  const focusNode = focusNodeId ? doc.nodes.find((node) => node.id === focusNodeId) : undefined;
 
   for (const node of doc.nodes) {
     if (!visibleNodeIds.has(node.id)) continue;
@@ -54,14 +56,22 @@ export function createSemanticProjection(
     const isSelected = context.selectedNodeIds.includes(node.id);
     const isHovered = context.hoveredNodeId === node.id;
     const isAncestorPath = focusPathSet.has(node.id) && !isFocus;
+    const children = hierarchy.childrenById.get(node.id) ?? [];
 
-    let detail: NodeDetailLevel = base;
-    if (!isFocus && !isSelected && !isHovered && !isAncestorPath) detail = clampDetailLevel(base - 1);
-    if (isAncestorPath) detail = clampDetailLevel(Math.max(detail, 1));
-    if (isFocus || isSelected || isHovered) detail = clampDetailLevel(Math.max(detail, 2));
+    const detail: NodeDetailLevel = computeSemanticDetailLevel({
+      zoom: context.zoom,
+      kind: node.kind,
+      isRoot,
+      isFocus,
+      isSelected,
+      isHovered,
+      isAncestorPath,
+      hasNotebook: Boolean(node.notebook),
+      hasChildren: children.length > 0,
+      distanceToFocus: focusNode ? distance(node, focusNode) : 0,
+    });
 
     const visual = getVisualSpec(node.kind, detail);
-    const children = hierarchy.childrenById.get(node.id) ?? [];
     const childrenExpanded = areChildrenExpanded(node.treeControl, context.zoom);
 
     projectedNodes.push({
@@ -90,7 +100,10 @@ export function createSemanticProjection(
     });
   }
 
-  projectedNodes = resolveSimpleOverlap(projectedNodes);
+  projectedNodes = relaxProjectedNodes(projectedNodes, {
+    iterations: doc.nodes.length > 300 ? 2 : 4,
+    pushStrength: 28,
+  });
 
   const projectedEdges: ProjectedEdge[] = doc.edges
     .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
@@ -169,31 +182,8 @@ function isNearViewport(
   );
 }
 
-function resolveSimpleOverlap(nodes: ProjectedNode[]): ProjectedNode[] {
-  const next = nodes.map((node) => ({ ...node }));
-  const focus = next.find((node) => node.isSelected || node.isFocus);
-  if (!focus) return next;
-
-  for (const node of next) {
-    if (node.id === focus.id) continue;
-    if (!overlaps(focus, node)) continue;
-
-    const dx = node.projectedX - focus.projectedX;
-    const dy = node.projectedY - focus.projectedY;
-    const length = Math.sqrt(dx * dx + dy * dy) || 1;
-
-    node.projectedX += (dx / length) * 90;
-    node.projectedY += (dy / length) * 90;
-  }
-
-  return next;
-}
-
-function overlaps(a: ProjectedNode, b: ProjectedNode): boolean {
-  return !(
-    a.projectedX + a.displayWidth < b.projectedX ||
-    b.projectedX + b.displayWidth < a.projectedX ||
-    a.projectedY + a.displayHeight < b.projectedY ||
-    b.projectedY + b.displayHeight < a.projectedY
-  );
+function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }

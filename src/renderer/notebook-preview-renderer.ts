@@ -1,7 +1,7 @@
 import { App, MarkdownRenderer } from "obsidian";
 import { parseObsidianLink } from "../core/obsidian-link";
+import { globalPreviewCache } from "../core/preview-cache";
 
-const markdownCache = new Map<string, string>();
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 
 export async function renderNotebookPreview(args: {
@@ -39,11 +39,11 @@ async function readLinkedMarkdown(app: App, link: string, sourcePath: string): P
   if (!file) return null;
 
   const cacheKey = `${file.path}::${parsed.subpath ?? ""}`;
-  const cached = markdownCache.get(cacheKey);
+  const cached = globalPreviewCache.get(cacheKey);
   if (cached) return cached;
 
   const content = await app.vault.read(file);
   const result = content.split("\n").slice(0, 40).join("\n");
-  markdownCache.set(cacheKey, result);
+  globalPreviewCache.set(cacheKey, result);
   return result;
 }

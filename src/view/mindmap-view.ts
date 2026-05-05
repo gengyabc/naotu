@@ -11,6 +11,8 @@ import { DebouncedAutosave } from "../core/autosave";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
 import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
+import { HybridMindmapRenderer } from "../renderer/hybrid-mindmap-renderer";
+import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { RadialLayoutEngine } from "../core/radial-layout";
 import { createId } from "../core/id";
 import type { MindmapNode } from "../types/mindmap";
@@ -19,21 +21,22 @@ import { searchNodes } from "../core/search";
 import { createTextNodeNearParent, findParentId, findRootId } from "../core/tree-editing";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
 import { MarkdownFileSuggestModal } from "../ui/file-suggest-modal";
-import { DebugOverlay } from "../ui/debug-overlay";
+import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
+import { chooseRenderMode } from "../core/render-mode";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
   private autosave: DebouncedAutosave;
   private selection = new SelectionState();
   private notebookService: NotebookService;
-  private renderer: SvgMindmapRenderer | null = null;
+  private renderer: RendererAdapter | null = null;
   private sourceFile: TFile | null = null;
   private history = new HistoryManager();
   private searchQuery = "";
   private searchResultIds = new Set<string>();
   private connectionMode = false;
   private connectionSourceId: string | undefined;
-  private debugOverlay: DebugOverlay | null = null;
+  private debugOverlay: PerformanceDebugOverlay | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -126,10 +129,14 @@ export class MindmapView extends ItemView {
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
 
     if (this.plugin.settings.showDebugOverlay) {
-      this.debugOverlay = new DebugOverlay(canvas);
+      this.debugOverlay = new PerformanceDebugOverlay(canvas);
     }
 
-    this.renderer = new SvgMindmapRenderer({
+    const doc = this.store.getDocument();
+    const renderMode = chooseRenderMode({ nodeCount: doc.nodes.length, edgeCount: doc.edges.length });
+    const RendererClass = renderMode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
+
+    this.renderer = new RendererClass({
       app: this.app,
       container: canvas,
       sourcePath: this.sourceFile?.path ?? "",
@@ -187,7 +194,19 @@ export class MindmapView extends ItemView {
         this.renderer?.render();
       },
       onRenderStats: (stats) => {
-        this.debugOverlay?.update(stats);
+        this.debugOverlay?.update({
+          sample: {
+            timestamp: Date.now(),
+            mode: stats.mode,
+            durationMs: stats.durationMs,
+            nodeCount: stats.totalNodes,
+            edgeCount: stats.totalEdges,
+            renderedNodeCount: stats.renderedNodes,
+            renderedEdgeCount: stats.renderedEdges,
+          },
+          averageDuration: stats.averageDurationMs,
+          isSlow: stats.isSlow,
+        });
       },
     });
 

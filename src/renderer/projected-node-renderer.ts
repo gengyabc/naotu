@@ -24,6 +24,7 @@ export function renderProjectedNodes(args: {
   onBeforeNodeDragStart: () => void;
   onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
   onNodeDragEnd: () => void;
+  onDragStateChange?: (dragging: boolean) => void;
 }): void {
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().remove();
@@ -42,6 +43,7 @@ export function renderProjectedNodes(args: {
     .drag<SVGGElement, ProjectedNode>()
     .on("start", (event, node) => {
       event.sourceEvent?.stopPropagation();
+      args.onDragStateChange?.(true);
       args.onBeforeNodeDragStart();
 
       const selectedIds = args.getSelectedNodeIds();
@@ -67,6 +69,7 @@ export function renderProjectedNodes(args: {
       args.onNodesMove(moves);
     })
     .on("end", () => {
+      args.onDragStateChange?.(false);
       args.onNodeDragEnd();
     });
 

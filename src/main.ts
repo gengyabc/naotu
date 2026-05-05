@@ -5,6 +5,7 @@ import { VIEW_TYPE_MINDMAP } from "./constants";
 import { DEFAULT_SETTINGS, type SemanticMindmapSettings } from "./types/settings";
 import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
+import { globalPreviewCache } from "./core/preview-cache";
 
 export default class SemanticZoomMindmapPlugin extends Plugin {
   settings!: SemanticMindmapSettings;
@@ -73,6 +74,12 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
           const view = leaf.view;
           if (view instanceof MindmapView) await view.refreshNotebookLinks();
         }
+      }),
+    );
+
+    this.registerEvent(
+      this.app.vault.on("modify", () => {
+        globalPreviewCache.clear();
       }),
     );
   }
