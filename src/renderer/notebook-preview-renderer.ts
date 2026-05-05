@@ -1,6 +1,5 @@
 import { App, MarkdownRenderer } from "obsidian";
-import { parseObsidianLink } from "../core/obsidian-link";
-import { globalPreviewCache } from "../core/preview-cache";
+import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 
@@ -23,27 +22,16 @@ export async function renderNotebookPreview(args: {
   }
 
   wrapper.empty();
-  const markdown = await readLinkedMarkdown(args.app, args.link, args.sourcePath);
+  const markdown = await readNotebookPreviewMarkdown({
+    app: args.app,
+    link: args.link,
+    sourcePath: args.sourcePath,
+    maxLines: 40,
+  });
   if (!markdown) {
     wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
     return;
   }
 
   await MarkdownRenderer.render(args.app, markdown, wrapper, args.sourcePath, null as never);
-}
-
-async function readLinkedMarkdown(app: App, link: string, sourcePath: string): Promise<string | null> {
-  const parsed = parseObsidianLink(link);
-  if (!parsed) return null;
-  const file = app.metadataCache.getFirstLinkpathDest(parsed.path, sourcePath);
-  if (!file) return null;
-
-  const cacheKey = `${file.path}::${parsed.subpath ?? ""}`;
-  const cached = globalPreviewCache.get(cacheKey);
-  if (cached) return cached;
-
-  const content = await app.vault.read(file);
-  const result = content.split("\n").slice(0, 40).join("\n");
-  globalPreviewCache.set(cacheKey, result);
-  return result;
 }

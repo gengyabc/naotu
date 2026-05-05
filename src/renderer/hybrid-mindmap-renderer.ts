@@ -32,6 +32,8 @@ export class HybridMindmapRenderer implements RendererAdapter {
   private selectionStartWorld: { x: number; y: number } | null = null;
   private dragging = false;
   private renderScheduled = false;
+  private lastProjectedNodes: import("../types/mindmap").ProjectedNode[] = [];
+  private missingNotebookNodeIds = new Set<string>();
 
   constructor(
     private options: {
@@ -112,9 +114,11 @@ export class HybridMindmapRenderer implements RendererAdapter {
     );
 
     for (const node of projection.nodes) {
+      node.isMissingNotebook = this.missingNotebookNodeIds.has(node.id);
       const forced = this.forcedDetailLevel.get(node.id);
       if (forced !== undefined && forced > node.detailLevel) node.detailLevel = forced;
     }
+    this.lastProjectedNodes = projection.nodes;
 
     const partition = partitionForHybridRender(projection.nodes, projection.edges);
     this.performanceMonitor.measure(
@@ -210,6 +214,14 @@ export class HybridMindmapRenderer implements RendererAdapter {
     this.connectionSourceId = state.sourceId;
   }
 
+  setMissingNotebookNodeIds(ids: Set<string>): void {
+    this.missingNotebookNodeIds = new Set(ids);
+  }
+
+  getLastProjectedNodes(): import("../types/mindmap").ProjectedNode[] {
+    return this.lastProjectedNodes;
+  }
+
   setLastFocusNodeId(id: string): void {
     this.lastFocusNodeId = id;
   }
@@ -229,6 +241,53 @@ export class HybridMindmapRenderer implements RendererAdapter {
     this.svg.transition().duration(250).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
   }
 
+  startInlineEditByNodeId(nodeId: string): void {
+    const node = this.lastProjectedNodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    const transform = d3.zoomTransform(this.svg.node()!);
+    const screenX = node.projectedX * transform.k + transform.x;
+    const screenY = node.projectedY * transform.k + transform.y;
+    new InlineTitleEditor({
+      layer: this.inlineEditorLayer,
+      x: screenX + 10,
+      y: screenY + 8,
+      width: node.displayWidth - 20,
+      value: node.title,
+      onCommit: async (value) => {
+        await this.options.onInlineTitleCommit(node.id, value);
+      },
+      onCancel: () => {},
+    }).open();
+  }
+
+  zoomBy(factor: number): void {
+    const svgNode = this.svg.node();
+    if (!svgNode) return;
+    const current = d3.zoomTransform(svgNode);
+    const rect = this.options.container.getBoundingClientRect();
+    const nextK = Math.max(0.12, Math.min(4, current.k * factor));
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const worldCenter = current.invert([cx, cy]);
+    const nextX = cx - worldCenter[0] * nextK;
+    const nextY = cy - worldCenter[1] * nextK;
+    this.svg.transition().duration(160).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(nextK));
+  }
+
+  fitRoot(): void {
+    const root = this.options.getDocument().nodes[0];
+    if (!root) return;
+    this.focusNode(root.id);
+  }
+
+  jumpToWorldPoint(x: number, y: number): void {
+    const rect = this.options.container.getBoundingClientRect();
+    const current = d3.zoomTransform(this.svg.node()!);
+    const nextX = rect.width / 2 - x * current.k;
+    const nextY = rect.height / 2 - y * current.k;
+    this.svg.transition().duration(180).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(current.k));
+  }
+
   private scheduleRender(): void {
     if (this.renderScheduled) return;
     this.renderScheduled = true;
@@ -244,7 +303,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
     }
   }
 
-  private getViewportWorldRect(): { x: number; y: number; width: number; height: number } {
+  getViewportWorldRect(): { x: number; y: number; width: number; height: number } {
     const transform = d3.zoomTransform(this.svg.node()!);
     const rect = this.options.container.getBoundingClientRect();
     const topLeft = transform.invert([0, 0]);

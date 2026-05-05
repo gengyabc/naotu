@@ -81,6 +81,7 @@ export interface ProjectedNode {
   kind: NodeKind;
   title: string;
   notebook?: NotebookBinding;
+  isMissingNotebook?: boolean;
   notebookExists?: boolean;
   worldX: number;
   worldY: number;

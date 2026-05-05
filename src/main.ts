@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, type SemanticMindmapSettings } from "./types/settings
 import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
 import { globalPreviewCache } from "./core/preview-cache";
+import { createSampleMindmap } from "./core/sample-data";
 
 export default class SemanticZoomMindmapPlugin extends Plugin {
   settings!: SemanticMindmapSettings;
@@ -82,6 +83,30 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
         globalPreviewCache.clear();
       }),
     );
+
+    this.addCommand({
+      id: "create-sample-mindmap-100",
+      name: "Create sample mindmap with 100 nodes",
+      callback: async () => {
+        await this.createSampleMindmapFile(100);
+      },
+    });
+
+    this.addCommand({
+      id: "create-sample-mindmap-1000",
+      name: "Create sample mindmap with 1000 nodes",
+      callback: async () => {
+        await this.createSampleMindmapFile(1000);
+      },
+    });
+
+    this.addCommand({
+      id: "create-sample-mindmap-3000",
+      name: "Create sample mindmap with 3000 nodes",
+      callback: async () => {
+        await this.createSampleMindmapFile(3000);
+      },
+    });
   }
 
   onunload(): void {
@@ -172,5 +197,12 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     }
 
     await this.openMindmapFile(target);
+  }
+
+  private async createSampleMindmapFile(nodeCount: number): Promise<void> {
+    const doc = createSampleMindmap(nodeCount);
+    const path = `Sample-${nodeCount}-${Date.now()}.mindmap.json`;
+    const file = await this.app.vault.create(path, JSON.stringify(doc, null, 2));
+    await this.openMindmapFile(file);
   }
 }

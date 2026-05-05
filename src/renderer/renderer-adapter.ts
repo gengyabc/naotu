@@ -1,3 +1,5 @@
+import type { ProjectedNode, Rect } from "../types/mindmap";
+
 export interface RendererAdapter {
   mount(): void;
   unmount(): void;
@@ -9,4 +11,12 @@ export interface RendererAdapter {
 
   setSearchResultIds(ids: Set<string>): void;
   setConnectionState(state: { enabled: boolean; sourceId?: string }): void;
+
+  setMissingNotebookNodeIds?(ids: Set<string>): void;
+  getLastProjectedNodes?(): ProjectedNode[];
+  startInlineEditByNodeId?(nodeId: string): void;
+  zoomBy?(factor: number): void;
+  fitRoot?(): void;
+  jumpToWorldPoint?(x: number, y: number): void;
+  getViewportWorldRect?(): Rect;
 }

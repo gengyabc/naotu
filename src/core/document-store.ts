@@ -86,6 +86,40 @@ export class MindmapDocumentStore {
     this.patchNode(id, { treeControl });
   }
 
+  setTreeControlForSubtree(rootId: string, control: TreeControl): void {
+    const childrenById = new Map<string, string[]>();
+    for (const node of this.doc.nodes) {
+      childrenById.set(node.id, []);
+    }
+    for (const edge of this.doc.edges) {
+      if (edge.relation !== "mindmap") continue;
+      childrenById.get(edge.source)?.push(edge.target);
+    }
+
+    const ids: string[] = [];
+    const collect = (id: string): void => {
+      ids.push(id);
+      for (const child of childrenById.get(id) ?? []) {
+        collect(child);
+      }
+    };
+    collect(rootId);
+
+    const idSet = new Set(ids);
+    for (const node of this.doc.nodes) {
+      if (idSet.has(node.id)) node.treeControl = control;
+    }
+
+    this.emit();
+  }
+
+  setTreeControlForAll(control: TreeControl): void {
+    for (const node of this.doc.nodes) {
+      node.treeControl = control;
+    }
+    this.emit();
+  }
+
   addNode(node: MindmapNode): void {
     this.doc.nodes.push(node);
     this.emit();

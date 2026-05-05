@@ -23,6 +23,11 @@ import { nodeWorldRect, rectIntersects } from "../core/geometry";
 import { MarkdownFileSuggestModal } from "../ui/file-suggest-modal";
 import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
 import { chooseRenderMode } from "../core/render-mode";
+import { findNearestNodeInDirection, findRootNodeId } from "../core/keyboard-navigation";
+import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
+import { MinimapRenderer } from "../renderer/minimap-renderer";
+import { findMissingNotebookLinks } from "../core/missing-link-detector";
+import { DirtyStateManager } from "../core/dirty-state";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -37,6 +42,11 @@ export class MindmapView extends ItemView {
   private connectionMode = false;
   private connectionSourceId: string | undefined;
   private debugOverlay: PerformanceDebugOverlay | null = null;
+  private searchInputEl: HTMLInputElement | null = null;
+  private minimap: MinimapRenderer | null = null;
+  private missingNotebookNodeIds = new Set<string>();
+  private dirtyState = new DirtyStateManager();
+  private saveStatusEl: HTMLElement | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -44,7 +54,15 @@ export class MindmapView extends ItemView {
   ) {
     super(leaf);
     this.store = new MindmapDocumentStore(this.app);
-    this.autosave = new DebouncedAutosave(() => this.store.save());
+    this.autosave = new DebouncedAutosave(async () => {
+      try {
+        this.dirtyState.setState("saving");
+        await this.store.save();
+        this.dirtyState.setState("saved");
+      } catch {
+        this.dirtyState.setState("error");
+      }
+    });
     this.notebookService = new NotebookService(
       this.app,
       this.plugin.settings.notebookFolder,
@@ -65,6 +83,7 @@ export class MindmapView extends ItemView {
     await this.store.openFile(file);
     this.history.clear();
     await this.syncNotebookPaths();
+    this.refreshMissingNotebookLinks();
     this.renderView();
   }
 
@@ -79,10 +98,13 @@ export class MindmapView extends ItemView {
     this.renderer?.unmount();
     this.debugOverlay?.remove();
     this.debugOverlay = null;
+    this.minimap?.remove();
+    this.minimap = null;
   }
 
   async refreshNotebookLinks(): Promise<void> {
     await this.syncNotebookPaths();
+    this.refreshMissingNotebookLinks();
     this.renderer?.render();
   }
 
@@ -97,13 +119,23 @@ export class MindmapView extends ItemView {
     layoutButton.onclick = () => this.applyRadialLayout();
 
     const saveButton = toolbar.createEl("button", { text: "保存" });
-    saveButton.onclick = () => void this.store.save();
+    saveButton.onclick = () => {
+      this.markDirty();
+      void this.autosave.flush();
+    };
+
+    const exportSvgButton = toolbar.createEl("button", { text: "导出 SVG" });
+    exportSvgButton.onclick = () => void this.exportSvg();
+
+    const exportPngButton = toolbar.createEl("button", { text: "导出 PNG" });
+    exportPngButton.onclick = () => void this.exportPng();
 
     const searchInput = toolbar.createEl("input", {
       type: "text",
       placeholder: "搜索节点...",
     });
     searchInput.value = this.searchQuery;
+    this.searchInputEl = searchInput;
     searchInput.oninput = () => {
       this.updateSearch(searchInput.value);
     };
@@ -123,6 +155,20 @@ export class MindmapView extends ItemView {
       this.renderer?.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
       this.renderer?.render();
     };
+
+    this.saveStatusEl = toolbar.createSpan({ cls: "mindmap-save-status", text: "Saved" });
+    this.dirtyState.subscribe((state) => {
+      if (!this.saveStatusEl) return;
+      const label =
+        state === "saved"
+          ? "Saved"
+          : state === "dirty"
+            ? "Unsaved"
+            : state === "saving"
+              ? "Saving..."
+              : "Save error";
+      this.saveStatusEl.setText(label);
+    });
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
     canvas.tabIndex = 0;
@@ -144,6 +190,7 @@ export class MindmapView extends ItemView {
       getSelectedNodeIds: () => this.selection.getIds(),
       onViewportChange: (x, y, zoom) => {
         this.store.setViewport(x, y, zoom);
+        this.markDirty();
         this.autosave.schedule();
       },
       onSelectNode: (id, mode) => {
@@ -156,6 +203,7 @@ export class MindmapView extends ItemView {
         this.commitHistory();
         this.store.toggleTreeControl(id);
         this.renderer?.render();
+        this.markDirty();
         this.autosave.schedule();
       },
       onNotebookExpand: (id) => {
@@ -177,9 +225,11 @@ export class MindmapView extends ItemView {
       onNodesMove: (moves) => {
         this.store.updateNodePositions(moves);
         this.renderer?.render();
+        this.markDirty();
         this.autosave.schedule();
       },
       onNodeDragEnd: () => {
+        this.markDirty();
         this.autosave.schedule();
       },
       onBoxSelect: (rect) => {
@@ -207,13 +257,20 @@ export class MindmapView extends ItemView {
           averageDuration: stats.averageDurationMs,
           isSlow: stats.isSlow,
         });
+        this.updateMinimap();
       },
     });
 
     this.renderer.mount();
+    this.renderer.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
     this.renderer.setSearchResultIds(this.searchResultIds);
     this.renderer.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
     this.renderer.render();
+
+    this.minimap = new MinimapRenderer(canvas, (x, y) => {
+      this.renderer?.jumpToWorldPoint?.(x, y);
+    });
+    this.updateMinimap();
   }
 
   private commitHistory(): void {
@@ -225,6 +282,7 @@ export class MindmapView extends ItemView {
     if (!previous) return;
     this.store.replaceDocument(previous);
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -233,6 +291,7 @@ export class MindmapView extends ItemView {
     if (!next) return;
     this.store.replaceDocument(next);
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -252,6 +311,7 @@ export class MindmapView extends ItemView {
     this.store.addNode(node);
     this.selection.setOnly(node.id);
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -289,6 +349,7 @@ export class MindmapView extends ItemView {
     this.renderer?.setLastFocusNodeId(child.id);
     this.renderer?.render();
     this.renderer?.focusNode(child.id);
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -320,6 +381,7 @@ export class MindmapView extends ItemView {
     this.renderer?.setLastFocusNodeId(sibling.id);
     this.renderer?.render();
     this.renderer?.focusNode(sibling.id);
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -332,10 +394,12 @@ export class MindmapView extends ItemView {
         this.commitHistory();
         const result = await this.notebookService.createOrBindNotebookForTextNode(node, this.sourceFile?.path ?? "");
         this.store.patchNode(id, result.patch);
+        this.refreshMissingNotebookLinks();
         this.selection.setOnly(id);
         this.renderer?.setLastFocusNodeId(id);
         this.renderer?.forceDetailLevel(id, 5);
         this.renderer?.render();
+        this.markDirty();
         this.autosave.schedule();
       } catch (error) {
         new Notice(error instanceof Error ? error.message : "无法创建 notebook");
@@ -357,6 +421,7 @@ export class MindmapView extends ItemView {
     if (node.kind === "text") {
       this.store.updateNodeTitle(id, title);
       this.renderer?.render();
+      this.markDirty();
       this.autosave.schedule();
       return;
     }
@@ -365,6 +430,7 @@ export class MindmapView extends ItemView {
       const patch = await this.notebookService.renameNotebookFileForNode(node, title, this.sourceFile?.path ?? "");
       this.store.patchNode(id, patch);
       this.renderer?.render();
+      this.markDirty();
       this.autosave.schedule();
     } catch (error) {
       new Notice(error instanceof Error ? error.message : "无法重命名 notebook");
@@ -395,17 +461,78 @@ export class MindmapView extends ItemView {
               this.renderer?.setLastFocusNodeId(node.id);
               this.renderer?.forceDetailLevel(node.id, 5);
               this.renderer?.render();
+              this.refreshMissingNotebookLinks();
+              this.markDirty();
               this.autosave.schedule();
             }).open();
           });
       });
     }
 
+    if (node.kind === "notebook") {
+      menu.addItem((item) => {
+        item
+          .setTitle("重新选择 notebook...")
+          .setIcon("file-search")
+          .onClick(() => {
+            new MarkdownFileSuggestModal(this.app, (file) => {
+              this.commitHistory();
+              const patch = this.notebookService.bindExistingFileAsNotebook(file);
+              this.store.patchNode(node.id, patch);
+              this.refreshMissingNotebookLinks();
+              this.renderer?.render();
+              this.markDirty();
+              this.autosave.schedule();
+            }).open();
+          });
+      });
+    }
+
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("展开此子树").setIcon("chevrons-down").onClick(() => {
+        this.commitHistory();
+        this.store.setTreeControlForSubtree(id, "manual-expanded");
+        this.renderer?.render();
+        this.markDirty();
+        this.autosave.schedule();
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle("收起此子树").setIcon("chevrons-up").onClick(() => {
+        this.commitHistory();
+        this.store.setTreeControlForSubtree(id, "manual-collapsed");
+        this.renderer?.render();
+        this.markDirty();
+        this.autosave.schedule();
+      });
+    });
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("展开全部").setIcon("list-tree").onClick(() => {
+        this.commitHistory();
+        this.store.setTreeControlForAll("manual-expanded");
+        this.renderer?.render();
+        this.markDirty();
+        this.autosave.schedule();
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle("恢复自动展开").setIcon("refresh-cw").onClick(() => {
+        this.commitHistory();
+        this.store.setTreeControlForAll("auto");
+        this.renderer?.render();
+        this.markDirty();
+        this.autosave.schedule();
+      });
+    });
+
     menu.addItem((item) => {
       item.setTitle("删除节点").setIcon("trash").onClick(() => {
         this.commitHistory();
         this.store.deleteNode(id);
         this.renderer?.render();
+        this.markDirty();
         this.autosave.schedule();
       });
     });
@@ -421,7 +548,9 @@ export class MindmapView extends ItemView {
 
     this.commitHistory();
     this.store.patchNode(id, this.notebookService.disconnectNotebook(node));
+    this.refreshMissingNotebookLinks();
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -433,6 +562,7 @@ export class MindmapView extends ItemView {
     const next = engine.layout(this.store.getDocument(), rootId);
     this.store.replaceDocument(next);
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
   }
 
@@ -445,7 +575,11 @@ export class MindmapView extends ItemView {
         changed = true;
       }
     }
-    if (changed) this.autosave.schedule();
+    if (changed) {
+      this.refreshMissingNotebookLinks();
+      this.markDirty();
+      this.autosave.schedule();
+    }
   }
 
   private deleteSelectedNodes(): void {
@@ -457,7 +591,97 @@ export class MindmapView extends ItemView {
 
     this.selection.clear();
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
+  }
+
+  private moveSelectionByDirection(direction: "up" | "down" | "left" | "right"): void {
+    const current = this.selection.getIds()[0];
+    if (!current) return;
+
+    const nodes = this.renderer?.getLastProjectedNodes?.() ?? [];
+    const nextId = findNearestNodeInDirection({ fromNodeId: current, nodes, direction });
+    if (!nextId) return;
+
+    this.selection.setOnly(nextId);
+    this.renderer?.setLastFocusNodeId(nextId);
+    this.renderer?.focusNode(nextId);
+    this.renderer?.render();
+  }
+
+  private selectRootNode(): void {
+    const rootId = findRootNodeId(this.store.getDocument());
+    if (!rootId) return;
+    this.selection.setOnly(rootId);
+    this.renderer?.setLastFocusNodeId(rootId);
+    this.renderer?.focusNode(rootId);
+    this.renderer?.render();
+  }
+
+  private toggleSelectedTree(): void {
+    const id = this.selection.getIds()[0];
+    if (!id) return;
+    this.commitHistory();
+    this.store.toggleTreeControl(id);
+    this.renderer?.render();
+    this.markDirty();
+    this.autosave.schedule();
+  }
+
+  private startEditingSelectedNode(): void {
+    const id = this.selection.getIds()[0];
+    if (!id) return;
+    this.renderer?.startInlineEditByNodeId?.(id);
+  }
+
+  private focusSearchInput(): void {
+    this.searchInputEl?.focus();
+    this.searchInputEl?.select();
+  }
+
+  private refreshMissingNotebookLinks(): void {
+    const missing = findMissingNotebookLinks({
+      app: this.app,
+      doc: this.store.getDocument(),
+      sourcePath: this.sourceFile?.path ?? "",
+    });
+    this.missingNotebookNodeIds = new Set(missing.map((item) => item.nodeId));
+    this.renderer?.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
+  }
+
+  private updateMinimap(): void {
+    const viewport = this.renderer?.getViewportWorldRect?.();
+    if (!viewport) return;
+    this.minimap?.render({ doc: this.store.getDocument(), viewportWorldRect: viewport });
+  }
+
+  private markDirty(): void {
+    this.dirtyState.setState("dirty");
+  }
+
+  private async exportSvg(): Promise<void> {
+    if (!this.sourceFile) return;
+    const svg = renderMindmapToSvgString(this.store.getDocument());
+    const path = this.sourceFile.parent?.path
+      ? `${this.sourceFile.parent.path}/${this.sourceFile.basename}.export.svg`
+      : `${this.sourceFile.basename}.export.svg`;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) await this.app.vault.modify(existing, svg);
+    else await this.app.vault.create(path, svg);
+    new Notice(`已导出 SVG: ${path}`);
+  }
+
+  private async exportPng(): Promise<void> {
+    if (!this.sourceFile) return;
+    const svg = renderMindmapToSvgString(this.store.getDocument());
+    const png = await renderSvgStringToPngArrayBuffer(svg);
+    const path = this.sourceFile.parent?.path
+      ? `${this.sourceFile.parent.path}/${this.sourceFile.basename}.export.png`
+      : `${this.sourceFile.basename}.export.png`;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) await this.app.vault.modifyBinary(existing, png);
+    else await this.app.vault.createBinary(path, png);
+    new Notice(`已导出 PNG: ${path}`);
   }
 
   private handleCanvasKeydown(event: KeyboardEvent): void {
@@ -471,6 +695,30 @@ export class MindmapView extends ItemView {
       return;
     }
 
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      this.focusSearchInput();
+      return;
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key === "0") {
+      event.preventDefault();
+      this.renderer?.fitRoot?.();
+      return;
+    }
+
+    if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=")) {
+      event.preventDefault();
+      this.renderer?.zoomBy?.(1.2);
+      return;
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key === "-") {
+      event.preventDefault();
+      this.renderer?.zoomBy?.(1 / 1.2);
+      return;
+    }
+
     if (event.key === "Tab") {
       event.preventDefault();
       this.addChildNode();
@@ -480,6 +728,48 @@ export class MindmapView extends ItemView {
     if (event.key === "Enter") {
       event.preventDefault();
       this.addSiblingNode();
+      return;
+    }
+
+    if (event.key === " ") {
+      event.preventDefault();
+      this.toggleSelectedTree();
+      return;
+    }
+
+    if (event.key === "F2") {
+      event.preventDefault();
+      this.startEditingSelectedNode();
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      this.selectRootNode();
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      this.moveSelectionByDirection("left");
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      this.moveSelectionByDirection("right");
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.moveSelectionByDirection("up");
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this.moveSelectionByDirection("down");
       return;
     }
 
@@ -518,6 +808,7 @@ export class MindmapView extends ItemView {
     this.connectionSourceId = undefined;
     this.renderer?.setConnectionState({ enabled: true, sourceId: undefined });
     this.renderer?.render();
+    this.markDirty();
     this.autosave.schedule();
     return true;
   }
@@ -529,6 +820,7 @@ export class MindmapView extends ItemView {
         this.commitHistory();
         this.store.deleteEdge(edgeId);
         this.renderer?.render();
+        this.markDirty();
         this.autosave.schedule();
       });
     });
