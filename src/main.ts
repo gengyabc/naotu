@@ -1,18 +1,22 @@
 import { Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { registerMindmapCommands } from "./core/command-registry";
 import { createLocalKnowledgeMap } from "./core/local-knowledge-map";
 import { createMindmapFromMarkdown } from "./core/mindmap-from-markdown";
+import { globalPreviewCache } from "./core/preview-cache";
 import { VIEW_TYPE_MINDMAP } from "./constants";
+import { createSampleMindmap } from "./core/sample-data";
+import { assertNoTelemetry } from "./core/telemetry-disabled";
 import { DEFAULT_SETTINGS, type SemanticMindmapSettings } from "./types/settings";
+import { MindmapHelpModal } from "./ui/help-modal";
 import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
-import { globalPreviewCache } from "./core/preview-cache";
-import { createSampleMindmap } from "./core/sample-data";
 
 export default class SemanticZoomMindmapPlugin extends Plugin {
   settings!: SemanticMindmapSettings;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    assertNoTelemetry();
     this.addSettingTab(new SemanticMindmapSettingTab(this.app, this));
 
     this.registerView(VIEW_TYPE_MINDMAP, (leaf: WorkspaceLeaf) => new MindmapView(leaf, this));
@@ -22,51 +26,11 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
       const file = await this.createMindmapFile();
       await this.openMindmapFile(file);
     });
-
-    this.addCommand({
-      id: "create-semantic-zoom-mindmap",
-      name: "Create semantic zoom mindmap",
-      callback: async () => {
-        const file = await this.createMindmapFile();
-        await this.openMindmapFile(file);
-      },
+    this.addRibbonIcon("help-circle", "Semantic Mindmap 帮助", () => {
+      this.showHelp();
     });
 
-    this.addCommand({
-      id: "open-current-mindmap-json",
-      name: "Open current .mindmap.json",
-      checkCallback: (checking) => {
-        const file = this.app.workspace.getActiveFile();
-        const canRun = Boolean(file && file.path.endsWith(".mindmap.json"));
-        if (checking) return canRun;
-        if (file) void this.openMindmapFile(file);
-        return true;
-      },
-    });
-
-    this.addCommand({
-      id: "create-mindmap-from-current-markdown-headings",
-      name: "Create mindmap from current markdown headings",
-      checkCallback: (checking) => {
-        const file = this.app.workspace.getActiveFile();
-        const canRun = Boolean(file && file.extension === "md");
-        if (checking) return canRun;
-        if (file) void this.createMindmapFromMarkdownFile(file);
-        return true;
-      },
-    });
-
-    this.addCommand({
-      id: "create-local-knowledge-map-from-current-file",
-      name: "Create local knowledge map from current file",
-      checkCallback: (checking) => {
-        const file = this.app.workspace.getActiveFile();
-        const canRun = Boolean(file && file.extension === "md");
-        if (checking) return canRun;
-        if (file) void this.createLocalKnowledgeMapFromFile(file);
-        return true;
-      },
-    });
+    registerMindmapCommands(this);
 
     this.registerEvent(
       this.app.vault.on("rename", async () => {
@@ -83,30 +47,6 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
         globalPreviewCache.clear();
       }),
     );
-
-    this.addCommand({
-      id: "create-sample-mindmap-100",
-      name: "Create sample mindmap with 100 nodes",
-      callback: async () => {
-        await this.createSampleMindmapFile(100);
-      },
-    });
-
-    this.addCommand({
-      id: "create-sample-mindmap-1000",
-      name: "Create sample mindmap with 1000 nodes",
-      callback: async () => {
-        await this.createSampleMindmapFile(1000);
-      },
-    });
-
-    this.addCommand({
-      id: "create-sample-mindmap-3000",
-      name: "Create sample mindmap with 3000 nodes",
-      callback: async () => {
-        await this.createSampleMindmapFile(3000);
-      },
-    });
   }
 
   onunload(): void {
@@ -121,7 +61,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  private async createMindmapFile(): Promise<TFile> {
+  async createMindmapFile(): Promise<TFile> {
     const active = this.app.workspace.getActiveFile();
     const folder = active?.parent?.path ?? "";
     const path = folder ? `${folder}/Untitled-${Date.now()}.mindmap.json` : `Untitled-${Date.now()}.mindmap.json`;
@@ -144,7 +84,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     return await this.app.vault.create(path, content);
   }
 
-  private async openMindmapFile(file: TFile): Promise<void> {
+  async openMindmapFile(file: TFile): Promise<void> {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_MINDMAP, active: true });
 
@@ -153,7 +93,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  private async createMindmapFromMarkdownFile(file: TFile): Promise<void> {
+  async createMindmapFromMarkdownFile(file: TFile): Promise<void> {
     const markdown = await this.app.vault.read(file);
     const doc = createMindmapFromMarkdown({
       markdown,
@@ -176,7 +116,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     await this.openMindmapFile(target);
   }
 
-  private async createLocalKnowledgeMapFromFile(file: TFile): Promise<void> {
+  async createLocalKnowledgeMapFromFile(file: TFile): Promise<void> {
     const doc = createLocalKnowledgeMap({
       app: this.app,
       file,
@@ -199,10 +139,14 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     await this.openMindmapFile(target);
   }
 
-  private async createSampleMindmapFile(nodeCount: number): Promise<void> {
+  async createSampleMindmapFile(nodeCount: number): Promise<void> {
     const doc = createSampleMindmap(nodeCount);
     const path = `Sample-${nodeCount}-${Date.now()}.mindmap.json`;
     const file = await this.app.vault.create(path, JSON.stringify(doc, null, 2));
     await this.openMindmapFile(file);
+  }
+
+  showHelp(): void {
+    new MindmapHelpModal(this.app).open();
   }
 }

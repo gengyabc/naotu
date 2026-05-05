@@ -15,6 +15,25 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Semantic Zoom Mindmap 设置" });
 
+    this.renderNotebookSettings(containerEl);
+    this.renderImportSettings(containerEl);
+    this.renderRenderingSettings(containerEl);
+    this.renderPerformanceSettings(containerEl);
+    this.renderExportSettings(containerEl);
+    this.renderDebugSettings(containerEl);
+    this.renderAdvancedSettings(containerEl);
+  }
+
+  private createSection(containerEl: HTMLElement, title: string, desc?: string): void {
+    containerEl.createEl("h3", { text: title });
+    if (desc) {
+      containerEl.createEl("p", { text: desc, cls: "setting-item-description" });
+    }
+  }
+
+  private renderNotebookSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Notebook");
+
     new Setting(containerEl)
       .setName("Notebook 文件夹")
       .setDesc("text 节点转 notebook 节点时，自动创建 note 的文件夹。")
@@ -37,6 +56,10 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
+  }
+
+  private renderImportSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Import");
 
     new Setting(containerEl)
       .setName("导入 headings 为 notebook 节点")
@@ -58,6 +81,103 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
+  }
+
+  private renderRenderingSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Rendering");
+
+    new Setting(containerEl)
+      .setName("显示小地图")
+      .setDesc("在右上角显示 minimap。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showMinimap).onChange(async (value) => {
+          this.plugin.settings.showMinimap = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("默认渲染模式")
+      .setDesc("auto 会根据节点数量选择 SVG 或 Hybrid。")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("auto", "Auto")
+          .addOption("svg", "SVG")
+          .addOption("hybrid", "Hybrid")
+          .setValue(this.plugin.settings.defaultRenderMode)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultRenderMode = value as "auto" | "svg" | "hybrid";
+            await this.plugin.saveSettings();
+          }),
+      );
+  }
+
+  private renderPerformanceSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Performance");
+
+    new Setting(containerEl)
+      .setName("启用 Hybrid Renderer")
+      .setDesc("大图时使用 Canvas 背景层 + SVG 交互层。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.enableHybridRenderer).onChange(async (value) => {
+          this.plugin.settings.enableHybridRenderer = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Hybrid 节点阈值")
+      .setDesc("节点数超过该值时，auto 模式使用 Hybrid renderer。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.hybridNodeThreshold)).onChange(async (value) => {
+          const n = Number.parseInt(value, 10);
+          this.plugin.settings.hybridNodeThreshold = Number.isFinite(n) ? Math.max(100, n) : 1200;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("启用 viewport culling")
+      .setDesc("大图时只渲染视口附近的节点。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.enableViewportCulling).onChange(async (value) => {
+          this.plugin.settings.enableViewportCulling = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Culling 节点阈值")
+      .setDesc("节点数超过该值时启用 culling。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.cullingNodeThreshold)).onChange(async (value) => {
+          const n = Number.parseInt(value, 10);
+          this.plugin.settings.cullingNodeThreshold = Number.isFinite(n) ? Math.max(100, n) : 500;
+          await this.plugin.saveSettings();
+        }),
+      );
+  }
+
+  private renderExportSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Export");
+
+    new Setting(containerEl)
+      .setName("默认导出格式")
+      .setDesc("用于后续快捷导出。")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("svg", "SVG")
+          .addOption("png", "PNG")
+          .setValue(this.plugin.settings.defaultExportFormat)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultExportFormat = value as "svg" | "png";
+            await this.plugin.saveSettings();
+          }),
+      );
+  }
+
+  private renderDebugSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Debug");
 
     new Setting(containerEl)
       .setName("显示调试信息")
@@ -67,6 +187,56 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
           this.plugin.settings.showDebugOverlay = value;
           await this.plugin.saveSettings();
         }),
+      );
+
+    new Setting(containerEl)
+      .setName("显示 missing notebook 警告")
+      .setDesc("在渲染层标注丢失链接的 notebook 节点。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showMissingNotebookWarnings).onChange(async (value) => {
+          this.plugin.settings.showMissingNotebookWarnings = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+  }
+
+  private renderAdvancedSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, "Advanced");
+
+    new Setting(containerEl)
+      .setName("自动保存")
+      .setDesc("编辑后自动保存 mindmap 文件。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
+          this.plugin.settings.autoSave = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("自动保存延迟(ms)")
+      .setDesc("输入停止后多久执行自动保存。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.autoSaveDelayMs)).onChange(async (value) => {
+          const n = Number.parseInt(value, 10);
+          this.plugin.settings.autoSaveDelayMs = Number.isFinite(n) ? Math.max(100, n) : 800;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("语言")
+      .setDesc("i18n 预留设置。")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("auto", "Auto")
+          .addOption("zh", "中文")
+          .addOption("en", "English")
+          .setValue(this.plugin.settings.language)
+          .onChange(async (value) => {
+            this.plugin.settings.language = value as "auto" | "zh" | "en";
+            await this.plugin.saveSettings();
+          }),
       );
   }
 }

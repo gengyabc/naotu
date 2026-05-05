@@ -28,6 +28,8 @@ import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../re
 import { MinimapRenderer } from "../renderer/minimap-renderer";
 import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { DirtyStateManager } from "../core/dirty-state";
+import { showErrorNotice } from "../ui/error-notice";
+import { setButtonA11y, setCanvasA11y } from "../core/accessibility";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -113,12 +115,15 @@ export class MindmapView extends ItemView {
 
     const toolbar = this.contentEl.createDiv({ cls: "semantic-mindmap-toolbar" });
     const addButton = toolbar.createEl("button", { text: "新增节点" });
+    setButtonA11y(addButton, "新增节点");
     addButton.onclick = () => this.addTextNode();
 
     const layoutButton = toolbar.createEl("button", { text: "中心布局" });
+    setButtonA11y(layoutButton, "中心布局");
     layoutButton.onclick = () => this.applyRadialLayout();
 
     const saveButton = toolbar.createEl("button", { text: "保存" });
+    setButtonA11y(saveButton, "保存脑图");
     saveButton.onclick = () => {
       this.markDirty();
       void this.autosave.flush();
@@ -147,11 +152,13 @@ export class MindmapView extends ItemView {
     };
 
     const connectButton = toolbar.createEl("button", { text: "连线" });
+    setButtonA11y(connectButton, "连线模式", this.connectionMode);
     connectButton.toggleClass("is-active", this.connectionMode);
     connectButton.onclick = () => {
       this.connectionMode = !this.connectionMode;
       this.connectionSourceId = undefined;
       connectButton.toggleClass("is-active", this.connectionMode);
+      setButtonA11y(connectButton, "连线模式", this.connectionMode);
       this.renderer?.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
       this.renderer?.render();
     };
@@ -172,6 +179,7 @@ export class MindmapView extends ItemView {
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
     canvas.tabIndex = 0;
+    setCanvasA11y(canvas);
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
 
     if (this.plugin.settings.showDebugOverlay) {
@@ -179,7 +187,11 @@ export class MindmapView extends ItemView {
     }
 
     const doc = this.store.getDocument();
-    const renderMode = chooseRenderMode({ nodeCount: doc.nodes.length, edgeCount: doc.edges.length });
+    const renderMode = chooseRenderMode({
+      nodeCount: doc.nodes.length,
+      edgeCount: doc.edges.length,
+      settings: this.plugin.settings,
+    });
     const RendererClass = renderMode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
 
     this.renderer = new RendererClass({
@@ -262,15 +274,19 @@ export class MindmapView extends ItemView {
     });
 
     this.renderer.mount();
-    this.renderer.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
+    this.renderer.setMissingNotebookNodeIds?.(
+      this.plugin.settings.showMissingNotebookWarnings ? this.missingNotebookNodeIds : new Set<string>(),
+    );
     this.renderer.setSearchResultIds(this.searchResultIds);
     this.renderer.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
     this.renderer.render();
 
-    this.minimap = new MinimapRenderer(canvas, (x, y) => {
-      this.renderer?.jumpToWorldPoint?.(x, y);
-    });
-    this.updateMinimap();
+    if (this.plugin.settings.showMinimap) {
+      this.minimap = new MinimapRenderer(canvas, (x, y) => {
+        this.renderer?.jumpToWorldPoint?.(x, y);
+      });
+      this.updateMinimap();
+    }
   }
 
   private commitHistory(): void {
@@ -402,7 +418,7 @@ export class MindmapView extends ItemView {
         this.markDirty();
         this.autosave.schedule();
       } catch (error) {
-        new Notice(error instanceof Error ? error.message : "无法创建 notebook");
+        showErrorNotice(error, "无法创建 notebook");
       }
       return;
     }
@@ -433,7 +449,7 @@ export class MindmapView extends ItemView {
       this.markDirty();
       this.autosave.schedule();
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : "无法重命名 notebook");
+      showErrorNotice(error, "无法重命名 notebook");
     }
   }
 
@@ -646,7 +662,9 @@ export class MindmapView extends ItemView {
       sourcePath: this.sourceFile?.path ?? "",
     });
     this.missingNotebookNodeIds = new Set(missing.map((item) => item.nodeId));
-    this.renderer?.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
+    this.renderer?.setMissingNotebookNodeIds?.(
+      this.plugin.settings.showMissingNotebookWarnings ? this.missingNotebookNodeIds : new Set<string>(),
+    );
   }
 
   private updateMinimap(): void {

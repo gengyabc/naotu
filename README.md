@@ -1,128 +1,60 @@
 # Semantic Zoom Mindmap
 
-An Obsidian plugin for semantic zoom mindmaps with focus-protected hierarchical semantic zoom and radial layout.
+Semantic Zoom Mindmap is an Obsidian plugin for building semantic zoom knowledge maps.
 
 ## Features
 
-- **Semantic Zoom**: Nodes change detail level based on zoom and focus state
-- **Focus Protection**: Selected/focused nodes stay detailed while others simplify
-- **Radial Layout**: Center-to-periphery automatic layout
-- **Notebook Nodes**: Bind nodes to Obsidian notes and preview content
-- **Text Nodes**: Simple one-line mindmap nodes
-- **Inline Editing**: Double-click to edit node titles inline
-- **Tree Control**: +/- buttons to expand/collapse subtrees
+- Text nodes for one-sentence ideas
+- Notebook nodes linked to Obsidian notes
+- Focus-preserving semantic zoom
+- Radial mindmap layout
+- Inline editing
+- Notebook preview
+- Backlinks / outlinks local map
+- Markdown headings import
+- SVG / PNG export
+- Minimap
+- Keyboard navigation
 
-## Installation
+## Node Types
 
-### From Obsidian
+### Text node
 
-1. Open Settings → Community Plugins
-2. Disable Safe Mode
-3. Click "Browse" and search for "Semantic Zoom Mindmap"
-4. Install and enable
+A text node is a simple one-sentence mindmap node.
 
-### Manual Installation
+### Notebook node
 
-1. Download `main.js`, `styles.css`, and `manifest.json` from releases
-2. Create folder `.obsidian/plugins/semantic-zoom-mindmap` in your vault
-3. Copy the files into that folder
-4. Enable the plugin in Settings → Community Plugins
+A notebook node links to an Obsidian note. It can preview note content when zoomed in.
 
-## Usage
+## Basic Usage
 
-### Creating a Mindmap
+- Double click node title to edit
+- Click double-down icon to convert text node to notebook node
+- Click + / - to expand or collapse subtree
+- Tab to create child node
+- Enter to create sibling node
+- Space to expand/collapse selected node
+- F2 to edit selected node
+- Cmd/Ctrl + Z to undo
+- Cmd/Ctrl + F to search
 
-- **Ribbon Icon**: Click the git-fork icon in the left ribbon
-- **Command**: Run "Create semantic zoom mindmap" from command palette
-- **Direct**: Create a `.mindmap.json` file and open it
+## File Format
 
-### Node Types
+Mindmaps are saved as `.mindmap.json`.
 
-#### Text Nodes
-- Simple one-line nodes for structure
-- Double-click title to edit inline
-- Click double-down arrow to convert to notebook
+## Privacy
 
-#### Notebook Nodes
-- Bound to Obsidian notes
-- Display notebook badge at higher detail levels
-- Click double-down arrow to preview note content
-- Rename node renames the underlying note file
-
-### Controls
-
-- **Zoom**: Mouse wheel to zoom, semantic detail levels change automatically
-- **Pan**: Drag canvas to pan
-- **Tree Expand/Collapse**: +/- button on node right side
-- **Selection**: Click to select, Cmd/Ctrl+Click to toggle, Shift+Click to multi-select
-- **Context Menu**: Right-click for options (convert to text, delete)
-
-### Layout
-
-- **Radial Layout**: Click "中心布局" button to auto-arrange from center
-- Root stays at center, children spread radially
-
-## Data Format
-
-Mindmaps are stored as `.mindmap.json` files:
-
-```json
-{
-  "version": 1,
-  "title": "Untitled Mindmap",
-  "layoutMode": "radial",
-  "viewport": { "x": 0, "y": 0, "zoom": 1 },
-  "nodes": [
-    {
-      "id": "root",
-      "kind": "text",
-      "title": "中心主题",
-      "x": 0,
-      "y": 0,
-      "width": 180,
-      "height": 56,
-      "treeControl": "auto"
-    }
-  ],
-  "edges": []
-}
-```
+This plugin does not send analytics, telemetry, or user content to remote servers.
 
 ## Development
 
-### Build
-
 ```bash
 npm install
-npm run build
-```
-
-### Typecheck
-
-```bash
-npm run typecheck
-```
-
-### Dev Mode
-
-```bash
 npm run dev
 ```
 
-## License
+## Build
 
-MIT
-
-## Roadmap
-
-Phase 2 features:
-- Tab to add child node
-- Enter to add sibling node
-- Node drag
-- Connection editing
-- Undo/redo
-- Search nodes
-- Multi-select/box select
-- Notebook file selector
-- Settings: notebook folder
-- Large graph performance optimization
+```bash
+npm run build
+```

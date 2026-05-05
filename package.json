@@ -1,25 +1,30 @@
 {
-  "name": "semantic-zoom-mindmap",
-  "version": "1.0.0",
+  "name": "obsidian-semantic-zoom-mindmap",
+  "version": "0.1.0",
   "description": "Semantic Zoom Mindmap plugin for Obsidian",
   "main": "main.js",
   "scripts": {
-    "dev": "esbuild src/main.ts --bundle --external:obsidian --outfile=main.js --format=cjs --platform=node --watch",
-    "build": "esbuild src/main.ts --bundle --external:obsidian --outfile=main.js --format=cjs --platform=node",
-    "typecheck": "tsc --noEmit"
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "obsidian",
     "mindmap",
     "semantic-zoom"
   ],
-  "author": "",
+  "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
     "@types/d3": "^7.4.3",
-    "esbuild": "^0.20.2",
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.24.0",
     "obsidian": "latest",
-    "typescript": "^5.4.5"
+    "tslib": "^2.6.0",
+    "typescript": "^5.4.5",
+    "vitest": "^2.0.0"
   },
   "dependencies": {
     "d3": "^7.9.0"

@@ -1,7 +1,9 @@
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
+import { runMigrations } from "../migrations/migration-runner";
 
 export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocument {
-  const doc = input as MindmapDocument;
+  const migrated = runMigrations(input);
+  const doc = migrated as MindmapDocument;
 
   return {
     version: 1,
