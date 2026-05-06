@@ -80,6 +80,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
     this.zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.12, 4])
+      .filter((event) => event.type !== "wheel" && !event.button)
       .on("zoom", (event) => {
         const t = event.transform;
         this.options.onViewportChange(t.x, t.y, t.k);
@@ -87,6 +88,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
       });
 
     this.svg.call(this.zoomBehavior);
+    this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
     this.bindBoxSelect();
     const viewport = this.options.getDocument().viewport;
     this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
@@ -94,6 +96,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
   }
 
   unmount(): void {
+    this.svg.node()?.removeEventListener("wheel", this.handleWheelZoom);
     this.options.container.empty();
   }
 
@@ -126,7 +129,13 @@ export class SvgMindmapRenderer implements RendererAdapter {
     let renderNodes = projection.nodes;
     let renderEdges = projection.edges;
     if (shouldCullProjection(doc.nodes.length, this.options.getSettings())) {
-      const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
+      const rect = this.options.container.getBoundingClientRect();
+      const culled = cullProjectionToViewport(
+        projection.nodes,
+        projection.edges,
+        { x: 0, y: 0, width: rect.width, height: rect.height },
+        { x: transform.x, y: transform.y, k: transform.k },
+      );
       renderNodes = culled.nodes;
       renderEdges = culled.edges;
     }
@@ -140,11 +149,11 @@ export class SvgMindmapRenderer implements RendererAdapter {
         renderedEdgeCount: renderEdges.length,
       },
       () => {
-        this.edgeWorldLayer.attr("transform", transform.toString());
         renderProjectedEdges({
           edgeLayer: this.edgeWorldLayer,
           nodes: renderNodes,
           edges: renderEdges,
+          transform: { x: transform.x, y: transform.y, k: transform.k },
           onEdgeContextMenu: this.options.onEdgeContextMenu,
         });
 
@@ -318,6 +327,13 @@ export class SvgMindmapRenderer implements RendererAdapter {
     const nextY = rect.height / 2 - y * current.k;
     this.svg.transition().duration(180).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(current.k));
   }
+
+  private handleWheelZoom = (event: WheelEvent): void => {
+    event.preventDefault();
+    const factor = Math.exp(-event.deltaY * 0.0015);
+    if (!Number.isFinite(factor) || factor === 1) return;
+    this.zoomBy(factor);
+  };
 
   getViewportWorldRect(): { x: number; y: number; width: number; height: number } {
     const transform = d3.zoomTransform(this.svg.node()!);

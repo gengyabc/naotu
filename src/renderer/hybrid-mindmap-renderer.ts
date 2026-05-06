@@ -83,12 +83,17 @@ export class HybridMindmapRenderer implements RendererAdapter {
     this.overlayScreenLayer.append("rect").attr("class", "selection-box").style("display", "none");
     this.inlineEditorLayer = this.root.createDiv({ cls: "inline-editor-layer" });
 
-    this.zoomBehavior = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.12, 4]).on("zoom", (event) => {
-      const t = event.transform;
-      this.options.onViewportChange(t.x, t.y, t.k);
-      this.scheduleRender();
-    });
+    this.zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.12, 4])
+      .filter((event) => event.type !== "wheel" && !event.button)
+      .on("zoom", (event) => {
+        const t = event.transform;
+        this.options.onViewportChange(t.x, t.y, t.k);
+        this.scheduleRender();
+      });
     this.svg.call(this.zoomBehavior);
+    this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
     this.bindBoxSelect();
     const viewport = this.options.getDocument().viewport;
     this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
@@ -96,6 +101,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
   }
 
   unmount(): void {
+    this.svg.node()?.removeEventListener("wheel", this.handleWheelZoom);
     this.options.container.empty();
   }
 
@@ -127,7 +133,13 @@ export class HybridMindmapRenderer implements RendererAdapter {
     let renderNodes = projection.nodes;
     let renderEdges = projection.edges;
     if (shouldCullProjection(doc.nodes.length, this.options.getSettings())) {
-      const culled = cullProjectionToViewport(projection.nodes, projection.edges, this.getViewportWorldRect());
+      const rect = this.options.container.getBoundingClientRect();
+      const culled = cullProjectionToViewport(
+        projection.nodes,
+        projection.edges,
+        { x: 0, y: 0, width: rect.width, height: rect.height },
+        { x: transform.x, y: transform.y, k: transform.k },
+      );
       renderNodes = culled.nodes;
       renderEdges = culled.edges;
     }
@@ -148,8 +160,13 @@ export class HybridMindmapRenderer implements RendererAdapter {
           edges: partition.canvasEdges,
           transform: { x: transform.x, y: transform.y, k: transform.k },
         });
-        this.svgEdgeLayer.attr("transform", transform.toString());
-        renderProjectedEdges({ edgeLayer: this.svgEdgeLayer, nodes: renderNodes, edges: partition.svgEdges, onEdgeContextMenu: this.options.onEdgeContextMenu });
+        renderProjectedEdges({
+          edgeLayer: this.svgEdgeLayer,
+          nodes: renderNodes,
+          edges: partition.svgEdges,
+          transform: { x: transform.x, y: transform.y, k: transform.k },
+          onEdgeContextMenu: this.options.onEdgeContextMenu,
+        });
         renderProjectedNodes({
           app: this.options.app,
           nodeLayer: this.svgNodeLayer,
@@ -299,6 +316,13 @@ export class HybridMindmapRenderer implements RendererAdapter {
     const nextY = rect.height / 2 - y * current.k;
     this.svg.transition().duration(180).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(current.k));
   }
+
+  private handleWheelZoom = (event: WheelEvent): void => {
+    event.preventDefault();
+    const factor = Math.exp(-event.deltaY * 0.0015);
+    if (!Number.isFinite(factor) || factor === 1) return;
+    this.zoomBy(factor);
+  };
 
   private scheduleRender(): void {
     if (this.renderScheduled) return;

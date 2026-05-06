@@ -77,6 +77,44 @@ export function moveMindmapNode(
   return next;
 }
 
+export function addChildMindmapNode(doc: MindmapDocument, parentId: string, child: MindmapNode): MindmapDocument {
+  return insertMindmapNode(doc, { parentId, child, targetIndex: getMindmapChildIds(doc, parentId).length });
+}
+
+export function addSiblingMindmapNode(doc: MindmapDocument, nodeId: string, sibling: MindmapNode): MindmapDocument {
+  const parentId = findParentId(doc, nodeId) ?? findRootId(doc);
+  if (!parentId) return structuredClone(doc);
+
+  const siblings = getMindmapChildIds(doc, parentId);
+  const selectedIndex = siblings.indexOf(nodeId);
+  const targetIndex = selectedIndex >= 0 ? selectedIndex + 1 : siblings.length;
+  return insertMindmapNode(doc, { parentId, child: sibling, targetIndex });
+}
+
+function insertMindmapNode(
+  doc: MindmapDocument,
+  args: { parentId: string; child: MindmapNode; targetIndex: number },
+): MindmapDocument {
+  const next = structuredClone(doc);
+  next.nodes.push(args.child);
+
+  const parentChildIndices = next.edges
+    .map((edge, index) => ({ edge, index }))
+    .filter(({ edge }) => edge.relation === "mindmap" && edge.source === args.parentId);
+
+  const clamped = Math.max(0, Math.min(args.targetIndex, parentChildIndices.length));
+  const insertAt = clamped >= parentChildIndices.length ? next.edges.length : parentChildIndices[clamped].index;
+
+  next.edges.splice(insertAt, 0, {
+    id: createId("edge"),
+    source: args.parentId,
+    target: args.child.id,
+    relation: "mindmap",
+    type: "curve",
+  });
+  return next;
+}
+
 function getMindmapChildrenById(doc: MindmapDocument): Map<string, string[]> {
   const childrenById = new Map<string, string[]>();
   for (const node of doc.nodes) childrenById.set(node.id, []);

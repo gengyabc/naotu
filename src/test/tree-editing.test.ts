@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHierarchy } from "../core/hierarchy";
-import { moveMindmapNode } from "../core/tree-editing";
+import { addChildMindmapNode, addSiblingMindmapNode, moveMindmapNode } from "../core/tree-editing";
 import { createSmallTestDocument } from "./test-fixtures";
 
 describe("tree editing", () => {
@@ -32,5 +32,42 @@ describe("tree editing", () => {
     const next = moveMindmapNode(doc, { nodeId: "child", newParentId: "grandchild", targetIndex: 0 });
     expect(buildHierarchy(next).childrenById.get("root")).toEqual(["child"]);
     expect(buildHierarchy(next).childrenById.get("child")).toEqual(["grandchild"]);
+  });
+
+  it("adds a child with exactly one incoming mindmap edge", () => {
+    const doc = createSmallTestDocument();
+    const next = addChildMindmapNode(doc, "child", {
+      id: "grandchild",
+      kind: "text",
+      title: "Grandchild",
+      x: 0,
+      y: 0,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+
+    const incoming = next.edges.filter((edge) => edge.relation === "mindmap" && edge.target === "grandchild");
+    expect(incoming).toHaveLength(1);
+    expect(incoming[0]?.source).toBe("child");
+  });
+
+  it("adds a sibling immediately after the selected node", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes.push({ id: "child2", kind: "text", title: "Child2", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" });
+    doc.edges.push({ id: "edge2", source: "root", target: "child2", relation: "mindmap", type: "curve" });
+
+    const next = addSiblingMindmapNode(doc, "child", {
+      id: "sibling",
+      kind: "text",
+      title: "Sibling",
+      x: 0,
+      y: 0,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+
+    expect(buildHierarchy(next).childrenById.get("root")).toEqual(["child", "sibling", "child2"]);
   });
 });

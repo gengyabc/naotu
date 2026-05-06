@@ -1,4 +1,6 @@
 import * as d3 from "d3";
+import { worldToScreen } from "../core/screen-transform";
+import type { ViewTransform } from "../core/screen-transform";
 import { routeEdge } from "../core/edge-routing";
 import type { ProjectedEdge, ProjectedNode } from "../types/mindmap";
 
@@ -6,9 +8,15 @@ export function renderProjectedEdges(args: {
   edgeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
   nodes: ProjectedNode[];
   edges: ProjectedEdge[];
+  transform: ViewTransform;
   onEdgeContextMenu?: (id: string, x: number, y: number) => void;
 }): void {
-  const nodeMap = new Map(args.nodes.map((node) => [node.id, node]));
+  const nodeMap = new Map(
+    args.nodes.map((node) => {
+      const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+      return [node.id, { ...node, projectedX: screen.x, projectedY: screen.y }];
+    }),
+  );
 
   const selection = args.edgeLayer
     .selectAll<SVGPathElement, ProjectedEdge>("path.mindmap-edge")

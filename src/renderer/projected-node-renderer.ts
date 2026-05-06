@@ -7,6 +7,10 @@ import { getVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { renderDoubleDownIcon } from "./icons";
 
+export function screenDragDeltaToWorldDelta(args: { dx: number; dy: number }): { dx: number; dy: number } {
+  return { dx: args.dx, dy: args.dy };
+}
+
 export function renderProjectedNodes(args: {
   app: App;
   nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -55,14 +59,13 @@ export function renderProjectedNodes(args: {
       const selectedIds = args.getSelectedNodeIds();
       const movingIds = selectedIds.includes(node.id) ? selectedIds : [node.id];
       const projectedMap = new Map(args.nodes.map((item) => [item.id, item]));
-      const dxWorld = event.dx / args.transform.k;
-      const dyWorld = event.dy / args.transform.k;
+      const delta = screenDragDeltaToWorldDelta({ dx: event.dx, dy: event.dy });
 
       const moves = movingIds
         .map((id) => {
           const item = projectedMap.get(id);
           if (!item) return null;
-          return { id, x: item.worldX + dxWorld, y: item.worldY + dyWorld };
+          return { id, x: item.worldX + delta.dx, y: item.worldY + delta.dy };
         })
         .filter(Boolean) as Array<{ id: string; x: number; y: number }>;
 

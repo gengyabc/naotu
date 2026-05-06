@@ -1,3 +1,5 @@
+import { worldToScreen } from "./screen-transform";
+import type { ViewTransform } from "./screen-transform";
 import type { ProjectedEdge, ProjectedNode, Rect } from "../types/mindmap";
 import type { SemanticMindmapSettings } from "../types/settings";
 
@@ -9,22 +11,24 @@ export interface CulledProjection {
 export function cullProjectionToViewport(
   nodes: ProjectedNode[],
   edges: ProjectedEdge[],
-  viewportWorldRect: Rect,
+  viewportScreenRect: Rect,
+  transform: ViewTransform,
   padding = 1200,
 ): CulledProjection {
   const visibleNodeIds = new Set<string>();
   const padded: Rect = {
-    x: viewportWorldRect.x - padding,
-    y: viewportWorldRect.y - padding,
-    width: viewportWorldRect.width + padding * 2,
-    height: viewportWorldRect.height + padding * 2,
+    x: viewportScreenRect.x - padding,
+    y: viewportScreenRect.y - padding,
+    width: viewportScreenRect.width + padding * 2,
+    height: viewportScreenRect.height + padding * 2,
   };
 
   const visibleNodes = nodes.filter((node) => {
+    const topLeft = worldToScreen({ x: node.projectedX, y: node.projectedY }, transform);
     const visible = rectIntersects(
       {
-        x: node.projectedX,
-        y: node.projectedY,
+        x: topLeft.x,
+        y: topLeft.y,
         width: node.displayWidth,
         height: node.displayHeight,
       },

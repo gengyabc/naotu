@@ -24,6 +24,8 @@ import {
   findRootId,
   getMindmapChildIds,
   isDescendantNode,
+  addChildMindmapNode,
+  addSiblingMindmapNode,
   moveMindmapNode,
 } from "../core/tree-editing";
 import { buildHierarchy } from "../core/hierarchy";
@@ -419,10 +421,7 @@ export class MindmapView extends ItemView {
     if (!parent) return;
 
     const child = createTextNodeNearParent(parent);
-    this.applyDocumentChange(() => {
-      this.store.addNode(child);
-      this.store.addEdge({ source: parent.id, target: child.id, relation: "mindmap", type: "curve" });
-    });
+    this.applyReplacedDocument(this.relayoutDocument(addChildMindmapNode(doc, parent.id, child)));
 
     this.selection.setOnly(child.id);
     this.renderer?.setLastFocusNodeId(child.id);
@@ -438,9 +437,7 @@ export class MindmapView extends ItemView {
     if (!selected) return;
 
     const parentId = findParentId(doc, selectedId) ?? findRootId(doc);
-    if (!parentId) return;
-
-    const parent = doc.nodes.find((node) => node.id === parentId);
+    const parent = parentId ? doc.nodes.find((node) => node.id === parentId) : undefined;
     if (!parent) return;
 
     const sibling = {
@@ -449,10 +446,7 @@ export class MindmapView extends ItemView {
       y: selected.y + 100,
     };
 
-    this.applyDocumentChange(() => {
-      this.store.addNode(sibling);
-      this.store.addEdge({ source: parent.id, target: sibling.id, relation: "mindmap", type: "curve" });
-    });
+    this.applyReplacedDocument(this.relayoutDocument(addSiblingMindmapNode(doc, selectedId, sibling)));
 
     this.selection.setOnly(sibling.id);
     this.renderer?.setLastFocusNodeId(sibling.id);

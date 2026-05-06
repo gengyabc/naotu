@@ -1,5 +1,7 @@
+import { worldToScreen } from "../core/screen-transform";
 import type { ProjectedEdge, ProjectedNode } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
+import { routeEdge } from "../core/edge-routing";
 
 export interface CanvasBackgroundRenderInput {
   canvas: HTMLCanvasElement;
@@ -21,16 +23,11 @@ export class CanvasBackgroundRenderer {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
-
-    ctx.save();
-    ctx.translate(transform.x, transform.y);
-    ctx.scale(transform.k, transform.k);
-    this.drawEdges(ctx, nodes, edges);
-    this.drawNodes(ctx, nodes);
-    ctx.restore();
+    this.drawEdges(ctx, nodes, edges, transform);
+    this.drawNodes(ctx, nodes, transform);
   }
 
-  private drawNodes(ctx: CanvasRenderingContext2D, nodes: ProjectedNode[]): void {
+  private drawNodes(ctx: CanvasRenderingContext2D, nodes: ProjectedNode[], transform: ViewTransform): void {
     ctx.save();
     ctx.strokeStyle = "rgba(140, 140, 140, 0.8)";
     ctx.fillStyle = "rgba(120, 120, 120, 0.9)";
@@ -38,32 +35,35 @@ export class CanvasBackgroundRenderer {
     ctx.textBaseline = "middle";
 
     for (const node of nodes) {
+      const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, transform);
       ctx.beginPath();
-      roundRect(ctx, node.projectedX, node.projectedY, node.displayWidth, node.displayHeight, 8);
+      roundRect(ctx, screen.x, screen.y, node.displayWidth, node.displayHeight, 8);
       ctx.stroke();
-      ctx.fillText(node.title, node.projectedX + 8, node.projectedY + Math.min(node.displayHeight / 2, 18));
+      ctx.fillText(node.title, screen.x + 8, screen.y + Math.min(node.displayHeight / 2, 18));
     }
 
     ctx.restore();
   }
 
-  private drawEdges(ctx: CanvasRenderingContext2D, nodes: ProjectedNode[], edges: ProjectedEdge[]): void {
-    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  private drawEdges(ctx: CanvasRenderingContext2D, nodes: ProjectedNode[], edges: ProjectedEdge[], transform: ViewTransform): void {
+    const nodeMap = new Map(
+      nodes.map((node) => {
+        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, transform);
+        return [node.id, { ...node, projectedX: screen.x, projectedY: screen.y }];
+      }),
+    );
     ctx.save();
     ctx.strokeStyle = "rgba(120, 120, 120, 0.6)";
-    ctx.beginPath();
     for (const edge of edges) {
       const source = nodeMap.get(edge.source);
       const target = nodeMap.get(edge.target);
       if (!source || !target) continue;
-      const sx = source.projectedX + source.displayWidth / 2;
-      const sy = source.projectedY + source.displayHeight / 2;
-      const tx = target.projectedX + target.displayWidth / 2;
-      const ty = target.projectedY + target.displayHeight / 2;
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(tx, ty);
+
+      const route = routeEdge({ edge, source, target });
+      ctx.beginPath();
+      const path = new Path2D(route.d);
+      ctx.stroke(path);
     }
-    ctx.stroke();
     ctx.restore();
   }
 }

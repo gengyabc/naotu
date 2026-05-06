@@ -51,6 +51,9 @@ export function createSemanticProjection(
   for (const node of doc.nodes) {
     if (!visibleNodeIds.has(node.id)) continue;
 
+    const hNode = hierarchy.nodes.get(node.id);
+    const depth = hNode?.depth ?? 0;
+
     const isRoot = node.id === hierarchy.rootId;
     const isFocus = node.id === focusNodeId;
     const isSelected = context.selectedNodeIds.includes(node.id);
@@ -72,7 +75,8 @@ export function createSemanticProjection(
     });
 
     const visual = getVisualSpec(node.kind, detail);
-    const childrenExpanded = areChildrenExpanded(node.treeControl, context.zoom);
+    const projectedCenter = projectNodeCenter({ node, context });
+    const childrenExpanded = areChildrenExpanded(node.treeControl, context.zoom, depth);
 
     projectedNodes.push({
       id: node.id,
@@ -82,8 +86,8 @@ export function createSemanticProjection(
       notebook: node.notebook,
       worldX: node.x,
       worldY: node.y,
-      projectedX: node.x - visual.width / 2,
-      projectedY: node.y - visual.height / 2,
+      projectedX: projectedCenter.x - visual.width / (2 * context.zoom),
+      projectedY: projectedCenter.y - visual.height / (2 * context.zoom),
       displayWidth: visual.width,
       displayHeight: visual.height,
       detailLevel: detail,
@@ -101,6 +105,7 @@ export function createSemanticProjection(
   }
 
   projectedNodes = relaxProjectedNodes(projectedNodes, {
+    zoom: context.zoom,
     iterations: doc.nodes.length > 300 ? 2 : 4,
     pushStrength: 28,
   });
@@ -134,7 +139,7 @@ function collectVisibleTree(args: {
   const hNode = args.hierarchy.nodes.get(args.nodeId);
   if (!hNode) return;
 
-  const expanded = areChildrenExpanded(hNode.node.treeControl, args.zoom);
+  const expanded = areChildrenExpanded(hNode.node.treeControl, args.zoom, hNode.depth);
   if (!expanded && !args.focusPathSet.has(args.nodeId)) return;
 
   const children = args.hierarchy.childrenById.get(args.nodeId) ?? [];
@@ -144,10 +149,23 @@ function collectVisibleTree(args: {
   }
 }
 
-function areChildrenExpanded(treeControl: string | undefined, zoom: number): boolean {
+function areChildrenExpanded(treeControl: string | undefined, zoom: number, depth: number): boolean {
   if (treeControl === "manual-expanded") return true;
   if (treeControl === "manual-collapsed") return false;
-  return zoom >= 0.45;
+  return zoom >= 0.45 + depth * 0.15;
+}
+
+function projectNodeCenter(args: {
+  node: { x: number; y: number };
+  context: ProjectionContext;
+}): { x: number; y: number } {
+  const viewportCenterX = args.context.viewportWorldRect.x + args.context.viewportWorldRect.width / 2;
+  const viewportCenterY = args.context.viewportWorldRect.y + args.context.viewportWorldRect.height / 2;
+
+  return {
+    x: viewportCenterX + (args.node.x - viewportCenterX) / args.context.zoom,
+    y: viewportCenterY + (args.node.y - viewportCenterY) / args.context.zoom,
+  };
 }
 
 function includeReferenceNeighbors(args: {
