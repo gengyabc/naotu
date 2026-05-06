@@ -330,7 +330,8 @@ export class SvgMindmapRenderer implements RendererAdapter {
 
   private handleWheelZoom = (event: WheelEvent): void => {
     event.preventDefault();
-    const factor = Math.exp(-event.deltaY * 0.0015);
+    const zoomSpeed = this.options.getSettings().zoomSpeed;
+    const factor = Math.exp(-event.deltaY * zoomSpeed);
     if (!Number.isFinite(factor) || factor === 1) return;
     this.zoomBy(factor);
   };

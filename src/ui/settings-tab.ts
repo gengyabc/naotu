@@ -112,6 +112,17 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("缩放速度")
+      .setDesc("鼠标滚轮缩放的速度（默认 0.003，值越大速度越快）。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.zoomSpeed)).onChange(async (value) => {
+          const parsed = Number.parseFloat(value);
+          this.plugin.settings.zoomSpeed = Number.isFinite(parsed) ? Math.max(0.0005, Math.min(0.01, parsed)) : 0.003;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
       .setName("树布局水平间距(px)")
       .setDesc("树布局每层的水平距离。")
       .addText((text) =>

@@ -17,6 +17,7 @@ export interface SemanticMindmapSettings {
   language: "auto" | "zh" | "en";
   layoutHorizontalSpacing: number;
   layoutVerticalSpacing: number;
+  zoomSpeed: number;
 }
 
 export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
@@ -38,4 +39,5 @@ export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
   language: "auto",
   layoutHorizontalSpacing: 220,
   layoutVerticalSpacing: 80,
+  zoomSpeed: 0.003,
 };
