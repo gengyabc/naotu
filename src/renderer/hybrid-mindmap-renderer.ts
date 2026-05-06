@@ -171,6 +171,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
         });
         renderProjectedNodes({
           app: this.options.app,
+          layoutMode: doc.layoutMode,
           nodeLayer: this.svgNodeLayer,
           nodes: partition.svgNodes,
           transform: { x: transform.x, y: transform.y, k: transform.k },

@@ -161,6 +161,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
 
         renderProjectedNodes({
           app: this.options.app,
+          layoutMode: doc.layoutMode,
           nodeLayer: this.nodeScreenLayer,
           nodes: renderNodes,
           transform: { x: transform.x, y: transform.y, k: transform.k },

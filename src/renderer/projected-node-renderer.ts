@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { App } from "obsidian";
 import type { ProjectedNode } from "../types/mindmap";
+import type { LayoutMode } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec } from "../core/detail-level";
@@ -35,8 +36,13 @@ export function shouldStartNodeDrag(target: EventTarget | null): boolean {
     elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
 }
 
+export function canDragNodes(layoutMode: LayoutMode): boolean {
+  return layoutMode === "free";
+}
+
 export function renderProjectedNodes(args: {
   app: App;
+  layoutMode: LayoutMode;
   nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
   nodes: ProjectedNode[];
   transform: ViewTransform;
@@ -81,7 +87,7 @@ export function renderProjectedNodes(args: {
 
   const dragBehavior = d3
     .drag<SVGGElement, ProjectedNode>()
-    .filter((event) => shouldStartNodeDrag(event.target))
+    .filter((event) => canDragNodes(args.layoutMode) && shouldStartNodeDrag(event.target))
     .on("start", (event, node) => {
       event.sourceEvent?.stopPropagation();
       args.onDragStateChange?.(true);

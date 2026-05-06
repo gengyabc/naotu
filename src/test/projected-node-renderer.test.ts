@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampNotebookResizeSize, screenDragDeltaToWorldDelta, shouldStartNodeDrag } from "../renderer/projected-node-renderer";
+import { canDragNodes, clampNotebookResizeSize, screenDragDeltaToWorldDelta, shouldStartNodeDrag } from "../renderer/projected-node-renderer";
 
 describe("projected node dragging", () => {
   it("maps screen drag deltas directly to document movement under semantic zoom", () => {
@@ -27,5 +27,11 @@ describe("projected node dragging", () => {
       shouldStartNodeDrag({ closest: (selector: string) => (selector.includes("mindmap-node-resize-handle") ? {} : null) } as unknown as EventTarget),
     ).toBe(false);
     expect(shouldStartNodeDrag({ closest: () => null } as unknown as EventTarget)).toBe(true);
+  });
+
+  it("only enables node dragging in free layout", () => {
+    expect(canDragNodes("free")).toBe(true);
+    expect(canDragNodes("tree-mirror")).toBe(false);
+    expect(canDragNodes("tree-right")).toBe(false);
   });
 });
