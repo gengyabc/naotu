@@ -26,7 +26,9 @@ import {
   isDescendantNode,
   addChildMindmapNode,
   addSiblingMindmapNode,
+  expandDraggedNodeMoves,
   moveMindmapNode,
+  resolveDraggedNodeIds,
 } from "../core/tree-editing";
 import { buildHierarchy } from "../core/hierarchy";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
@@ -265,6 +267,7 @@ export class MindmapView extends ItemView {
       sourcePath: this.sourceFile?.path ?? "",
       getDocument: () => this.store.getDocument(),
       getSelectedNodeIds: () => this.selection.getIds(),
+      getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
       onViewportChange: (x, y, zoom) => {
         this.store.setViewportAndSyncTreeControls(x, y, zoom);
         this.markDirty();
@@ -303,14 +306,20 @@ export class MindmapView extends ItemView {
           this.renderer?.render();
         }
       },
-      onNodesMove: ({ moves }) => {
+      onNodesMove: ({ node, moves }) => {
         if (this.isTreeLayoutMode()) {
           this.applyDocumentChange(() => {
             this.store.updateNodePositions(moves);
           }, { commitHistory: false, relayout: false, autosave: false });
           return;
         }
-        this.store.updateNodePositions(moves);
+        const doc = this.store.getDocument();
+        const expandedMoves = expandDraggedNodeMoves(doc, {
+          draggedNodeId: node.id,
+          selectedIds: this.selection.getIds(),
+          moves,
+        });
+        this.store.updateNodePositions(expandedMoves);
         this.renderer?.render();
         this.markDirty();
         this.autosave.schedule();

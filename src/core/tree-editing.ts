@@ -36,9 +36,58 @@ export function getMindmapChildIds(doc: MindmapDocument, parentId: string): stri
 }
 
 export function isDescendantNode(doc: MindmapDocument, ancestorId: string, nodeId: string): boolean {
-  if (ancestorId === nodeId) return false;
   const childrenById = getMindmapChildrenById(doc);
+  return isDescendantNodeInChildren(childrenById, ancestorId, nodeId);
+}
 
+export function getSubtreeNodeIds(doc: MindmapDocument, rootId: string): string[] {
+  const childrenById = getMindmapChildrenById(doc);
+  return getSubtreeNodeIdsFromChildren(childrenById, rootId);
+}
+
+export function resolveDraggedNodeIds(doc: MindmapDocument, draggedNodeId: string, selectedIds: string[]): string[] {
+  const childrenById = getMindmapChildrenById(doc);
+  const baseIds = selectedIds.includes(draggedNodeId) ? selectedIds : [draggedNodeId];
+  const rootIds = baseIds.filter((id) => !baseIds.some((otherId) => otherId !== id && isDescendantNodeInChildren(childrenById, otherId, id)));
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+
+  for (const id of rootIds) {
+    for (const subtreeId of getSubtreeNodeIdsFromChildren(childrenById, id)) {
+      if (seen.has(subtreeId)) continue;
+      seen.add(subtreeId);
+      resolved.push(subtreeId);
+    }
+  }
+
+  return resolved;
+}
+
+export function expandDraggedNodeMoves(
+  doc: MindmapDocument,
+  args: { draggedNodeId: string; selectedIds: string[]; moves: Array<{ id: string; x: number; y: number }> },
+): Array<{ id: string; x: number; y: number }> {
+  const draggedNode = doc.nodes.find((node) => node.id === args.draggedNodeId);
+  const draggedMove = args.moves.find((move) => move.id === args.draggedNodeId);
+  if (!draggedNode || !draggedMove) return args.moves;
+
+  const deltaX = draggedMove.x - draggedNode.x;
+  const deltaY = draggedMove.y - draggedNode.y;
+  if (deltaX === 0 && deltaY === 0) return args.moves;
+
+  const moveMap = new Map(args.moves.map((move) => [move.id, move]));
+  for (const nodeId of resolveDraggedNodeIds(doc, args.draggedNodeId, args.selectedIds)) {
+    if (moveMap.has(nodeId)) continue;
+    const node = doc.nodes.find((item) => item.id === nodeId);
+    if (!node) continue;
+    moveMap.set(nodeId, { id: nodeId, x: node.x + deltaX, y: node.y + deltaY });
+  }
+
+  return [...moveMap.values()];
+}
+
+function isDescendantNodeInChildren(childrenById: Map<string, string[]>, ancestorId: string, nodeId: string): boolean {
+  if (ancestorId === nodeId) return false;
   const queue = [...(childrenById.get(ancestorId) ?? [])];
   const visited = new Set<string>();
   while (queue.length > 0) {
@@ -49,6 +98,23 @@ export function isDescendantNode(doc: MindmapDocument, ancestorId: string, nodeI
     queue.push(...(childrenById.get(current) ?? []));
   }
   return false;
+}
+
+function getSubtreeNodeIdsFromChildren(childrenById: Map<string, string[]>, rootId: string): string[] {
+  if (!childrenById.has(rootId)) return [];
+  const result: string[] = [];
+  const queue = [rootId];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+    result.push(current);
+    queue.push(...(childrenById.get(current) ?? []));
+  }
+
+  return result;
 }
 
 export function moveMindmapNode(

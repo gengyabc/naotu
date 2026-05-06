@@ -48,6 +48,7 @@ export function renderProjectedNodes(args: {
   transform: ViewTransform;
   sourcePath: string;
   getSelectedNodeIds: () => string[];
+  getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
@@ -65,6 +66,7 @@ export function renderProjectedNodes(args: {
 }): void {
   const resizeDrafts = new Map<string, { width: number; height: number }>();
   const dragDrafts = new Map<string, { x: number; y: number }>();
+  let activeDragNodeIds: string[] = [];
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().remove();
 
@@ -94,13 +96,13 @@ export function renderProjectedNodes(args: {
       args.onBeforeNodeDragStart(node);
 
       const selectedIds = args.getSelectedNodeIds();
+      activeDragNodeIds = args.getDragNodeIds(node.id, selectedIds);
       if (!selectedIds.includes(node.id)) {
         args.onSelectNode(node.id, "replace");
       }
     })
     .on("drag", (event, node) => {
-      const selectedIds = args.getSelectedNodeIds();
-      const movingIds = selectedIds.includes(node.id) ? selectedIds : [node.id];
+      const movingIds = activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id];
       const projectedMap = new Map(args.nodes.map((item) => [item.id, item]));
       const delta = screenDragDeltaToWorldDelta({ dx: event.dx, dy: event.dy });
 
@@ -119,6 +121,7 @@ export function renderProjectedNodes(args: {
     })
     .on("end", (_event, node) => {
       dragDrafts.clear();
+      activeDragNodeIds = [];
       args.onDragStateChange?.(false);
       args.onNodeDragEnd({ node });
     });

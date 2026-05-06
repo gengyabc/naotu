@@ -45,6 +45,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
       sourcePath: string;
       getDocument: () => MindmapDocument;
       getSelectedNodeIds: () => string[];
+      getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
       onViewportChange: (x: number, y: number, zoom: number) => void;
       onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
       onToggleTree: (id: string, expanded: boolean) => void;
@@ -177,6 +178,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
           transform: { x: transform.x, y: transform.y, k: transform.k },
           sourcePath: this.options.sourcePath,
           getSelectedNodeIds: this.options.getSelectedNodeIds,
+          getDragNodeIds: this.options.getDragNodeIds,
           onSelectNode: (id, mode) => {
             this.lastFocusNodeId = id;
             this.clearForcedDetailExcept(id);
