@@ -32,7 +32,9 @@ describe("shouldCullProjection", () => {
       isAncestorPath: false,
       hasChildren: false,
       childrenExpanded: false,
-      showNotebookExpandButton: false,
+      showOpenNotebookButton: false,
+      showResizeHandle: false,
+      usesCustomSize: false,
     };
     const offscreenNode: ProjectedNode = {
       ...visibleNode,

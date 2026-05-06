@@ -21,7 +21,8 @@ function routeMindmapEdge(source: ProjectedNode, target: ProjectedNode): EdgeRou
   const t = getAnchorPoint(target, source);
 
   const dx = t.x - s.x;
-  const curvature = Math.min(160, Math.max(60, Math.abs(dx) * 0.45));
+  const desiredCurvature = Math.min(160, Math.max(60, Math.abs(dx) * 0.45));
+  const curvature = Math.min(desiredCurvature, Math.abs(dx) / 2);
 
   const c1x = s.x + Math.sign(dx || 1) * curvature;
   const c2x = t.x - Math.sign(dx || 1) * curvature;

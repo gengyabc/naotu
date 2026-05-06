@@ -29,7 +29,7 @@ A notebook node links to an Obsidian note. It can preview note content when zoom
 ## Basic Usage
 
 - Double click node title to edit
-- Click double-down icon to convert text node to notebook node
+- Right click a text node to create or bind a notebook
 - Click + / - to expand or collapse subtree
 - Tab to create child node
 - Enter to create sibling node

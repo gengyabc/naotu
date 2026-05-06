@@ -62,6 +62,7 @@ export class MindmapView extends ItemView {
   private saveStatusEl: HTMLElement | null = null;
   private unsubscribeDirtyState: (() => void) | null = null;
   private draggingTreeNodeId: string | null = null;
+  private notebookResizeSession: { id: string } | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -268,8 +269,8 @@ export class MindmapView extends ItemView {
           this.store.toggleTreeControl(id);
         });
       },
-      onNotebookExpand: (id) => {
-        void this.handleNotebookExpand(id);
+      onOpenNotebook: (id) => {
+        void this.handleOpenNotebook(id);
       },
       onInlineTitleCommit: async (id, title) => {
         await this.handleInlineTitleCommit(id, title);
@@ -314,6 +315,15 @@ export class MindmapView extends ItemView {
         }
         this.markDirty();
         this.autosave.schedule();
+      },
+      onNotebookResizeStart: (id) => {
+        this.handleNotebookResizeStart(id);
+      },
+      onNotebookResize: (args) => {
+        this.handleNotebookResize(args);
+      },
+      onNotebookResizeEnd: (args) => {
+        this.handleNotebookResizeEnd(args);
       },
       onBoxSelect: (rect) => {
         const ids = this.store
@@ -453,32 +463,68 @@ export class MindmapView extends ItemView {
     this.renderer?.focusNode(sibling.id);
   }
 
-  private async handleNotebookExpand(id: string): Promise<void> {
+  private async createNotebookForTextNode(id: string): Promise<void> {
     const node = this.store.getDocument().nodes.find((item) => item.id === id);
-    if (!node) return;
+    if (!node || node.kind !== "text") return;
 
-    if (node.kind === "text") {
-      try {
-        this.commitHistory();
-        const result = await this.notebookService.createOrBindNotebookForTextNode(node, this.sourceFile?.path ?? "");
-        this.applyDocumentChange(() => {
-          this.store.patchNode(id, result.patch);
-        }, { commitHistory: false });
-        this.refreshMissingNotebookLinks();
-        this.selection.setOnly(id);
-        this.renderer?.setLastFocusNodeId(id);
-        this.renderer?.forceDetailLevel(id, 5);
-      } catch (error) {
-        showErrorNotice(error, "无法创建 notebook");
-      }
-      return;
+    try {
+      this.commitHistory();
+      const result = await this.notebookService.createOrBindNotebookForTextNode(node, this.sourceFile?.path ?? "");
+      this.applyDocumentChange(() => {
+        this.store.patchNode(id, result.patch);
+      }, { commitHistory: false });
+      this.refreshMissingNotebookLinks();
+      this.selection.setOnly(id);
+      this.renderer?.setLastFocusNodeId(id);
+      this.renderer?.forceDetailLevel(id, 5);
+    } catch (error) {
+      showErrorNotice(error, "无法创建 notebook");
     }
+  }
+
+  private focusNotebookPreview(id: string): void {
+    const node = this.store.getDocument().nodes.find((item) => item.id === id);
+    if (!node || node.kind !== "notebook") return;
 
     this.selection.setOnly(id);
     this.renderer?.setLastFocusNodeId(id);
     this.renderer?.forceDetailLevel(id, 5);
     this.renderer?.focusNode(id);
     this.renderer?.render();
+  }
+
+  private async handleOpenNotebook(id: string): Promise<void> {
+    const node = this.store.getDocument().nodes.find((item) => item.id === id);
+    if (!node || node.kind !== "notebook" || !node.notebook?.link) return;
+
+    const file = this.notebookService.resolveNotebookFile(node, this.sourceFile?.path ?? "");
+    if (!file) {
+      showErrorNotice(new Error("找不到 notebook 文件"), "无法打开 notebook");
+      return;
+    }
+
+    const leaf = this.app.workspace.getLeaf("split");
+    await leaf.openFile(file, { active: true });
+  }
+
+  private handleNotebookResizeStart(id: string): void {
+    if (this.notebookResizeSession?.id === id) return;
+    this.commitHistory();
+    this.notebookResizeSession = { id };
+  }
+
+  private handleNotebookResize(args: { id: string; width: number; height: number }): void {
+    this.store.updateNodeSize(args.id, args.width, args.height);
+    this.renderer?.render();
+    this.markDirty();
+  }
+
+  private handleNotebookResizeEnd(args: { id: string; width: number; height: number }): void {
+    this.store.updateNodeSize(args.id, args.width, args.height);
+    this.renderer?.render();
+    this.markDirty();
+    this.autosave.schedule();
+    this.notebookResizeSession = null;
   }
 
   private async handleInlineTitleCommit(id: string, title: string): Promise<void> {
@@ -517,6 +563,14 @@ export class MindmapView extends ItemView {
     if (node.kind === "text") {
       menu.addItem((item) => {
         item
+          .setTitle("创建 notebook")
+          .setIcon("file-plus")
+          .onClick(() => {
+            void this.createNotebookForTextNode(id);
+          });
+      });
+      menu.addItem((item) => {
+        item
           .setTitle("选择已有 notebook...")
             .setIcon("file-text")
             .onClick(() => {
@@ -534,6 +588,9 @@ export class MindmapView extends ItemView {
     }
 
     if (node.kind === "notebook") {
+      menu.addItem((item) => {
+        item.setTitle("预览 notebook").setIcon("scan-search").onClick(() => this.focusNotebookPreview(id));
+      });
       menu.addItem((item) => {
         item
           .setTitle("重新选择 notebook...")

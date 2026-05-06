@@ -5,10 +5,35 @@ import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
-import { renderDoubleDownIcon } from "./icons";
+import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/notebook-size";
+
+const NOTEBOOK_OPEN_BUTTON_X = 12;
+const NOTEBOOK_OPEN_BUTTON_Y = 34;
+const NOTEBOOK_OPEN_BUTTON_WIDTH = 78;
+const NOTEBOOK_OPEN_BUTTON_HEIGHT = 20;
+const NOTEBOOK_PREVIEW_X = 8;
+const NOTEBOOK_PREVIEW_Y = 62;
+const NOTEBOOK_PREVIEW_RIGHT_PADDING = 8;
+const NOTEBOOK_PREVIEW_BOTTOM_PADDING = 20;
+const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
+const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
 
 export function screenDragDeltaToWorldDelta(args: { dx: number; dy: number }): { dx: number; dy: number } {
   return { dx: args.dx, dy: args.dy };
+}
+
+export function clampNotebookResizeSize(width: number, height: number): { width: number; height: number } {
+  return {
+    width: Math.max(NOTEBOOK_MIN_CUSTOM_WIDTH, Math.round(width)),
+    height: Math.max(NOTEBOOK_MIN_CUSTOM_HEIGHT, Math.round(height)),
+  };
+}
+
+export function shouldStartNodeDrag(target: EventTarget | null): boolean {
+  return !(typeof (target as { closest?: unknown } | null)?.closest === "function" &&
+    (target as { closest: (selector: string) => unknown }).closest(
+      ".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle",
+    ));
 }
 
 export function renderProjectedNodes(args: {
@@ -22,14 +47,18 @@ export function renderProjectedNodes(args: {
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
   onToggleTree: (id: string) => void;
-  onNotebookExpand: (id: string) => void;
+  onOpenNotebook: (id: string) => void;
   onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
   onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
   onNodeDragEnd: (args: { node: ProjectedNode }) => void;
+  onNotebookResizeStart: (id: string) => void;
+  onNotebookResize: (args: { id: string; width: number; height: number }) => void;
+  onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
   onDragStateChange?: (dragging: boolean) => void;
 }): void {
+  const resizeDrafts = new Map<string, { width: number; height: number }>();
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().remove();
 
@@ -37,14 +66,20 @@ export function renderProjectedNodes(args: {
   entered.append("rect").attr("class", "mindmap-node-bg").attr("rx", 12).attr("ry", 12);
   entered.append("text").attr("class", "mindmap-node-title");
   entered.append("text").attr("class", "mindmap-node-kind-badge");
+  const openNotebook = entered.append("g").attr("class", "mindmap-node-open-notebook");
+  openNotebook.append("rect").attr("class", "mindmap-node-open-notebook-bg").attr("rx", 10).attr("ry", 10);
+  openNotebook.append("text").attr("class", "mindmap-node-open-notebook-text");
   entered.append("text").attr("class", "mindmap-node-tree-toggle");
-  entered.append("g").attr("class", "mindmap-node-notebook-expand");
+  const resizeHandle = entered.append("g").attr("class", "mindmap-node-resize-handle");
+  resizeHandle.append("rect").attr("class", "mindmap-node-resize-hitbox");
+  resizeHandle.append("path").attr("class", "mindmap-node-resize-icon");
   entered.append("foreignObject").attr("class", "mindmap-node-preview").style("display", "none");
 
   const merged = entered.merge(selection);
 
   const dragBehavior = d3
     .drag<SVGGElement, ProjectedNode>()
+    .filter((event) => shouldStartNodeDrag(event.target))
     .on("start", (event, node) => {
       event.sourceEvent?.stopPropagation();
       args.onDragStateChange?.(true);
@@ -75,6 +110,22 @@ export function renderProjectedNodes(args: {
       args.onDragStateChange?.(false);
       args.onNodeDragEnd({ node });
     });
+
+  const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event, node) => {
+    event.sourceEvent?.stopPropagation();
+    resizeDrafts.set(node.id, { width: node.displayWidth, height: node.displayHeight });
+    args.onNotebookResizeStart(node.id);
+  }).on("drag", (event, node) => {
+    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
+    const next = clampNotebookResizeSize(currentDraft.width + event.dx, currentDraft.height + event.dy);
+    resizeDrafts.set(node.id, next);
+    args.onNotebookResize({ id: node.id, width: next.width, height: next.height });
+  }).on("end", (event, node) => {
+    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
+    const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height);
+    resizeDrafts.delete(node.id);
+    args.onNotebookResizeEnd({ id: node.id, width: next.width, height: next.height });
+  });
 
   merged
     .on("click", (event, node) => {
@@ -125,8 +176,34 @@ export function renderProjectedNodes(args: {
       .select<SVGTextElement>("text.mindmap-node-kind-badge")
       .attr("x", 12)
       .attr("y", 48)
-      .style("display", node.kind === "notebook" && node.detailLevel >= 2 ? "" : "none")
+      .style("display", node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 5 ? "" : "none")
       .text("notebook");
+
+    group
+      .select<SVGGElement>("g.mindmap-node-open-notebook")
+      .style("display", node.showOpenNotebookButton ? "" : "none")
+      .style("cursor", "pointer")
+      .on("pointerdown", (event) => {
+        event.stopPropagation();
+      })
+      .on("click", (event) => {
+        event.stopPropagation();
+        args.onOpenNotebook(node.id);
+      })
+      .call((openGroup) => {
+        openGroup
+          .select<SVGRectElement>("rect.mindmap-node-open-notebook-bg")
+          .attr("x", NOTEBOOK_OPEN_BUTTON_X)
+          .attr("y", NOTEBOOK_OPEN_BUTTON_Y)
+          .attr("width", NOTEBOOK_OPEN_BUTTON_WIDTH)
+          .attr("height", NOTEBOOK_OPEN_BUTTON_HEIGHT);
+
+        openGroup
+          .select<SVGTextElement>("text.mindmap-node-open-notebook-text")
+          .attr("x", 24)
+          .attr("y", 48)
+          .text("Open md");
+      });
 
     group
       .select<SVGTextElement>("text.mindmap-node-tree-toggle")
@@ -139,20 +216,47 @@ export function renderProjectedNodes(args: {
         args.onToggleTree(node.id);
       });
 
-    const iconGroup = group
-      .select<SVGGElement>("g.mindmap-node-notebook-expand")
-      .attr("transform", `translate(${node.displayWidth / 2 - 8}, ${node.displayHeight + 8})`)
-      .style("display", node.showNotebookExpandButton ? "" : "none")
-      .style("cursor", "pointer")
+    const resizeHandleGroup = group.select<SVGGElement>("g.mindmap-node-resize-handle") as d3.Selection<
+      SVGGElement,
+      ProjectedNode,
+      null,
+      undefined
+    >;
+    resizeHandleGroup
+      .attr(
+        "transform",
+        `translate(${node.displayWidth - NOTEBOOK_RESIZE_HANDLE_SIZE - NOTEBOOK_RESIZE_HANDLE_INSET}, ${node.displayHeight - NOTEBOOK_RESIZE_HANDLE_SIZE - NOTEBOOK_RESIZE_HANDLE_INSET})`,
+      )
+      .style("display", node.showResizeHandle ? "" : "none")
+      .on("pointerdown", (event) => {
+        event.stopPropagation();
+      })
       .on("click", (event) => {
         event.stopPropagation();
-        args.onNotebookExpand(node.id);
+      })
+      .call(resizeBehavior)
+      .call((handleGroup) => {
+        handleGroup
+          .select<SVGRectElement>("rect.mindmap-node-resize-hitbox")
+          .attr("x", -4)
+          .attr("y", -4)
+          .attr("width", 20)
+          .attr("height", 20)
+          .attr("fill", "transparent");
+
+        handleGroup
+          .select<SVGPathElement>("path.mindmap-node-resize-icon")
+          .attr("d", "M2 10 L10 2 M5 12 L12 5 M8 12 L12 8");
       });
-    renderDoubleDownIcon(iconGroup as d3.Selection<SVGGElement, unknown, null, undefined>);
 
     const preview = group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-preview");
     if (node.kind === "notebook" && visual.showPreview && node.notebook?.link) {
-      preview.style("display", "").attr("x", 8).attr("y", 72).attr("width", node.displayWidth - 16).attr("height", node.displayHeight - 80);
+      preview
+        .style("display", "")
+        .attr("x", NOTEBOOK_PREVIEW_X)
+        .attr("y", NOTEBOOK_PREVIEW_Y)
+        .attr("width", node.displayWidth - NOTEBOOK_PREVIEW_X - NOTEBOOK_PREVIEW_RIGHT_PADDING)
+        .attr("height", node.displayHeight - NOTEBOOK_PREVIEW_Y - NOTEBOOK_PREVIEW_BOTTOM_PADDING);
       void renderNotebookPreview({
         app: args.app,
         foreignObject: preview.node(),

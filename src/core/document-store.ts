@@ -97,6 +97,10 @@ export class MindmapDocumentStore {
     this.patchNode(id, { x, y });
   }
 
+  updateNodeSize(id: string, customWidth: number, customHeight: number): void {
+    this.patchNode(id, { customWidth, customHeight });
+  }
+
   toggleTreeControl(id: string): void {
     const node = this.doc.nodes.find((item) => item.id === id);
     if (!node) return;

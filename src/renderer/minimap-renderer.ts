@@ -1,4 +1,5 @@
 import type { MindmapDocument, Rect } from "../types/mindmap";
+import { getStoredNodeSize } from "../core/notebook-size";
 
 export class MinimapRenderer {
   private canvas: HTMLCanvasElement;
@@ -98,10 +99,11 @@ function computeNodeBounds(doc: MindmapDocument): Rect {
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (const node of doc.nodes) {
-    minX = Math.min(minX, node.x - node.width / 2);
-    minY = Math.min(minY, node.y - node.height / 2);
-    maxX = Math.max(maxX, node.x + node.width / 2);
-    maxY = Math.max(maxY, node.y + node.height / 2);
+    const size = getStoredNodeSize(node);
+    minX = Math.min(minX, node.x - size.width / 2);
+    minY = Math.min(minY, node.y - size.height / 2);
+    maxX = Math.max(maxX, node.x + size.width / 2);
+    maxY = Math.max(maxY, node.y + size.height / 2);
   }
 
   const padding = 300;

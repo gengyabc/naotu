@@ -30,6 +30,8 @@ export interface MindmapNode {
   y: number;
   width: number;
   height: number;
+  customWidth?: number;
+  customHeight?: number;
   treeControl: TreeControl;
   notebook?: NotebookBinding;
   link?: string;
@@ -99,7 +101,9 @@ export interface ProjectedNode {
   isConnectionSource?: boolean;
   hasChildren: boolean;
   childrenExpanded: boolean;
-  showNotebookExpandButton: boolean;
+  showOpenNotebookButton: boolean;
+  showResizeHandle: boolean;
+  usesCustomSize: boolean;
 }
 
 export interface ProjectedEdge {

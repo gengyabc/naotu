@@ -55,4 +55,37 @@ describe("MindmapDocumentStore", () => {
     await expect(store.save()).rejects.toThrow("脑图文件已在外部修改");
     expect(modify).not.toHaveBeenCalled();
   });
+
+  it("updates custom notebook size fields", () => {
+    const store = new MindmapDocumentStore({
+      vault: {},
+    } as never);
+
+    store.replaceDocument({
+      version: 1,
+      title: "Edited here",
+      layoutMode: "tree-mirror",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        {
+          id: "node-1",
+          kind: "notebook",
+          title: "Notebook",
+          x: 0,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "auto",
+        },
+      ],
+      edges: [],
+    });
+
+    store.updateNodeSize("node-1", 480, 260);
+
+    expect(store.getDocument().nodes[0]).toMatchObject({
+      customWidth: 480,
+      customHeight: 260,
+    });
+  });
 });

@@ -156,4 +156,127 @@ describe("createSemanticProjection", () => {
     expect(z07.visibleNodeIds.has("greatgrandchild")).toBe(false);
     expect(z085.visibleNodeIds.has("greatgrandchild")).toBe(true);
   });
+
+  it("applies forced detail during projection sizing", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["child", 5]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.detailLevel).toBe(5);
+    expect(child?.displayWidth).toBe(360);
+    expect(child?.displayHeight).toBe(300);
+  });
+
+  it("uses custom size for level 5 notebook nodes", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+      customWidth: 520,
+      customHeight: 260,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["child", 5]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.displayWidth).toBe(520);
+    expect(child?.displayHeight).toBe(260);
+    expect(child?.usesCustomSize).toBe(true);
+  });
+
+  it("clamps custom size for level 5 notebook nodes", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+      customWidth: 120,
+      customHeight: 90,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["child", 5]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.displayWidth).toBe(200);
+    expect(child?.displayHeight).toBe(150);
+  });
+
+  it("settles expanded notebook overlaps out of screen space", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      link: "[[Root]]",
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "text",
+      x: 40,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["root", 5]]),
+      },
+    );
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+
+    const rootRect = toScreenRect(root!, 1, -1000, -1000);
+    const childRect = toScreenRect(child!, 1, -1000, -1000);
+    expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
+  });
 });

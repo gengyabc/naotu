@@ -1,5 +1,6 @@
 import type {
   MindmapDocument,
+  MindmapNode,
   NodeDetailLevel,
   ProjectedEdge,
   ProjectedNode,
@@ -11,10 +12,12 @@ import { resolveFocusNodeId } from "./focus";
 import { getVisualSpec } from "./detail-level";
 import { computeSemanticDetailLevel } from "./semantic-zoom-policy";
 import { relaxProjectedNodes } from "./layout-relaxation";
+import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
   connectionSourceId?: string;
+  forcedDetailLevels?: ReadonlyMap<string, NodeDetailLevel>;
 }
 
 export function createSemanticProjection(
@@ -61,7 +64,7 @@ export function createSemanticProjection(
     const isAncestorPath = focusPathSet.has(node.id) && !isFocus;
     const children = hierarchy.childrenById.get(node.id) ?? [];
 
-    const detail: NodeDetailLevel = computeSemanticDetailLevel({
+    const computedDetail: NodeDetailLevel = computeSemanticDetailLevel({
       zoom: context.zoom,
       kind: node.kind,
       isRoot,
@@ -73,8 +76,10 @@ export function createSemanticProjection(
       hasChildren: children.length > 0,
       distanceToFocus: focusNode ? distance(node, focusNode) : 0,
     });
+    const forcedDetail = extra.forcedDetailLevels?.get(node.id);
+    const detail: NodeDetailLevel = forcedDetail !== undefined && forcedDetail > computedDetail ? forcedDetail : computedDetail;
 
-    const visual = getVisualSpec(node.kind, detail);
+    const resolvedSize = resolveProjectedDisplaySize({ node, detail });
     const projectedCenter = projectNodeCenter({ node, context });
     const childrenExpanded = areChildrenExpanded(node.treeControl, context.zoom, depth);
 
@@ -86,10 +91,10 @@ export function createSemanticProjection(
       notebook: node.notebook,
       worldX: node.x,
       worldY: node.y,
-      projectedX: projectedCenter.x - visual.width / (2 * context.zoom),
-      projectedY: projectedCenter.y - visual.height / (2 * context.zoom),
-      displayWidth: visual.width,
-      displayHeight: visual.height,
+      projectedX: projectedCenter.x - resolvedSize.width / (2 * context.zoom),
+      projectedY: projectedCenter.y - resolvedSize.height / (2 * context.zoom),
+      displayWidth: resolvedSize.width,
+      displayHeight: resolvedSize.height,
       detailLevel: detail,
       isRoot,
       isFocus,
@@ -100,14 +105,22 @@ export function createSemanticProjection(
       isConnectionSource: extra.connectionSourceId === node.id,
       hasChildren: children.length > 0,
       childrenExpanded,
-      showNotebookExpandButton: true,
+      showOpenNotebookButton: node.kind === "notebook" && detail === 5 && Boolean(node.notebook?.link),
+      showResizeHandle: node.kind === "notebook" && detail === 5,
+      usesCustomSize: resolvedSize.usesCustomSize,
     });
   }
 
+  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
+
   projectedNodes = relaxProjectedNodes(projectedNodes, {
     zoom: context.zoom,
-    iterations: doc.nodes.length > 300 ? 2 : 4,
-    pushStrength: 28,
+    iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 2 : 4,
+    pushStrength: hasExpandedNotebook ? 36 : 28,
+    maxMovePerIteration: hasExpandedNotebook ? 72 : 48,
+    settleUntilNoOverlap: hasExpandedNotebook,
+    maxSettlePasses: hasExpandedNotebook ? 8 : 0,
+    overlapPadding: hasExpandedNotebook ? 16 : 12,
   });
 
   const projectedEdges: ProjectedEdge[] = doc.edges
@@ -192,15 +205,13 @@ function includeReferenceNeighbors(args: {
   }
 }
 
-function isNearViewport(
-  node: { x: number; y: number; width: number; height: number },
-  rect: { x: number; y: number; width: number; height: number },
-): boolean {
+function isNearViewport(node: MindmapNode, rect: { x: number; y: number; width: number; height: number }): boolean {
+  const size = getStoredNodeSize(node);
   const padding = 800;
-  const left = node.x - node.width / 2;
-  const right = node.x + node.width / 2;
-  const top = node.y - node.height / 2;
-  const bottom = node.y + node.height / 2;
+  const left = node.x - size.width / 2;
+  const right = node.x + size.width / 2;
+  const top = node.y - size.height / 2;
+  const bottom = node.y + size.height / 2;
   return !(
     right < rect.x - padding ||
     left > rect.x + rect.width + padding ||
@@ -213,4 +224,25 @@ function distance(a: { x: number; y: number }, b: { x: number; y: number }): num
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+function resolveProjectedDisplaySize(args: {
+  node: MindmapNode;
+  detail: NodeDetailLevel;
+}): { width: number; height: number; usesCustomSize: boolean } {
+  const visual = getVisualSpec(args.node.kind, args.detail);
+  const customSize = args.detail === 5 ? getCustomNotebookSize(args.node) : null;
+  if (customSize) {
+    return {
+      width: customSize.width,
+      height: customSize.height,
+      usesCustomSize: true,
+    };
+  }
+
+  return {
+    width: visual.width,
+    height: visual.height,
+    usesCustomSize: false,
+  };
 }

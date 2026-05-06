@@ -1,4 +1,5 @@
 import type { MindmapNode, Rect } from "../types/mindmap";
+import { getStoredNodeSize } from "./notebook-size";
 
 export function normalizeRect(x1: number, y1: number, x2: number, y2: number): Rect {
   return {
@@ -14,10 +15,11 @@ export function rectIntersects(a: Rect, b: Rect): boolean {
 }
 
 export function nodeWorldRect(node: MindmapNode): Rect {
+  const size = getStoredNodeSize(node);
   return {
-    x: node.x - node.width / 2,
-    y: node.y - node.height / 2,
-    width: node.width,
-    height: node.height,
+    x: node.x - size.width / 2,
+    y: node.y - size.height / 2,
+    width: size.width,
+    height: size.height,
   };
 }

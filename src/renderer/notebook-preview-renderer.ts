@@ -3,6 +3,18 @@ import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
+const wheelBindingByElement = new WeakSet<HTMLDivElement>();
+
+function shouldKeepWheelWithinPreview(wrapper: HTMLDivElement, deltaY: number): boolean {
+  if (wrapper.scrollHeight <= wrapper.clientHeight) return false;
+
+  const atTop = wrapper.scrollTop <= 0;
+  const atBottom = wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 1;
+
+  if (deltaY < 0) return !atTop;
+  if (deltaY > 0) return !atBottom;
+  return true;
+}
 
 export async function renderNotebookPreview(args: {
   app: App;
@@ -21,6 +33,14 @@ export async function renderNotebookPreview(args: {
     wrapper = document.createElement("div");
     wrapper.className = "mindmap-preview-wrapper";
     args.foreignObject.appendChild(wrapper);
+  }
+  if (!wheelBindingByElement.has(wrapper)) {
+    wrapper.addEventListener("wheel", (event) => {
+      if (shouldKeepWheelWithinPreview(wrapper, event.deltaY)) {
+        event.stopPropagation();
+      }
+    });
+    wheelBindingByElement.add(wrapper);
   }
 
   wrapper.empty();

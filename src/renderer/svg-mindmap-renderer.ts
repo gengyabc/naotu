@@ -43,13 +43,16 @@ export class SvgMindmapRenderer implements RendererAdapter {
       onViewportChange: (x: number, y: number, zoom: number) => void;
       onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
       onToggleTree: (id: string) => void;
-      onNotebookExpand: (id: string) => void;
+      onOpenNotebook: (id: string) => void;
       onInlineTitleCommit: (id: string, title: string) => Promise<void>;
       onContextMenu: (id: string, x: number, y: number) => void;
       onEdgeContextMenu: (id: string, x: number, y: number) => void;
       onBeforeNodeDragStart: (node: ProjectedNode) => void;
       onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
       onNodeDragEnd: (args: { node: ProjectedNode }) => void;
+      onNotebookResizeStart: (id: string) => void;
+      onNotebookResize: (args: { id: string; width: number; height: number }) => void;
+      onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
       onBoxSelect: (rect: Rect) => void;
       getSettings: () => SemanticMindmapSettings;
       onRenderStats?: (stats: {
@@ -115,13 +118,12 @@ export class SvgMindmapRenderer implements RendererAdapter {
       {
         searchResultIds: this.searchResultIds,
         connectionSourceId: this.connectionEnabled ? this.connectionSourceId : undefined,
+        forcedDetailLevels: this.forcedDetailLevel,
       },
     );
 
     for (const node of projection.nodes) {
       node.isMissingNotebook = this.missingNotebookNodeIds.has(node.id);
-      const forced = this.forcedDetailLevel.get(node.id);
-      if (forced !== undefined && forced > node.detailLevel) node.detailLevel = forced;
     }
 
     this.lastProjectedNodes = projection.nodes;
@@ -181,10 +183,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
             this.render();
           },
           onToggleTree: this.options.onToggleTree,
-          onNotebookExpand: (id) => {
-            this.lastFocusNodeId = id;
-            this.options.onNotebookExpand(id);
-          },
+          onOpenNotebook: this.options.onOpenNotebook,
           onStartInlineEdit: (node, rect) => {
             new InlineTitleEditor({
               layer: this.inlineEditorLayer,
@@ -202,6 +201,9 @@ export class SvgMindmapRenderer implements RendererAdapter {
           onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,
           onNodesMove: this.options.onNodesMove,
           onNodeDragEnd: this.options.onNodeDragEnd,
+          onNotebookResizeStart: this.options.onNotebookResizeStart,
+          onNotebookResize: this.options.onNotebookResize,
+          onNotebookResizeEnd: this.options.onNotebookResizeEnd,
           onDragStateChange: (dragging) => {
             this.dragging = dragging;
           },
