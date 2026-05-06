@@ -7,6 +7,13 @@ describe("projected node dragging", () => {
     expect(screenDragDeltaToWorldDelta({ dx: 12.5, dy: 7.25 })).toEqual({ dx: 12.5, dy: 7.25 });
   });
 
+  it("preserves incremental drag deltas for accumulation", () => {
+    const first = screenDragDeltaToWorldDelta({ dx: 5, dy: 3 });
+    const second = screenDragDeltaToWorldDelta({ dx: 4, dy: -2 });
+
+    expect({ x: first.dx + second.dx, y: first.dy + second.dy }).toEqual({ x: 9, y: 1 });
+  });
+
   it("clamps notebook resize size to minimum bounds", () => {
     expect(clampNotebookResizeSize(120, 90)).toEqual({ width: 200, height: 150 });
   });

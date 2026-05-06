@@ -61,8 +61,11 @@ export class MindmapView extends ItemView {
   private dirtyState = new DirtyStateManager();
   private saveStatusEl: HTMLElement | null = null;
   private unsubscribeDirtyState: (() => void) | null = null;
-  private draggingTreeNodeId: string | null = null;
+  private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
+  private mirrorLayoutButton: HTMLButtonElement | null = null;
+  private rightLayoutButton: HTMLButtonElement | null = null;
+  private freeLayoutButton: HTMLButtonElement | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -174,13 +177,22 @@ export class MindmapView extends ItemView {
     setButtonA11y(addButton, "新增节点");
     addButton.onclick = () => this.addTextNode();
 
-    const mirrorLayoutButton = toolbar.createEl("button", { text: "镜像树" });
-    setButtonA11y(mirrorLayoutButton, "镜像树布局");
-    mirrorLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-mirror");
+    const currentLayoutMode = this.store.getDocument().layoutMode;
 
-    const rightLayoutButton = toolbar.createEl("button", { text: "右向树" });
-    setButtonA11y(rightLayoutButton, "右向树布局");
-    rightLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-right");
+    this.mirrorLayoutButton = toolbar.createEl("button", { text: "镜像树" });
+    setButtonA11y(this.mirrorLayoutButton, "镜像树布局");
+    this.mirrorLayoutButton.toggleClass("is-active", currentLayoutMode === "tree-mirror");
+    this.mirrorLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-mirror");
+
+    this.rightLayoutButton = toolbar.createEl("button", { text: "右向树" });
+    setButtonA11y(this.rightLayoutButton, "右向树布局");
+    this.rightLayoutButton.toggleClass("is-active", currentLayoutMode === "tree-right");
+    this.rightLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-right");
+
+    this.freeLayoutButton = toolbar.createEl("button", { text: "自由布局" });
+    setButtonA11y(this.freeLayoutButton, "自由布局");
+    this.freeLayoutButton.toggleClass("is-active", currentLayoutMode === "free");
+    this.freeLayoutButton.onclick = () => this.applyTreeLayoutMode("free");
 
     const saveButton = toolbar.createEl("button", { text: "保存" });
     setButtonA11y(saveButton, "保存脑图");
@@ -283,9 +295,11 @@ export class MindmapView extends ItemView {
       },
       onBeforeNodeDragStart: (node) => {
         this.commitHistory();
-        if (this.isTreeLayoutMode()) {
-          this.draggingTreeNodeId = node.id;
+        if (!this.selection.has(node.id)) {
           this.selection.setOnly(node.id);
+        }
+        if (this.isTreeLayoutMode()) {
+          this.treeDragStartPosition = { x: node.worldX, y: node.worldY };
           this.renderer?.render();
         }
       },
@@ -303,6 +317,12 @@ export class MindmapView extends ItemView {
       },
       onNodeDragEnd: ({ node }) => {
         if (this.isTreeLayoutMode()) {
+          const start = this.treeDragStartPosition;
+          const moved = start !== null && (Math.abs(node.worldX - start.x) > 0.5 || Math.abs(node.worldY - start.y) > 0.5);
+          if (!moved) {
+            this.treeDragStartPosition = null;
+            return;
+          }
           const action = this.resolveTreeDrop(node.id);
           const doc = this.store.getDocument();
           let next = doc;
@@ -310,7 +330,7 @@ export class MindmapView extends ItemView {
             next = moveMindmapNode(doc, { nodeId: node.id, newParentId: action.newParentId, targetIndex: action.targetIndex });
           }
           this.applyReplacedDocument(this.relayoutDocument(next), { commitHistory: false });
-          this.draggingTreeNodeId = null;
+          this.treeDragStartPosition = null;
           return;
         }
         this.markDirty();
@@ -661,7 +681,11 @@ export class MindmapView extends ItemView {
     this.refreshMissingNotebookLinks();
   }
 
-  private applyTreeLayoutMode(mode: "tree-mirror" | "tree-right"): void {
+  private applyTreeLayoutMode(mode: "tree-mirror" | "tree-right" | "free"): void {
+    this.mirrorLayoutButton?.toggleClass("is-active", mode === "tree-mirror");
+    this.rightLayoutButton?.toggleClass("is-active", mode === "tree-right");
+    this.freeLayoutButton?.toggleClass("is-active", mode === "free");
+
     const next = structuredClone(this.store.getDocument());
     next.layoutMode = mode;
     this.applyReplacedDocument(this.relayoutDocument(next));

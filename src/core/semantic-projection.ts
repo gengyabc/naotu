@@ -27,13 +27,16 @@ export function createSemanticProjection(
   extra: CreateSemanticProjectionExtra = {},
 ): SemanticProjection {
   const hierarchy = buildHierarchy(doc);
-  const focusNodeId = resolveFocusNodeId({
-    doc,
-    hierarchy,
-    selectedNodeIds: context.selectedNodeIds,
-    lastFocusNodeId: context.lastFocusNodeId,
-    viewportWorldRect: context.viewportWorldRect,
-  });
+  const isTreeLayout = doc.layoutMode === "tree-mirror" || doc.layoutMode === "tree-right";
+  const focusNodeId = isTreeLayout
+    ? hierarchy.rootId
+    : resolveFocusNodeId({
+        doc,
+        hierarchy,
+        selectedNodeIds: context.selectedNodeIds,
+        lastFocusNodeId: context.lastFocusNodeId,
+        viewportWorldRect: context.viewportWorldRect,
+      });
 
   const focusPath = focusNodeId ? getAncestorPath(focusNodeId, hierarchy) : [];
   const focusPathSet = new Set(focusPath);
@@ -114,15 +117,17 @@ export function createSemanticProjection(
 
   const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
 
-  projectedNodes = relaxProjectedNodes(projectedNodes, {
-    zoom: context.zoom,
-    iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 2 : 4,
-    pushStrength: hasExpandedNotebook ? 36 : 28,
-    maxMovePerIteration: hasExpandedNotebook ? 72 : 48,
-    settleUntilNoOverlap: hasExpandedNotebook,
-    maxSettlePasses: hasExpandedNotebook ? 8 : 0,
-    overlapPadding: hasExpandedNotebook ? 16 : 12,
-  });
+  if (!isTreeLayout) {
+    projectedNodes = relaxProjectedNodes(projectedNodes, {
+      zoom: context.zoom,
+      iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 2 : 4,
+      pushStrength: hasExpandedNotebook ? 36 : 28,
+      maxMovePerIteration: hasExpandedNotebook ? 72 : 48,
+      settleUntilNoOverlap: hasExpandedNotebook,
+      maxSettlePasses: hasExpandedNotebook ? 8 : 0,
+      overlapPadding: hasExpandedNotebook ? 16 : 12,
+    });
+  }
 
   const projectedEdges: ProjectedEdge[] = doc.edges
     .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))

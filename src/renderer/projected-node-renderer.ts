@@ -58,6 +58,7 @@ export function renderProjectedNodes(args: {
   onDragStateChange?: (dragging: boolean) => void;
 }): void {
   const resizeDrafts = new Map<string, { width: number; height: number }>();
+  const dragDrafts = new Map<string, { x: number; y: number }>();
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().remove();
 
@@ -101,13 +102,17 @@ export function renderProjectedNodes(args: {
         .map((id) => {
           const item = projectedMap.get(id);
           if (!item) return null;
-          return { id, x: item.worldX + delta.dx, y: item.worldY + delta.dy };
+          const base = dragDrafts.get(id) ?? { x: item.worldX, y: item.worldY };
+          const next = { id, x: base.x + delta.dx, y: base.y + delta.dy };
+          dragDrafts.set(id, { x: next.x, y: next.y });
+          return next;
         })
         .filter(Boolean) as Array<{ id: string; x: number; y: number }>;
 
       args.onNodesMove({ node, moves });
     })
     .on("end", (_event, node) => {
+      dragDrafts.clear();
       args.onDragStateChange?.(false);
       args.onNodeDragEnd({ node });
     });
