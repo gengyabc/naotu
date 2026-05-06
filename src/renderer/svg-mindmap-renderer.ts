@@ -94,6 +94,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
     this.svg.call(this.zoomBehavior);
     this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
     this.bindBoxSelect();
+    this.bindFocusRestore();
     const viewport = this.options.getDocument().viewport;
     this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
     this.render();
@@ -397,6 +398,12 @@ export class SvgMindmapRenderer implements RendererAdapter {
       this.selecting = false;
       this.selectionStartWorld = null;
       this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");
+    });
+  }
+
+  private bindFocusRestore(): void {
+    this.svg.on("click.focus", () => {
+      this.options.container.focus();
     });
   }
 }
