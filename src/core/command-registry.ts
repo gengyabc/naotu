@@ -76,12 +76,4 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
       await plugin.createSampleMindmapFile(3000);
     },
   });
-
-  plugin.addCommand({
-    id: "show-semantic-mindmap-help",
-    name: "Show semantic mindmap help",
-    callback: () => {
-      plugin.showHelp();
-    },
-  });
 }

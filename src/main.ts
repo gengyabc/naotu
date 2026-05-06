@@ -7,7 +7,6 @@ import { VIEW_TYPE_MINDMAP } from "./constants";
 import { createSampleMindmap } from "./core/sample-data";
 import { assertNoTelemetry } from "./core/telemetry-disabled";
 import { DEFAULT_SETTINGS, type SemanticMindmapSettings } from "./types/settings";
-import { MindmapHelpModal } from "./ui/help-modal";
 import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
 
@@ -25,9 +24,6 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     this.addRibbonIcon("git-fork", "创建语义缩放脑图", async () => {
       const file = await this.createMindmapFile();
       await this.openMindmapFile(file);
-    });
-    this.addRibbonIcon("help-circle", "Semantic Mindmap 帮助", () => {
-      this.showHelp();
     });
 
     registerMindmapCommands(this);
@@ -153,9 +149,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     await this.openMindmapFile(file);
   }
 
-  showHelp(): void {
-    new MindmapHelpModal(this.app).open();
-  }
+  
 
   async notifyLayoutSettingsChanged(): Promise<void> {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MINDMAP);
