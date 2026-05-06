@@ -121,13 +121,21 @@
 }
 
 .mindmap-node-tree-toggle {
+  fill: transparent;
+}
+
+.mindmap-node-tree-toggle-hitbox {
+  pointer-events: all;
+}
+
+.mindmap-node-tree-toggle-text {
   fill: var(--text-muted);
   font-size: 18px;
   font-weight: 700;
-  cursor: pointer;
+  pointer-events: none;
 }
 
-.mindmap-node-tree-toggle:hover {
+.mindmap-node-tree-toggle:hover .mindmap-node-tree-toggle-text {
   fill: var(--interactive-accent);
 }
 

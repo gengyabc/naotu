@@ -47,7 +47,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
       getSelectedNodeIds: () => string[];
       onViewportChange: (x: number, y: number, zoom: number) => void;
       onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
-      onToggleTree: (id: string) => void;
+      onToggleTree: (id: string, expanded: boolean) => void;
       onOpenNotebook: (id: string) => void;
       onInlineTitleCommit: (id: string, title: string) => Promise<void>;
       onContextMenu: (id: string, x: number, y: number) => void;

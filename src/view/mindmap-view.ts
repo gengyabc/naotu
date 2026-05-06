@@ -254,7 +254,7 @@ export class MindmapView extends ItemView {
       getDocument: () => this.store.getDocument(),
       getSelectedNodeIds: () => this.selection.getIds(),
       onViewportChange: (x, y, zoom) => {
-        this.store.setViewport(x, y, zoom);
+        this.store.setViewportAndSyncTreeControls(x, y, zoom);
         this.markDirty();
         this.autosave.schedule();
       },
@@ -264,9 +264,9 @@ export class MindmapView extends ItemView {
         if (mode === "toggle") this.selection.toggle(id);
         if (mode === "add") this.selection.add(id);
       },
-      onToggleTree: (id) => {
+      onToggleTree: (id, expanded) => {
         this.applyDocumentChange(() => {
-          this.store.toggleTreeControl(id);
+          this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
         });
       },
       onOpenNotebook: (id) => {
@@ -764,8 +764,14 @@ export class MindmapView extends ItemView {
   private toggleSelectedTree(): void {
     const id = this.selection.getIds()[0];
     if (!id) return;
+    const projectedNode = this.renderer?.getLastProjectedNodes?.().find((node) => node.id === id);
+    if (projectedNode && !projectedNode.hasChildren) return;
     this.applyDocumentChange(() => {
-      this.store.toggleTreeControl(id);
+      if (!projectedNode) {
+        this.store.toggleTreeControl(id, this.store.getDocument().viewport.zoom);
+        return;
+      }
+      this.store.setTreeControl(id, projectedNode.childrenExpanded ? "manual-collapsed" : "manual-expanded");
     });
   }
 

@@ -13,6 +13,7 @@ import { getVisualSpec } from "./detail-level";
 import { computeSemanticDetailLevel } from "./semantic-zoom-policy";
 import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
+import { areChildrenExpanded } from "./tree-control";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -81,7 +82,7 @@ export function createSemanticProjection(
 
     const resolvedSize = resolveProjectedDisplaySize({ node, detail });
     const projectedCenter = projectNodeCenter({ node, context });
-    const childrenExpanded = areChildrenExpanded(node.treeControl, context.zoom, depth);
+    const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
 
     projectedNodes.push({
       id: node.id,
@@ -160,12 +161,6 @@ function collectVisibleTree(args: {
     args.visibleNodeIds.add(childId);
     collectVisibleTree({ ...args, nodeId: childId, visited });
   }
-}
-
-function areChildrenExpanded(treeControl: string | undefined, zoom: number, depth: number): boolean {
-  if (treeControl === "manual-expanded") return true;
-  if (treeControl === "manual-collapsed") return false;
-  return zoom >= 0.45 + depth * 0.15;
 }
 
 function projectNodeCenter(args: {

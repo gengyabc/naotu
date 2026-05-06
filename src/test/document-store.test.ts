@@ -88,4 +88,88 @@ describe("MindmapDocumentStore", () => {
       customHeight: 260,
     });
   });
+
+  it("toggles from the node's current expanded state at the active zoom", () => {
+    const store = new MindmapDocumentStore({
+      vault: {},
+    } as never);
+
+    store.replaceDocument({
+      version: 1,
+      title: "Edited here",
+      layoutMode: "tree-mirror",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        {
+          id: "root",
+          kind: "text",
+          title: "Root",
+          x: 0,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "manual-expanded",
+        },
+        {
+          id: "child",
+          kind: "text",
+          title: "Child",
+          x: 220,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "auto",
+        },
+      ],
+      edges: [{ id: "edge-1", source: "root", target: "child", relation: "mindmap", type: "curve" }],
+    });
+
+    store.toggleTreeControl("root", 1);
+    expect(store.getDocument().nodes[0]?.treeControl).toBe("manual-collapsed");
+  });
+
+  it("returns manual toggles to auto when zoom disagrees", () => {
+    const store = new MindmapDocumentStore({
+      vault: {},
+    } as never);
+
+    store.replaceDocument({
+      version: 1,
+      title: "Edited here",
+      layoutMode: "tree-mirror",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        {
+          id: "root",
+          kind: "text",
+          title: "Root",
+          x: 0,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "manual-expanded",
+        },
+        {
+          id: "child",
+          kind: "text",
+          title: "Child",
+          x: 220,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "manual-collapsed",
+        },
+      ],
+      edges: [{ id: "edge-1", source: "root", target: "child", relation: "mindmap", type: "curve" }],
+    });
+
+    store.setViewportAndSyncTreeControls(0, 0, 0.8);
+    expect(store.getDocument().nodes[1]?.treeControl).toBe("auto");
+
+    store.toggleTreeControl("child", 0.3);
+    expect(store.getDocument().nodes[1]?.treeControl).toBe("manual-expanded");
+
+    store.setViewportAndSyncTreeControls(0, 0, 0.3);
+    expect(store.getDocument().nodes[1]?.treeControl).toBe("auto");
+  });
 });

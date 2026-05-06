@@ -157,6 +157,53 @@ describe("createSemanticProjection", () => {
     expect(z085.visibleNodeIds.has("greatgrandchild")).toBe(true);
   });
 
+  it("honors manual tree toggles regardless of zoom", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1]!.treeControl = "manual-collapsed";
+    doc.nodes.push({
+      id: "grandchild",
+      kind: "text",
+      title: "Grandchild",
+      x: 400,
+      y: 0,
+      width: 180,
+      height: 56,
+      treeControl: "manual-expanded",
+    });
+    doc.edges.push({ id: "edge2", source: "child", target: "grandchild", relation: "mindmap", type: "curve" });
+
+    const collapsed = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+    });
+
+    expect(collapsed.visibleNodeIds.has("grandchild")).toBe(false);
+
+    doc.nodes[1]!.treeControl = "manual-expanded";
+    const expanded = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+    });
+
+    expect(expanded.visibleNodeIds.has("grandchild")).toBe(true);
+  });
+
+  it("treats focus-forced visible children as expanded in the projection", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0]!.treeControl = "manual-collapsed";
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+    });
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    expect(root?.childrenExpanded).toBe(true);
+  });
+
   it("applies forced detail during projection sizing", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {

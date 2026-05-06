@@ -30,10 +30,9 @@ export function clampNotebookResizeSize(width: number, height: number): { width:
 }
 
 export function shouldStartNodeDrag(target: EventTarget | null): boolean {
-  return !(typeof (target as { closest?: unknown } | null)?.closest === "function" &&
-    (target as { closest: (selector: string) => unknown }).closest(
-      ".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle",
-    ));
+  const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
+  return !(typeof elementTarget?.closest === "function" &&
+    elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
 }
 
 export function renderProjectedNodes(args: {
@@ -46,7 +45,7 @@ export function renderProjectedNodes(args: {
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
-  onToggleTree: (id: string) => void;
+  onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
   onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
@@ -69,7 +68,9 @@ export function renderProjectedNodes(args: {
   const openNotebook = entered.append("g").attr("class", "mindmap-node-open-notebook");
   openNotebook.append("rect").attr("class", "mindmap-node-open-notebook-bg").attr("rx", 10).attr("ry", 10);
   openNotebook.append("text").attr("class", "mindmap-node-open-notebook-text");
-  entered.append("text").attr("class", "mindmap-node-tree-toggle");
+  const treeToggle = entered.append("g").attr("class", "mindmap-node-tree-toggle");
+  treeToggle.append("rect").attr("class", "mindmap-node-tree-toggle-hitbox");
+  treeToggle.append("text").attr("class", "mindmap-node-tree-toggle-text");
   const resizeHandle = entered.append("g").attr("class", "mindmap-node-resize-handle");
   resizeHandle.append("rect").attr("class", "mindmap-node-resize-hitbox");
   resizeHandle.append("path").attr("class", "mindmap-node-resize-icon");
@@ -205,16 +206,33 @@ export function renderProjectedNodes(args: {
           .text("Open md");
       });
 
-    group
-      .select<SVGTextElement>("text.mindmap-node-tree-toggle")
-      .attr("x", node.displayWidth + 10)
-      .attr("y", node.displayHeight / 2 + 6)
+    const treeToggleGroup = group
+      .select<SVGGElement>("g.mindmap-node-tree-toggle")
       .style("display", node.hasChildren ? "" : "none")
-      .text(node.childrenExpanded ? "−" : "+")
+      .style("cursor", "pointer")
+      .on("pointerdown", (event) => {
+        event.stopPropagation();
+      })
       .on("click", (event) => {
         event.stopPropagation();
-        args.onToggleTree(node.id);
+        args.onToggleTree(node.id, node.childrenExpanded);
       });
+
+    treeToggleGroup
+      .select<SVGRectElement>("rect.mindmap-node-tree-toggle-hitbox")
+      .attr("x", node.displayWidth + 2)
+      .attr("y", node.displayHeight / 2 - 10)
+      .attr("width", 24)
+      .attr("height", 24)
+      .attr("rx", 6)
+      .attr("ry", 6)
+      .attr("fill", "transparent");
+
+    treeToggleGroup
+      .select<SVGTextElement>("text.mindmap-node-tree-toggle-text")
+      .attr("x", node.displayWidth + 10)
+      .attr("y", node.displayHeight / 2 + 6)
+      .text(node.childrenExpanded ? "−" : "+");
 
     const resizeHandleGroup = group.select<SVGGElement>("g.mindmap-node-resize-handle") as d3.Selection<
       SVGGElement,

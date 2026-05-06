@@ -3,6 +3,8 @@ import type { EdgeRelation, EdgeType, MindmapDocument, MindmapNode, TreeControl 
 import { DEFAULT_MINDMAP_DOCUMENT } from "../constants";
 import { migrateDocument } from "./document-migration";
 import { createId } from "./id";
+import { buildHierarchy } from "./hierarchy";
+import { shouldAutoExpandChildren, toggleTreeControlFromCurrentState } from "./tree-control";
 
 export class MindmapDocumentStore {
   private file: TFile | null = null;
@@ -101,10 +103,31 @@ export class MindmapDocumentStore {
     this.patchNode(id, { customWidth, customHeight });
   }
 
-  toggleTreeControl(id: string): void {
+  toggleTreeControl(id: string, zoom: number): void {
     const node = this.doc.nodes.find((item) => item.id === id);
     if (!node) return;
-    node.treeControl = node.treeControl === "manual-expanded" ? "manual-collapsed" : "manual-expanded";
+    const hierarchy = buildHierarchy(this.doc);
+    const depth = hierarchy.nodes.get(id)?.depth ?? 0;
+    node.treeControl = toggleTreeControlFromCurrentState(node.treeControl, zoom, depth);
+    this.emit();
+  }
+
+  setViewportAndSyncTreeControls(x: number, y: number, zoom: number): void {
+    const previousZoom = this.doc.viewport.zoom;
+    this.doc.viewport = { x, y, zoom };
+
+    if (previousZoom !== zoom) {
+      const hierarchy = buildHierarchy(this.doc);
+      for (const hNode of hierarchy.nodes.values()) {
+        if (hNode.depth === 0) continue;
+        if (hNode.node.treeControl !== "manual-expanded" && hNode.node.treeControl !== "manual-collapsed") continue;
+        const autoExpanded = shouldAutoExpandChildren(zoom, hNode.depth);
+        const manualExpanded = hNode.node.treeControl === "manual-expanded";
+        if (manualExpanded === autoExpanded) continue;
+        hNode.node.treeControl = "auto";
+      }
+    }
+
     this.emit();
   }
 

@@ -17,8 +17,8 @@ describe("projected node dragging", () => {
 
   it("does not start node dragging from notebook controls", () => {
     expect(
-      shouldStartNodeDrag({ closest: (selector: string) => (selector.includes("mindmap-node-resize-handle") ? {} : null) } as EventTarget),
+      shouldStartNodeDrag({ closest: (selector: string) => (selector.includes("mindmap-node-resize-handle") ? {} : null) } as unknown as EventTarget),
     ).toBe(false);
-    expect(shouldStartNodeDrag({ closest: () => null } as EventTarget)).toBe(true);
+    expect(shouldStartNodeDrag({ closest: () => null } as unknown as EventTarget)).toBe(true);
   });
 });
