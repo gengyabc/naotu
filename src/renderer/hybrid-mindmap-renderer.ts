@@ -60,6 +60,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
       onNotebookResize: (args: { id: string; width: number; height: number }) => void;
       onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
       onBoxSelect: (rect: Rect) => void;
+      onClearSelection: () => void;
       getSettings: () => SemanticMindmapSettings;
       onRenderStats?: (stats: {
         mode: "svg" | "hybrid";
@@ -390,8 +391,11 @@ export class HybridMindmapRenderer implements RendererAdapter {
   }
 
   private bindFocusRestore(): void {
-    this.svg.on("click.focus", () => {
+    this.svg.on("click.focus", (event) => {
       this.options.container.focus();
+      if (!(event.target as Element).closest(".mindmap-node")) {
+        this.options.onClearSelection();
+      }
     });
   }
 }

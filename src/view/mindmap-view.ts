@@ -365,6 +365,10 @@ export class MindmapView extends ItemView {
         for (const id of ids) this.selection.add(id);
         this.renderer?.render();
       },
+      onClearSelection: () => {
+        this.selection.clear();
+        this.renderer?.render();
+      },
       getSettings: () => this.plugin.settings,
       onRenderStats: (stats) => {
         this.debugOverlay?.update({

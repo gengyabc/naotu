@@ -40,6 +40,7 @@ export function createSemanticProjection(
 
   const focusPath = focusNodeId ? getAncestorPath(focusNodeId, hierarchy) : [];
   const focusPathSet = new Set(focusPath);
+  const forcedExpandedNodeIds = new Set(focusPath.filter((id) => id !== focusNodeId));
   const visibleNodeIds = new Set<string>();
 
   if (hierarchy.rootId) visibleNodeIds.add(hierarchy.rootId);
@@ -47,7 +48,7 @@ export function createSemanticProjection(
   for (const id of focusPath) visibleNodeIds.add(id);
 
   if (hierarchy.rootId) {
-    collectVisibleTree({ nodeId: hierarchy.rootId, hierarchy, visibleNodeIds, focusPathSet, zoom: context.zoom });
+    collectVisibleTree({ nodeId: hierarchy.rootId, hierarchy, visibleNodeIds, forcedExpandedNodeIds, zoom: context.zoom });
   }
 
   includeReferenceNeighbors({ doc, hierarchy, visibleNodeIds, viewportWorldRect: context.viewportWorldRect });
@@ -147,7 +148,7 @@ function collectVisibleTree(args: {
   nodeId: string;
   hierarchy: ReturnType<typeof buildHierarchy>;
   visibleNodeIds: Set<string>;
-  focusPathSet: Set<string>;
+  forcedExpandedNodeIds: Set<string>;
   zoom: number;
   visited?: Set<string>;
 }): void {
@@ -159,7 +160,7 @@ function collectVisibleTree(args: {
   if (!hNode) return;
 
   const expanded = areChildrenExpanded(hNode.node.treeControl, args.zoom, hNode.depth);
-  if (!expanded && !args.focusPathSet.has(args.nodeId)) return;
+  if (!expanded && !args.forcedExpandedNodeIds.has(args.nodeId)) return;
 
   const children = args.hierarchy.childrenById.get(args.nodeId) ?? [];
   for (const childId of children) {

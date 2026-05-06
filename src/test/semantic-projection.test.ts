@@ -204,6 +204,32 @@ describe("createSemanticProjection", () => {
     expect(root?.childrenExpanded).toBe(true);
   });
 
+  it("does not reveal a focused node's collapsed children in free layout", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1]!.treeControl = "manual-collapsed";
+    doc.nodes.push({
+      id: "grandchild",
+      kind: "text",
+      title: "Grandchild",
+      x: 400,
+      y: 0,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge2", source: "child", target: "grandchild", relation: "mindmap", type: "curve" });
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+    });
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(projection.visibleNodeIds.has("grandchild")).toBe(false);
+    expect(child?.childrenExpanded).toBe(false);
+  });
+
   it("keeps tree layout visibility stable when selecting a node", () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-mirror";
