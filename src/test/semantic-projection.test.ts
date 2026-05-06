@@ -45,4 +45,24 @@ describe("createSemanticProjection", () => {
       }),
     ).not.toThrow();
   });
+
+  it("keeps center-anchored nodes separated when zoomed out", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0]!.x = 0;
+    doc.nodes[0]!.y = 0;
+    doc.nodes[1]!.x = 220;
+    doc.nodes[1]!.y = 0;
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+    });
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+    expect((child?.projectedX ?? 0) - (root?.projectedX ?? 0)).toBeGreaterThan(100);
+  });
 });

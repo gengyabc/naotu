@@ -4,7 +4,7 @@ export type NodeKind = "text" | "notebook";
 export type EdgeRelation = "mindmap" | "reference";
 export type EdgeType = "line" | "curve";
 export type TreeControl = "auto" | "manual-expanded" | "manual-collapsed";
-export type LayoutMode = "radial" | "free";
+export type LayoutMode = "tree-mirror" | "tree-right" | "free";
 export type NodeDetailLevel = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface MindmapDocument {

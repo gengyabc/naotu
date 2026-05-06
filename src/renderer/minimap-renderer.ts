@@ -98,10 +98,10 @@ function computeNodeBounds(doc: MindmapDocument): Rect {
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (const node of doc.nodes) {
-    minX = Math.min(minX, node.x);
-    minY = Math.min(minY, node.y);
-    maxX = Math.max(maxX, node.x + node.width);
-    maxY = Math.max(maxY, node.y + node.height);
+    minX = Math.min(minX, node.x - node.width / 2);
+    minY = Math.min(minY, node.y - node.height / 2);
+    maxX = Math.max(maxX, node.x + node.width / 2);
+    maxY = Math.max(maxY, node.y + node.height / 2);
   }
 
   const padding = 300;

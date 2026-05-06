@@ -77,7 +77,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
       {
         version: 1,
         title: "Untitled Mindmap",
-        layoutMode: "radial",
+        layoutMode: "tree-mirror",
         viewport: { x: 0, y: 0, zoom: 1 },
         nodes: [
           { id: "root", kind: "text", title: "中心主题", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" },
@@ -155,5 +155,13 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
 
   showHelp(): void {
     new MindmapHelpModal(this.app).open();
+  }
+
+  async notifyLayoutSettingsChanged(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MINDMAP);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MindmapView) view.handleLayoutSettingsChanged();
+    }
   }
 }

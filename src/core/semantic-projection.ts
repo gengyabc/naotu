@@ -82,8 +82,8 @@ export function createSemanticProjection(
       notebook: node.notebook,
       worldX: node.x,
       worldY: node.y,
-      projectedX: node.x,
-      projectedY: node.y,
+      projectedX: node.x - visual.width / 2,
+      projectedY: node.y - visual.height / 2,
       displayWidth: visual.width,
       displayHeight: visual.height,
       detailLevel: detail,
@@ -179,11 +179,15 @@ function isNearViewport(
   rect: { x: number; y: number; width: number; height: number },
 ): boolean {
   const padding = 800;
+  const left = node.x - node.width / 2;
+  const right = node.x + node.width / 2;
+  const top = node.y - node.height / 2;
+  const bottom = node.y + node.height / 2;
   return !(
-    node.x + node.width < rect.x - padding ||
-    node.x > rect.x + rect.width + padding ||
-    node.y + node.height < rect.y - padding ||
-    node.y > rect.y + rect.height + padding
+    right < rect.x - padding ||
+    left > rect.x + rect.width + padding ||
+    bottom < rect.y - padding ||
+    top > rect.y + rect.height + padding
   );
 }
 

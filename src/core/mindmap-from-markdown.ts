@@ -2,7 +2,7 @@ import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
 import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
 import { createId } from "./id";
 import { parseMarkdownHeadings } from "./markdown-heading-parser";
-import { RadialLayoutEngine } from "./radial-layout";
+import { TreeLayoutEngine } from "./tree-layout";
 
 export interface CreateMindmapFromMarkdownOptions {
   markdown: string;
@@ -79,11 +79,19 @@ export function createMindmapFromMarkdown(options: CreateMindmapFromMarkdownOpti
   const doc: MindmapDocument = {
     version: 1,
     title: `${options.fileBasename} Mindmap`,
-    layoutMode: "radial",
+    layoutMode: "tree-mirror",
     viewport: { x: 400, y: 300, zoom: 1 },
     nodes,
     edges,
   };
 
-  return new RadialLayoutEngine().layout(doc, rootId);
+  return new TreeLayoutEngine().layout(
+    doc,
+    {
+      mode: "tree-mirror",
+      horizontalSpacing: 220,
+      verticalSpacing: 80,
+    },
+    rootId,
+  );
 }

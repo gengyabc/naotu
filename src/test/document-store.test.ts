@@ -22,7 +22,7 @@ describe("MindmapDocumentStore", () => {
     const initial = JSON.stringify({
       version: 1,
       title: "Test",
-      layoutMode: "radial",
+      layoutMode: "tree-mirror",
       viewport: { x: 0, y: 0, zoom: 1 },
       nodes: [],
       edges: [],
@@ -30,7 +30,7 @@ describe("MindmapDocumentStore", () => {
     const changedOnDisk = JSON.stringify({
       version: 1,
       title: "Changed elsewhere",
-      layoutMode: "radial",
+      layoutMode: "tree-mirror",
       viewport: { x: 0, y: 0, zoom: 1 },
       nodes: [],
       edges: [],
@@ -46,7 +46,7 @@ describe("MindmapDocumentStore", () => {
     store.replaceDocument({
       version: 1,
       title: "Edited here",
-      layoutMode: "radial",
+      layoutMode: "tree-mirror",
       viewport: { x: 0, y: 0, zoom: 1 },
       nodes: [],
       edges: [],

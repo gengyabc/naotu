@@ -15,6 +15,8 @@ export interface SemanticMindmapSettings {
   autoSaveDelayMs: number;
   defaultExportFormat: "svg" | "png";
   language: "auto" | "zh" | "en";
+  layoutHorizontalSpacing: number;
+  layoutVerticalSpacing: number;
 }
 
 export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
@@ -34,4 +36,6 @@ export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
   autoSaveDelayMs: 800,
   defaultExportFormat: "svg",
   language: "auto",
+  layoutHorizontalSpacing: 220,
+  layoutVerticalSpacing: 80,
 };

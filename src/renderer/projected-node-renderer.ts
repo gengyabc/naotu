@@ -21,9 +21,9 @@ export function renderProjectedNodes(args: {
   onNotebookExpand: (id: string) => void;
   onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
-  onBeforeNodeDragStart: () => void;
-  onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
-  onNodeDragEnd: () => void;
+  onBeforeNodeDragStart: (node: ProjectedNode) => void;
+  onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
+  onNodeDragEnd: (args: { node: ProjectedNode }) => void;
   onDragStateChange?: (dragging: boolean) => void;
 }): void {
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
@@ -44,7 +44,7 @@ export function renderProjectedNodes(args: {
     .on("start", (event, node) => {
       event.sourceEvent?.stopPropagation();
       args.onDragStateChange?.(true);
-      args.onBeforeNodeDragStart();
+      args.onBeforeNodeDragStart(node);
 
       const selectedIds = args.getSelectedNodeIds();
       if (!selectedIds.includes(node.id)) {
@@ -66,11 +66,11 @@ export function renderProjectedNodes(args: {
         })
         .filter(Boolean) as Array<{ id: string; x: number; y: number }>;
 
-      args.onNodesMove(moves);
+      args.onNodesMove({ node, moves });
     })
-    .on("end", () => {
+    .on("end", (_event, node) => {
       args.onDragStateChange?.(false);
-      args.onNodeDragEnd();
+      args.onNodeDragEnd({ node });
     });
 
   merged

@@ -1,7 +1,7 @@
 import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
 import { createId } from "./id";
-import { RadialLayoutEngine } from "./radial-layout";
+import { TreeLayoutEngine } from "./tree-layout";
 
 export function createSampleMindmap(nodeCount: number): MindmapDocument {
   const nodes: MindmapNode[] = [];
@@ -54,11 +54,19 @@ export function createSampleMindmap(nodeCount: number): MindmapDocument {
   const doc: MindmapDocument = {
     version: 1,
     title: `Sample ${nodeCount}`,
-    layoutMode: "radial",
+    layoutMode: "tree-mirror",
     viewport: { x: 400, y: 300, zoom: 1 },
     nodes,
     edges,
   };
 
-  return new RadialLayoutEngine().layout(doc, rootId);
+  return new TreeLayoutEngine().layout(
+    doc,
+    {
+      mode: "tree-mirror",
+      horizontalSpacing: 220,
+      verticalSpacing: 80,
+    },
+    rootId,
+  );
 }

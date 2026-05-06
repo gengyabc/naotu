@@ -1,0 +1,36 @@
+import { describe, expect, it } from "vitest";
+import { buildHierarchy } from "../core/hierarchy";
+import { moveMindmapNode } from "../core/tree-editing";
+import { createSmallTestDocument } from "./test-fixtures";
+
+describe("tree editing", () => {
+  it("can reorder among siblings", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes.push({ id: "child2", kind: "text", title: "Child2", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" });
+    doc.edges.push({ id: "edge2", source: "root", target: "child2", relation: "mindmap", type: "curve" });
+    const next = moveMindmapNode(doc, { nodeId: "child2", newParentId: "root", targetIndex: 0 });
+    expect(buildHierarchy(next).childrenById.get("root")).toEqual(["child2", "child"]);
+  });
+
+  it("keeps root unmoved", () => {
+    const doc = createSmallTestDocument();
+    const next = moveMindmapNode(doc, { nodeId: "root", newParentId: "child", targetIndex: 0 });
+    expect(next).toEqual(doc);
+  });
+
+  it("does not allow moving a node under itself", () => {
+    const doc = createSmallTestDocument();
+    const next = moveMindmapNode(doc, { nodeId: "child", newParentId: "child", targetIndex: 0 });
+    expect(next).toEqual(doc);
+  });
+
+  it("does not allow moving a node under its descendant", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes.push({ id: "grandchild", kind: "text", title: "Grandchild", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" });
+    doc.edges.push({ id: "edge2", source: "child", target: "grandchild", relation: "mindmap", type: "curve" });
+
+    const next = moveMindmapNode(doc, { nodeId: "child", newParentId: "grandchild", targetIndex: 0 });
+    expect(buildHierarchy(next).childrenById.get("root")).toEqual(["child"]);
+    expect(buildHierarchy(next).childrenById.get("child")).toEqual(["grandchild"]);
+  });
+});

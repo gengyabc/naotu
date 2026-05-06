@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { App } from "obsidian";
 import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
+import type { ProjectedNode } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { partitionForHybridRender } from "../core/render-partition";
@@ -51,9 +52,9 @@ export class HybridMindmapRenderer implements RendererAdapter {
       onInlineTitleCommit: (id: string, title: string) => Promise<void>;
       onContextMenu: (id: string, x: number, y: number) => void;
       onEdgeContextMenu: (id: string, x: number, y: number) => void;
-      onBeforeNodeDragStart: () => void;
-      onNodesMove: (moves: Array<{ id: string; x: number; y: number }>) => void;
-      onNodeDragEnd: () => void;
+      onBeforeNodeDragStart: (node: ProjectedNode) => void;
+      onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
+      onNodeDragEnd: (args: { node: ProjectedNode }) => void;
       onBoxSelect: (rect: Rect) => void;
       getSettings: () => SemanticMindmapSettings;
       onRenderStats?: (stats: {

@@ -13,7 +13,7 @@ export const UNTITLED_NODE_TITLE = "未命名节点";
 export const DEFAULT_MINDMAP_DOCUMENT: MindmapDocument = {
   version: 1,
   title: "Untitled Mindmap",
-  layoutMode: "radial",
+  layoutMode: "tree-mirror",
   viewport: {
     x: 0,
     y: 0,

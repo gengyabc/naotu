@@ -2,7 +2,7 @@ import { App, TFile } from "obsidian";
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
 import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
 import { createId } from "./id";
-import { RadialLayoutEngine } from "./radial-layout";
+import { TreeLayoutEngine } from "./tree-layout";
 
 export interface CreateLocalKnowledgeMapOptions {
   app: App;
@@ -78,14 +78,19 @@ export function createLocalKnowledgeMap(options: CreateLocalKnowledgeMapOptions)
     edges.push({ id: createId("edge"), source: sourceId, target: centerId, relation: "reference", type: "curve" });
   }
 
-  return new RadialLayoutEngine().layout(
+  return new TreeLayoutEngine().layout(
     {
       version: 1,
       title: `${options.file.basename} Local Knowledge Map`,
-      layoutMode: "radial",
+      layoutMode: "tree-mirror",
       viewport: { x: 400, y: 300, zoom: 1 },
       nodes,
       edges,
+    },
+    {
+      mode: "tree-mirror",
+      horizontalSpacing: 220,
+      verticalSpacing: 80,
     },
     centerId,
   );

@@ -15,8 +15,8 @@ export function rectIntersects(a: Rect, b: Rect): boolean {
 
 export function nodeWorldRect(node: MindmapNode): Rect {
   return {
-    x: node.x,
-    y: node.y,
+    x: node.x - node.width / 2,
+    y: node.y - node.height / 2,
     width: node.width,
     height: node.height,
   };

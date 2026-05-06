@@ -4,11 +4,17 @@ import { runMigrations } from "../migrations/migration-runner";
 export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocument {
   const migrated = runMigrations(input);
   const doc = migrated as MindmapDocument;
+  const rawLayoutMode = (migrated as { layoutMode?: string }).layoutMode;
 
   return {
     version: 1,
     title: doc.title ?? "Untitled Mindmap",
-    layoutMode: doc.layoutMode ?? "radial",
+    layoutMode:
+      rawLayoutMode === "radial" || rawLayoutMode == null
+        ? "tree-mirror"
+        : rawLayoutMode === "tree-right" || rawLayoutMode === "free"
+          ? rawLayoutMode
+          : "tree-mirror",
     viewport: doc.viewport ?? { x: 0, y: 0, zoom: 1 },
     nodes: Array.isArray(doc.nodes) ? doc.nodes.map(migrateNode) : [],
     edges: Array.isArray(doc.edges)

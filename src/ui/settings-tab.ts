@@ -110,6 +110,30 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName("树布局水平间距(px)")
+      .setDesc("树布局每层的水平距离。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.layoutHorizontalSpacing)).onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.layoutHorizontalSpacing = Number.isFinite(parsed) ? Math.max(120, parsed) : 220;
+          await this.plugin.saveSettings();
+          await this.plugin.notifyLayoutSettingsChanged();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("树布局垂直间距(px)")
+      .setDesc("树布局相邻叶子槽位的垂直距离。")
+      .addText((text) =>
+        text.setValue(String(this.plugin.settings.layoutVerticalSpacing)).onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.layoutVerticalSpacing = Number.isFinite(parsed) ? Math.max(32, parsed) : 80;
+          await this.plugin.saveSettings();
+          await this.plugin.notifyLayoutSettingsChanged();
+        }),
+      );
   }
 
   private renderPerformanceSettings(containerEl: HTMLElement): void {
