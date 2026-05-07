@@ -28,15 +28,13 @@ export function createSemanticProjection(
 ): SemanticProjection {
   const hierarchy = buildHierarchy(doc);
   const isTreeLayout = doc.layoutMode === "tree-mirror" || doc.layoutMode === "tree-right";
-  const focusNodeId = isTreeLayout
-    ? hierarchy.rootId
-    : resolveFocusNodeId({
-        doc,
-        hierarchy,
-        selectedNodeIds: context.selectedNodeIds,
-        lastFocusNodeId: context.lastFocusNodeId,
-        viewportWorldRect: context.viewportWorldRect,
-      });
+  const focusNodeId = resolveFocusNodeId({
+    doc,
+    hierarchy,
+    selectedNodeIds: context.selectedNodeIds,
+    lastFocusNodeId: context.lastFocusNodeId,
+    viewportWorldRect: context.viewportWorldRect,
+  });
 
   const focusPath = focusNodeId ? getAncestorPath(focusNodeId, hierarchy) : [];
   const focusPathSet = new Set(focusPath);

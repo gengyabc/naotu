@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildHierarchy } from "../core/hierarchy";
-import { addChildMindmapNode, addSiblingMindmapNode, expandDraggedNodeMoves, getSubtreeNodeIds, moveMindmapNode, resolveDraggedNodeIds } from "../core/tree-editing";
+import {
+  addChildMindmapNode,
+  addSiblingMindmapNode,
+  createTextNodeNearParent,
+  expandDraggedNodeMoves,
+  getSubtreeNodeIds,
+  moveMindmapNode,
+  resolveDraggedNodeIds,
+} from "../core/tree-editing";
 import { createSmallTestDocument } from "./test-fixtures";
 
 describe("tree editing", () => {
@@ -50,6 +58,13 @@ describe("tree editing", () => {
     const incoming = next.edges.filter((edge) => edge.relation === "mindmap" && edge.target === "grandchild");
     expect(incoming).toHaveLength(1);
     expect(incoming[0]?.source).toBe("child");
+  });
+
+  it("creates new child nodes expanded by default", () => {
+    const doc = createSmallTestDocument();
+    const child = createTextNodeNearParent(doc.nodes[1]!);
+
+    expect(child.treeControl).toBe("manual-expanded");
   });
 
   it("adds a sibling immediately after the selected node", () => {

@@ -128,7 +128,7 @@ describe("MindmapDocumentStore", () => {
     expect(store.getDocument().nodes[0]?.treeControl).toBe("manual-collapsed");
   });
 
-  it("returns manual toggles to auto when zoom disagrees", () => {
+  it("keeps manual tree controls stable across viewport zoom changes", () => {
     const store = new MindmapDocumentStore({
       vault: {},
     } as never);
@@ -164,12 +164,12 @@ describe("MindmapDocumentStore", () => {
     });
 
     store.setViewportAndSyncTreeControls(0, 0, 0.8);
-    expect(store.getDocument().nodes[1]?.treeControl).toBe("auto");
+    expect(store.getDocument().nodes[1]?.treeControl).toBe("manual-collapsed");
 
     store.toggleTreeControl("child", 0.3);
     expect(store.getDocument().nodes[1]?.treeControl).toBe("manual-expanded");
 
     store.setViewportAndSyncTreeControls(0, 0, 0.3);
-    expect(store.getDocument().nodes[1]?.treeControl).toBe("auto");
+    expect(store.getDocument().nodes[1]?.treeControl).toBe("manual-expanded");
   });
 });

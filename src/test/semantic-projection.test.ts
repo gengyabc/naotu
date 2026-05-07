@@ -276,6 +276,19 @@ describe("createSemanticProjection", () => {
     expect(projection.visibleNodeIds.has("grandchild")).toBe(false);
   });
 
+  it("uses the selected node as focus in tree layout", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-mirror";
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+    });
+
+    expect(projection.focusNodeId).toBe("child");
+  });
+
   it("applies forced detail during projection sizing", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {

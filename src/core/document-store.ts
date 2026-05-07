@@ -4,7 +4,7 @@ import { DEFAULT_MINDMAP_DOCUMENT } from "../constants";
 import { migrateDocument } from "./document-migration";
 import { createId } from "./id";
 import { buildHierarchy } from "./hierarchy";
-import { shouldAutoExpandChildren, toggleTreeControlFromCurrentState } from "./tree-control";
+import { toggleTreeControlFromCurrentState } from "./tree-control";
 
 export class MindmapDocumentStore {
   private file: TFile | null = null;
@@ -113,21 +113,7 @@ export class MindmapDocumentStore {
   }
 
   setViewportAndSyncTreeControls(x: number, y: number, zoom: number): void {
-    const previousZoom = this.doc.viewport.zoom;
     this.doc.viewport = { x, y, zoom };
-
-    if (previousZoom !== zoom) {
-      const hierarchy = buildHierarchy(this.doc);
-      for (const hNode of hierarchy.nodes.values()) {
-        if (hNode.depth === 0) continue;
-        if (hNode.node.treeControl !== "manual-expanded" && hNode.node.treeControl !== "manual-collapsed") continue;
-        const autoExpanded = shouldAutoExpandChildren(zoom, hNode.depth);
-        const manualExpanded = hNode.node.treeControl === "manual-expanded";
-        if (manualExpanded === autoExpanded) continue;
-        hNode.node.treeControl = "auto";
-      }
-    }
-
     this.emit();
   }
 

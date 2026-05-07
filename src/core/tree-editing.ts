@@ -12,7 +12,7 @@ export function createTextNodeNearParent(parent: MindmapNode): MindmapNode {
     y: parent.y + 80,
     width: DEFAULT_NODE_WIDTH,
     height: DEFAULT_NODE_HEIGHT,
-    treeControl: "auto",
+    treeControl: "manual-expanded",
   };
 }
 

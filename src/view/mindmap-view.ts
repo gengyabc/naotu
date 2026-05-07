@@ -58,6 +58,7 @@ export class MindmapView extends ItemView {
   private connectionMode = false;
   private connectionSourceId: string | undefined;
   private debugOverlay: PerformanceDebugOverlay | null = null;
+  private canvasEl: HTMLDivElement | null = null;
   private searchInputEl: HTMLInputElement | null = null;
   private minimap: MinimapRenderer | null = null;
   private missingNotebookNodeIds = new Set<string>();
@@ -249,6 +250,7 @@ export class MindmapView extends ItemView {
     });
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
+    this.canvasEl = canvas;
     canvas.tabIndex = 0;
     setCanvasA11y(canvas);
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
@@ -284,6 +286,8 @@ export class MindmapView extends ItemView {
         if (mode === "replace") this.setSelectionOnly(id);
         if (mode === "toggle") this.toggleSelection(id);
         if (mode === "add") this.addSelection(id);
+        this.renderer?.setLastFocusNodeId(id);
+        this.canvasEl?.focus();
       },
       onToggleTree: (id, expanded) => {
         this.applyDocumentChange(() => {
@@ -435,13 +439,17 @@ export class MindmapView extends ItemView {
       y: 120,
       width: DEFAULT_NODE_WIDTH,
       height: DEFAULT_NODE_HEIGHT,
-      treeControl: "auto",
+      treeControl: "manual-expanded",
     };
 
     this.applyDocumentChange(() => {
       this.store.addNode(node);
     });
     this.setSelectionOnly(node.id);
+    this.renderer?.setLastFocusNodeId(node.id);
+    this.renderer?.render();
+    this.renderer?.focusNode(node.id);
+    this.canvasEl?.focus();
   }
 
   private updateSearch(query: string): void {
@@ -474,7 +482,9 @@ export class MindmapView extends ItemView {
 
     this.setSelectionOnly(child.id);
     this.renderer?.setLastFocusNodeId(child.id);
+    this.renderer?.render();
     this.renderer?.focusNode(child.id);
+    this.canvasEl?.focus();
   }
 
   private addSiblingNode(): void {
@@ -499,7 +509,9 @@ export class MindmapView extends ItemView {
 
     this.setSelectionOnly(sibling.id);
     this.renderer?.setLastFocusNodeId(sibling.id);
+    this.renderer?.render();
     this.renderer?.focusNode(sibling.id);
+    this.canvasEl?.focus();
   }
 
   private async createNotebookForTextNode(id: string): Promise<void> {
