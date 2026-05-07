@@ -20,11 +20,11 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "open-current-mindmap-json",
-    name: "打开当前 .mindmap.json",
+    id: "open-current-mindmap",
+    name: "打开当前 .mindmap",
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
-      const canRun = Boolean(file && file.path.endsWith(".mindmap.json"));
+      const canRun = Boolean(file && file.extension === "mindmap");
       if (checking) return canRun;
       if (file) {
         void plugin.openMindmapFile(file);

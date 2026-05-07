@@ -25,7 +25,7 @@ describe("readNotebookPreviewMarkdown", () => {
       } as never,
       link: "[[Right]]",
       storedPath: "notes/right.md",
-      sourcePath: "maps/source.mindmap.json",
+      sourcePath: "maps/source.mindmap",
     });
 
     expect(result).toContain("Expected content");

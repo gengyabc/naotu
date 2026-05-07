@@ -47,7 +47,7 @@ describe("missing notebook detection", () => {
       edges: [],
     };
 
-    const missing = findMissingNotebookLinks({ app, doc, sourcePath: "maps/source.mindmap.json" });
+    const missing = findMissingNotebookLinks({ app, doc, sourcePath: "maps/source.mindmap" });
     expect(missing).toHaveLength(1);
     expect(missing[0]?.nodeId).toBe("n1");
   });
@@ -81,6 +81,6 @@ describe("missing notebook detection", () => {
       link: "[[topic#^block123]]",
     };
 
-    expect(isNotebookLinkMissing({ app, node, sourcePath: "maps/source.mindmap.json" })).toBe(false);
+    expect(isNotebookLinkMissing({ app, node, sourcePath: "maps/source.mindmap" })).toBe(false);
   });
 });

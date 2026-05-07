@@ -120,6 +120,10 @@ export class MindmapView extends ItemView {
     this.renderView();
   }
 
+  async onLoadFile(file: TFile): Promise<void> {
+    await this.setFile(file);
+  }
+
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("semantic-mindmap-view");

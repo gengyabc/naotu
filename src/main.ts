@@ -21,7 +21,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     this.addSettingTab(new SemanticMindmapSettingTab(this.app, this));
 
     this.registerView(VIEW_TYPE_MINDMAP, (leaf: WorkspaceLeaf) => new MindmapView(leaf, this));
-    this.registerExtensions(["mindmap.json"], VIEW_TYPE_MINDMAP);
+    this.registerExtensions(["mindmap"], VIEW_TYPE_MINDMAP);
 
     this.addRibbonIcon("git-fork", "创建语义缩放脑图", async () => {
       const file = await this.createMindmapFile();
@@ -69,7 +69,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
   async createMindmapFile(): Promise<TFile> {
     const active = this.app.workspace.getActiveFile();
     const folder = active?.parent?.path ?? "";
-    const path = folder ? `${folder}/Untitled-${Date.now()}.mindmap.json` : `Untitled-${Date.now()}.mindmap.json`;
+    const path = folder ? `${folder}/Untitled-${Date.now()}.mindmap` : `Untitled-${Date.now()}.mindmap`;
 
     const content = JSON.stringify(
       {
@@ -113,7 +113,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
       headingsAsNotebookNodes: this.settings.importHeadingsAsNotebookNodes,
     });
 
-    const path = file.parent?.path ? `${file.parent.path}/${file.basename}.mindmap.json` : `${file.basename}.mindmap.json`;
+    const path = file.parent?.path ? `${file.parent.path}/${file.basename}.mindmap` : `${file.basename}.mindmap`;
     const existing = this.app.vault.getAbstractFileByPath(path);
 
     let target: TFile;
@@ -135,8 +135,8 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     });
 
     const path = file.parent?.path
-      ? `${file.parent.path}/${file.basename}.local-map.mindmap.json`
-      : `${file.basename}.local-map.mindmap.json`;
+      ? `${file.parent.path}/${file.basename}.local-map.mindmap`
+      : `${file.basename}.local-map.mindmap`;
     const existing = this.app.vault.getAbstractFileByPath(path);
 
     let target: TFile;
@@ -152,7 +152,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
 
   async createSampleMindmapFile(nodeCount: number): Promise<void> {
     const doc = createSampleMindmap(nodeCount);
-    const path = `Sample-${nodeCount}-${Date.now()}.mindmap.json`;
+    const path = `Sample-${nodeCount}-${Date.now()}.mindmap`;
     const file = await this.app.vault.create(path, JSON.stringify(doc, null, 2));
     await this.openMindmapFile(file);
   }

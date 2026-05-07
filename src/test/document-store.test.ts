@@ -10,7 +10,7 @@ describe("MindmapDocumentStore", () => {
       vault: { read, modify },
     } as never);
 
-    await store.openFile({ path: "broken.mindmap.json" } as never);
+    await store.openFile({ path: "broken.mindmap" } as never);
 
     expect(store.getLoadError()).toBeInstanceOf(Error);
     expect(store.canSave()).toBe(false);
@@ -42,7 +42,7 @@ describe("MindmapDocumentStore", () => {
       vault: { read, modify },
     } as never);
 
-    await store.openFile({ path: "map.mindmap.json" } as never);
+    await store.openFile({ path: "map.mindmap" } as never);
     store.replaceDocument({
       version: 1,
       title: "Edited here",

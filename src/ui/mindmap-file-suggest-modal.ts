@@ -10,7 +10,7 @@ export class MindmapFileSuggestModal extends FuzzySuggestModal<TFile> {
   }
 
   getItems(): TFile[] {
-    return this.app.vault.getFiles().filter((file) => file.path.endsWith(".mindmap.json"));
+    return this.app.vault.getFiles().filter((file) => file.extension === "mindmap");
   }
 
   getItemText(file: TFile): string {

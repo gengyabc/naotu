@@ -59,7 +59,7 @@ export class MindmapDocumentStore {
   }
 
   async createFile(path: string): Promise<TFile> {
-    const normalized = normalizePath(path.endsWith(".mindmap.json") ? path : `${path}.mindmap.json`);
+    const normalized = normalizePath(path.endsWith(".mindmap") ? path : `${path}.mindmap`);
     const file = await this.app.vault.create(normalized, JSON.stringify(DEFAULT_MINDMAP_DOCUMENT, null, 2));
     await this.openFile(file);
     return file;
