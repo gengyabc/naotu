@@ -10,7 +10,7 @@ export class MindmapFileSuggestModal extends FuzzySuggestModal<TFile> {
   }
 
   getItems(): TFile[] {
-    return this.app.vault.getFiles().filter((file) => file.extension === "mindmap");
+    return this.app.vault.getFiles().filter((file) => file.extension === "naotu");
   }
 
   getItemText(file: TFile): string {

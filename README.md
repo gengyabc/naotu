@@ -117,7 +117,7 @@
 
 ### 文件格式
 
-脑图保存为 `.mindmap` 文件，格式如下：
+脑图保存为 `.naotu` 文件，格式如下：
 
 ```json
 {
@@ -310,7 +310,7 @@ Nodes bound to Obsidian notes, with content preview when zoomed in.
 
 ### File Format
 
-Mindmaps are saved as `.mindmap` files:
+Mindmaps are saved as `.naotu` files:
 
 ```json
 {

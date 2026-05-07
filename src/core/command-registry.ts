@@ -21,10 +21,10 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "open-current-mindmap",
-    name: "打开当前 .mindmap",
+    name: "打开当前 .naotu",
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
-      const canRun = Boolean(file && file.extension === "mindmap");
+      const canRun = Boolean(file && file.extension === "naotu");
       if (checking) return canRun;
       if (file) {
         void plugin.openMindmapFile(file);

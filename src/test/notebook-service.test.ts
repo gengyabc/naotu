@@ -38,7 +38,7 @@ describe("NotebookService", () => {
       treeControl: "auto",
     };
 
-    const result = await service.createOrBindNotebookForTextNode(node, "maps/source.mindmap");
+    const result = await service.createOrBindNotebookForTextNode(node, "maps/source.naotu");
 
     expect(result.file.path).toBe("notebooks/Inbox.md");
     expect(result.patch.notebook?.path).toBe("notebooks/Inbox.md");
@@ -75,7 +75,7 @@ describe("NotebookService", () => {
       link: "[[Right]]",
     };
 
-    expect(service.resolveNotebookFile(node, "maps/source.mindmap")).toBe(storedFile);
+    expect(service.resolveNotebookFile(node, "maps/source.naotu")).toBe(storedFile);
     expect(lookup).not.toHaveBeenCalled();
   });
 });

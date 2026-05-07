@@ -74,7 +74,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
 
       globalPreviewCache.clear();
@@ -84,7 +84,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
     } finally {
       vi.unstubAllGlobals();
@@ -132,7 +132,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
 
       globalPreviewCache.clear();
@@ -142,7 +142,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
     } finally {
       vi.unstubAllGlobals();
@@ -194,7 +194,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
     } finally {
       vi.unstubAllGlobals();
@@ -247,7 +247,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         storedPath: "notes/right.md",
-        sourcePath: "maps/source.mindmap",
+        sourcePath: "maps/source.naotu",
       });
     } finally {
       vi.unstubAllGlobals();
