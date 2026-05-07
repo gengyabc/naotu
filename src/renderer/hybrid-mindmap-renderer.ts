@@ -402,7 +402,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
 
   private bindFocusRestore(): void {
     this.svg.on("click.focus", (event) => {
-      this.options.container.focus();
+      requestAnimationFrame(() => this.options.container.focus());
       if (!(event.target as Element).closest(".mindmap-node")) {
         this.options.onClearSelection();
       }

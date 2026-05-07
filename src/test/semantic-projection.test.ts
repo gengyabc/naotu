@@ -536,8 +536,50 @@ describe("createSemanticProjection", () => {
     );
 
     const root = projection.nodes.find((node) => node.id === "root");
-    expect(root?.detailLevel).toBe(5);
+    expect(root?.childrenExpanded).toBe(true);
     expect(root?.displayWidth).toBe(360);
     expect(root?.displayHeight).toBe(300);
+  });
+
+  it("settles custom-sized notebook overlaps at level 4", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      customWidth: 400,
+      customHeight: 280,
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "text",
+      x: 50,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4]]),
+      },
+    );
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+    expect(root?.usesCustomSize).toBe(true);
+
+    const rootRect = toScreenRect(root!, 1, -1000, -1000);
+    const childRect = toScreenRect(child!, 1, -1000, -1000);
+    expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
   });
 });

@@ -312,7 +312,7 @@ export class MindmapView extends ItemView {
         if (mode === "toggle") this.toggleSelection(id);
         if (mode === "add") this.addSelection(id);
         this.renderer?.setLastFocusNodeId(id);
-        this.canvasEl?.focus();
+        requestAnimationFrame(() => this.canvasEl?.focus());
       },
       onToggleTree: (id, expanded) => {
         this.applyDocumentChange(() => {
@@ -474,7 +474,7 @@ export class MindmapView extends ItemView {
     this.renderer?.setLastFocusNodeId(node.id);
     this.renderer?.render();
     this.renderer?.focusNode(node.id);
-    this.canvasEl?.focus();
+    requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
   private updateSearch(query: string): void {
@@ -509,7 +509,7 @@ export class MindmapView extends ItemView {
     this.renderer?.setLastFocusNodeId(child.id);
     this.renderer?.render();
     this.renderer?.focusNode(child.id);
-    this.canvasEl?.focus();
+    requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
   private addSiblingNode(): void {
@@ -536,7 +536,7 @@ export class MindmapView extends ItemView {
     this.renderer?.setLastFocusNodeId(sibling.id);
     this.renderer?.render();
     this.renderer?.focusNode(sibling.id);
-    this.canvasEl?.focus();
+    requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
   private async createNotebookForTextNode(id: string): Promise<void> {

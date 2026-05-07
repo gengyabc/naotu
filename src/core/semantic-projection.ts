@@ -268,6 +268,9 @@ function hasDynamicNodeSizes(nodes: ProjectedNode[]): boolean {
       const textLength = node.title.length;
       if (textLength > 10) return true;
     }
+    if (node.kind === "notebook" && node.usesCustomSize) {
+      return true;
+    }
   }
   return false;
 }
