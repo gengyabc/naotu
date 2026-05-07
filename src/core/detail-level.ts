@@ -10,6 +10,16 @@ export interface DetailVisualSpec {
   showPreview: boolean;
 }
 
+const EXPANDED_NOTEBOOK_VISUAL: DetailVisualSpec = {
+  width: 360,
+  height: 300,
+  titleFontSize: 14,
+  fontSize: 13,
+  showSummary: true,
+  showLink: true,
+  showPreview: true,
+};
+
 export function zoomToBaseDetailLevel(zoom: number): NodeDetailLevel {
   if (zoom < 0.25) return 0;
   if (zoom < 0.5) return 1;
@@ -68,8 +78,8 @@ function getNotebookSpec(level: NodeDetailLevel): DetailVisualSpec {
     case 3:
       return { width: 240, height: 96, titleFontSize: 14, fontSize: 13, showSummary: true, showLink: false, showPreview: false };
     case 4:
-      return { width: 280, height: 126, titleFontSize: 14, fontSize: 13, showSummary: true, showLink: true, showPreview: false };
+      return EXPANDED_NOTEBOOK_VISUAL;
     case 5:
-      return { width: 360, height: 300, titleFontSize: 14, fontSize: 13, showSummary: true, showLink: true, showPreview: true };
+      return EXPANDED_NOTEBOOK_VISUAL;
   }
 }

@@ -43,6 +43,7 @@ import { DirtyStateManager } from "../core/dirty-state";
 import { showErrorNotice } from "../ui/error-notice";
 import { setButtonA11y, setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
+import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -68,6 +69,7 @@ export class MindmapView extends ItemView {
   private mirrorLayoutButton: HTMLButtonElement | null = null;
   private rightLayoutButton: HTMLButtonElement | null = null;
   private freeLayoutButton: HTMLButtonElement | null = null;
+  private subtreeVirtualZoomState: { nodeId: string; zoom: number } | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -107,6 +109,7 @@ export class MindmapView extends ItemView {
     this.sourceFile = file;
     await this.store.openFile(file);
     this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
+    this.clearSelection();
     this.history.clear();
     await this.syncNotebookPaths();
     this.refreshMissingNotebookLinks();
@@ -152,6 +155,7 @@ export class MindmapView extends ItemView {
 
       await this.store.openFile(file);
       this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
+      this.clearSelection();
       await this.syncNotebookPaths();
       this.refreshMissingNotebookLinks();
       const loadError = this.store.getLoadError();
@@ -270,19 +274,22 @@ export class MindmapView extends ItemView {
       getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
       onViewportChange: (x, y, zoom) => {
         this.store.setViewportAndSyncTreeControls(x, y, zoom);
+        this.subtreeVirtualZoomState = null;
         this.markDirty();
         this.autosave.schedule();
       },
+      onZoomInput: (factor) => this.handleZoomInput(factor),
       onSelectNode: (id, mode) => {
         if (this.handleNodeSelectedForConnection(id)) return;
-        if (mode === "replace") this.selection.setOnly(id);
-        if (mode === "toggle") this.selection.toggle(id);
-        if (mode === "add") this.selection.add(id);
+        if (mode === "replace") this.setSelectionOnly(id);
+        if (mode === "toggle") this.toggleSelection(id);
+        if (mode === "add") this.addSelection(id);
       },
       onToggleTree: (id, expanded) => {
         this.applyDocumentChange(() => {
           this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
-        });
+        }, { relayout: false });
+        this.subtreeVirtualZoomState = null;
       },
       onOpenNotebook: (id) => {
         void this.handleOpenNotebook(id);
@@ -299,7 +306,7 @@ export class MindmapView extends ItemView {
       onBeforeNodeDragStart: (node) => {
         this.commitHistory();
         if (!this.selection.has(node.id)) {
-          this.selection.setOnly(node.id);
+          this.setSelectionOnly(node.id);
         }
         if (this.isTreeLayoutMode()) {
           this.treeDragStartPosition = { x: node.worldX, y: node.worldY };
@@ -361,12 +368,11 @@ export class MindmapView extends ItemView {
           .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
           .map((node) => node.id);
 
-        this.selection.clear();
-        for (const id of ids) this.selection.add(id);
+        this.replaceSelection(ids);
         this.renderer?.render();
       },
       onClearSelection: () => {
-        this.selection.clear();
+        this.clearSelection();
         this.renderer?.render();
       },
       getSettings: () => this.plugin.settings,
@@ -435,7 +441,7 @@ export class MindmapView extends ItemView {
     this.applyDocumentChange(() => {
       this.store.addNode(node);
     });
-    this.selection.setOnly(node.id);
+    this.setSelectionOnly(node.id);
   }
 
   private updateSearch(query: string): void {
@@ -449,7 +455,7 @@ export class MindmapView extends ItemView {
   private focusFirstSearchResult(): void {
     const firstId = [...this.searchResultIds][0];
     if (!firstId) return;
-    this.selection.setOnly(firstId);
+    this.setSelectionOnly(firstId);
     this.renderer?.setLastFocusNodeId(firstId);
     this.renderer?.focusNode(firstId);
     this.renderer?.render();
@@ -466,7 +472,7 @@ export class MindmapView extends ItemView {
     const child = createTextNodeNearParent(parent);
     this.applyReplacedDocument(this.relayoutDocument(addChildMindmapNode(doc, parent.id, child)));
 
-    this.selection.setOnly(child.id);
+    this.setSelectionOnly(child.id);
     this.renderer?.setLastFocusNodeId(child.id);
     this.renderer?.focusNode(child.id);
   }
@@ -491,7 +497,7 @@ export class MindmapView extends ItemView {
 
     this.applyReplacedDocument(this.relayoutDocument(addSiblingMindmapNode(doc, selectedId, sibling)));
 
-    this.selection.setOnly(sibling.id);
+    this.setSelectionOnly(sibling.id);
     this.renderer?.setLastFocusNodeId(sibling.id);
     this.renderer?.focusNode(sibling.id);
   }
@@ -507,7 +513,7 @@ export class MindmapView extends ItemView {
         this.store.patchNode(id, result.patch);
       }, { commitHistory: false });
       this.refreshMissingNotebookLinks();
-      this.selection.setOnly(id);
+      this.setSelectionOnly(id);
       this.renderer?.setLastFocusNodeId(id);
       this.renderer?.forceDetailLevel(id, 5);
     } catch (error) {
@@ -519,7 +525,7 @@ export class MindmapView extends ItemView {
     const node = this.store.getDocument().nodes.find((item) => item.id === id);
     if (!node || node.kind !== "notebook") return;
 
-    this.selection.setOnly(id);
+    this.setSelectionOnly(id);
     this.renderer?.setLastFocusNodeId(id);
     this.renderer?.forceDetailLevel(id, 5);
     this.renderer?.focusNode(id);
@@ -611,7 +617,7 @@ export class MindmapView extends ItemView {
                 this.applyDocumentChange(() => {
                   this.store.patchNode(node.id, this.notebookService.bindExistingFileAsNotebook(file));
                 });
-                this.selection.setOnly(node.id);
+                this.setSelectionOnly(node.id);
                 this.renderer?.setLastFocusNodeId(node.id);
                 this.renderer?.forceDetailLevel(node.id, 5);
                 this.refreshMissingNotebookLinks();
@@ -645,14 +651,16 @@ export class MindmapView extends ItemView {
       item.setTitle("展开此子树").setIcon("chevrons-down").onClick(() => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-expanded");
-        });
+        }, { relayout: false });
+        this.subtreeVirtualZoomState = null;
       });
     });
     menu.addItem((item) => {
       item.setTitle("收起此子树").setIcon("chevrons-up").onClick(() => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-collapsed");
-        });
+        }, { relayout: false });
+        this.subtreeVirtualZoomState = null;
       });
     });
     menu.addSeparator();
@@ -660,14 +668,16 @@ export class MindmapView extends ItemView {
       item.setTitle("展开全部").setIcon("list-tree").onClick(() => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("manual-expanded");
-        });
+        }, { relayout: false });
+        this.subtreeVirtualZoomState = null;
       });
     });
     menu.addItem((item) => {
       item.setTitle("恢复自动展开").setIcon("refresh-cw").onClick(() => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("auto");
-        });
+        }, { relayout: false });
+        this.subtreeVirtualZoomState = null;
       });
     });
 
@@ -698,6 +708,7 @@ export class MindmapView extends ItemView {
     this.mirrorLayoutButton?.toggleClass("is-active", mode === "tree-mirror");
     this.rightLayoutButton?.toggleClass("is-active", mode === "tree-right");
     this.freeLayoutButton?.toggleClass("is-active", mode === "free");
+    this.subtreeVirtualZoomState = null;
 
     const next = structuredClone(this.store.getDocument());
     next.layoutMode = mode;
@@ -772,7 +783,7 @@ export class MindmapView extends ItemView {
       for (const id of ids) this.store.deleteNode(id);
     });
 
-    this.selection.clear();
+    this.clearSelection();
   }
 
   private moveSelectionByDirection(direction: "up" | "down" | "left" | "right"): void {
@@ -783,7 +794,7 @@ export class MindmapView extends ItemView {
     const nextId = findNearestNodeInDirection({ fromNodeId: current, nodes, direction });
     if (!nextId) return;
 
-    this.selection.setOnly(nextId);
+    this.setSelectionOnly(nextId);
     this.renderer?.setLastFocusNodeId(nextId);
     this.renderer?.focusNode(nextId);
     this.renderer?.render();
@@ -792,7 +803,7 @@ export class MindmapView extends ItemView {
   private selectRootNode(): void {
     const rootId = findRootNodeId(this.store.getDocument());
     if (!rootId) return;
-    this.selection.setOnly(rootId);
+    this.setSelectionOnly(rootId);
     this.renderer?.setLastFocusNodeId(rootId);
     this.renderer?.focusNode(rootId);
     this.renderer?.render();
@@ -809,7 +820,8 @@ export class MindmapView extends ItemView {
         return;
       }
       this.store.setTreeControl(id, projectedNode.childrenExpanded ? "manual-collapsed" : "manual-expanded");
-    });
+    }, { relayout: false });
+    this.subtreeVirtualZoomState = null;
   }
 
   private startEditingSelectedNode(): void {
@@ -899,19 +911,20 @@ export class MindmapView extends ItemView {
 
     if ((event.metaKey || event.ctrlKey) && event.key === "0") {
       event.preventDefault();
+      this.subtreeVirtualZoomState = null;
       this.renderer?.fitRoot?.();
       return;
     }
 
-    if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=")) {
+    if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=" || event.code === "NumpadAdd")) {
       event.preventDefault();
-      this.renderer?.zoomBy?.(1.2);
+      this.handleZoomInput(1.2);
       return;
     }
 
-    if ((event.metaKey || event.ctrlKey) && event.key === "-") {
+    if ((event.metaKey || event.ctrlKey) && (event.key === "-" || event.code === "NumpadSubtract")) {
       event.preventDefault();
-      this.renderer?.zoomBy?.(1 / 1.2);
+      this.handleZoomInput(1 / 1.2);
       return;
     }
 
@@ -976,13 +989,75 @@ export class MindmapView extends ItemView {
     }
 
     if (event.key === "Escape") {
-      this.selection.clear();
+      this.clearSelection();
       this.renderer?.render();
     }
   }
 
+  private setSelectionOnly(id: string): void {
+    this.selection.setOnly(id);
+    this.subtreeVirtualZoomState = null;
+  }
+
+  private toggleSelection(id: string): void {
+    this.selection.toggle(id);
+    this.subtreeVirtualZoomState = null;
+  }
+
+  private addSelection(id: string): void {
+    this.selection.add(id);
+    this.subtreeVirtualZoomState = null;
+  }
+
+  private clearSelection(): void {
+    this.selection.clear();
+    this.subtreeVirtualZoomState = null;
+  }
+
+  private replaceSelection(ids: Iterable<string>): void {
+    this.selection.clear();
+    for (const id of ids) this.selection.add(id);
+    this.subtreeVirtualZoomState = null;
+  }
+
+  private handleZoomInput(factor: number): boolean {
+    const selectedIds = this.selection.getIds();
+    if (selectedIds.length !== 1) {
+      this.subtreeVirtualZoomState = null;
+      this.renderer?.zoomBy?.(factor);
+      return true;
+    }
+
+    const selectedId = selectedIds[0];
+    const currentVirtualZoom = this.subtreeVirtualZoomState?.nodeId === selectedId
+      ? this.subtreeVirtualZoomState.zoom
+      : this.store.getDocument().viewport.zoom;
+
+    const plan = planSubtreeSemanticZoom({
+      doc: this.store.getDocument(),
+      rootId: selectedId,
+      currentVirtualZoom,
+      projectionZoom: this.store.getDocument().viewport.zoom,
+      factor,
+      maxDepthStep: 3,
+    });
+    if (!plan) {
+      this.subtreeVirtualZoomState = null;
+      return true;
+    }
+
+    this.subtreeVirtualZoomState = { nodeId: selectedId, zoom: plan.nextVirtualZoom };
+    if (plan.controls.size === 0) return true;
+
+    this.applyDocumentChange(() => {
+      this.store.applyTreeControls(plan.controls);
+    }, { relayout: false });
+    return true;
+  }
+
   handleLayoutSettingsChanged(): void {
     if (!this.isTreeLayoutMode()) return;
+    this.subtreeVirtualZoomState = null;
     this.applyReplacedDocument(this.relayoutDocument(structuredClone(this.store.getDocument())), {
       commitHistory: false,
       autosave: false,

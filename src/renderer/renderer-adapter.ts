@@ -16,6 +16,7 @@ export interface RendererAdapter {
   getLastProjectedNodes?(): ProjectedNode[];
   startInlineEditByNodeId?(nodeId: string): void;
   zoomBy?(factor: number): void;
+  handleZoomInput?(factor: number): boolean;
   fitRoot?(): void;
   jumpToWorldPoint?(x: number, y: number): void;
   getViewportWorldRect?(): Rect;

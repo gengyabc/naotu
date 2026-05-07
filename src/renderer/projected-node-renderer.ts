@@ -191,7 +191,7 @@ export function renderProjectedNodes(args: {
       .select<SVGTextElement>("text.mindmap-node-kind-badge")
       .attr("x", 12)
       .attr("y", 48)
-      .style("display", node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 5 ? "" : "none")
+      .style("display", node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4 ? "" : "none")
       .text("notebook");
 
     group

@@ -105,6 +105,27 @@ describe("createSemanticProjection", () => {
     expect(Math.abs(outGap - inGap)).toBeLessThan(8);
   });
 
+  it("keeps text node size stable across zoom levels", () => {
+    const doc = createSmallTestDocument();
+
+    const zoomedOut = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: [],
+    });
+    const zoomedIn = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -100, y: -100, width: 200, height: 200 },
+      selectedNodeIds: [],
+    });
+
+    const outChild = zoomedOut.nodes.find((node) => node.id === "child");
+    const inChild = zoomedIn.nodes.find((node) => node.id === "child");
+
+    expect(outChild?.displayWidth).toBe(inChild?.displayWidth);
+    expect(outChild?.displayHeight).toBe(inChild?.displayHeight);
+  });
+
   it("reveals auto-expanded descendants one depth at a time", () => {
     const doc = createSmallTestDocument();
     doc.nodes.push(
@@ -309,6 +330,65 @@ describe("createSemanticProjection", () => {
     expect(child?.displayWidth).toBe(520);
     expect(child?.displayHeight).toBe(260);
     expect(child?.usesCustomSize).toBe(true);
+  });
+
+  it("keeps level 4 notebook UI the same as level 5", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+      customWidth: 520,
+      customHeight: 260,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["child", 4]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.detailLevel).toBe(4);
+    expect(child?.displayWidth).toBe(520);
+    expect(child?.displayHeight).toBe(260);
+    expect(child?.showOpenNotebookButton).toBe(true);
+    expect(child?.showResizeHandle).toBe(true);
+    expect(child?.usesCustomSize).toBe(true);
+  });
+
+  it("keeps notebook size stable across detail levels", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const lowDetail = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: [],
+    });
+    const highDetail = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -100, y: -100, width: 200, height: 200 },
+      selectedNodeIds: [],
+    });
+
+    const lowChild = lowDetail.nodes.find((node) => node.id === "child");
+    const highChild = highDetail.nodes.find((node) => node.id === "child");
+
+    expect(lowChild?.displayWidth).toBe(highChild?.displayWidth);
+    expect(lowChild?.displayHeight).toBe(highChild?.displayHeight);
   });
 
   it("clamps custom size for level 5 notebook nodes", () => {

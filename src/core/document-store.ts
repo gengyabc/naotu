@@ -135,6 +135,20 @@ export class MindmapDocumentStore {
     this.patchNode(id, { treeControl });
   }
 
+  applyTreeControls(controls: ReadonlyMap<string, TreeControl>): void {
+    if (controls.size === 0) return;
+
+    let changed = false;
+    for (const node of this.doc.nodes) {
+      const next = controls.get(node.id);
+      if (!next || node.treeControl === next) continue;
+      node.treeControl = next;
+      changed = true;
+    }
+
+    if (changed) this.emit();
+  }
+
   setTreeControlForSubtree(rootId: string, control: TreeControl): void {
     const childrenById = new Map<string, string[]>();
     for (const node of this.doc.nodes) {

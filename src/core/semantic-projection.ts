@@ -110,13 +110,13 @@ export function createSemanticProjection(
       isConnectionSource: extra.connectionSourceId === node.id,
       hasChildren: children.length > 0,
       childrenExpanded,
-      showOpenNotebookButton: node.kind === "notebook" && detail === 5 && Boolean(node.notebook?.link),
-      showResizeHandle: node.kind === "notebook" && detail === 5,
+      showOpenNotebookButton: node.kind === "notebook" && detail >= 4 && Boolean(node.notebook?.link),
+      showResizeHandle: node.kind === "notebook" && detail >= 4,
       usesCustomSize: resolvedSize.usesCustomSize,
     });
   }
 
-  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
+  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook");
 
   if (!isTreeLayout) {
     projectedNodes = relaxProjectedNodes(projectedNodes, {
@@ -231,8 +231,9 @@ function resolveProjectedDisplaySize(args: {
   node: MindmapNode;
   detail: NodeDetailLevel;
 }): { width: number; height: number; usesCustomSize: boolean } {
-  const visual = getVisualSpec(args.node.kind, args.detail);
-  const customSize = args.detail === 5 ? getCustomNotebookSize(args.node) : null;
+  const sizeDetail: NodeDetailLevel = args.node.kind === "text" ? 2 : 5;
+  const visual = getVisualSpec(args.node.kind, sizeDetail);
+  const customSize = args.node.kind === "notebook" ? getCustomNotebookSize(args.node) : null;
   if (customSize) {
     return {
       width: customSize.width,

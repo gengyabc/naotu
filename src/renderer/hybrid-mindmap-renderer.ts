@@ -47,6 +47,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
       getSelectedNodeIds: () => string[];
       getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
       onViewportChange: (x: number, y: number, zoom: number) => void;
+      onZoomInput?: (factor: number) => boolean;
       onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
       onToggleTree: (id: string, expanded: boolean) => void;
       onOpenNotebook: (id: string) => void;
@@ -310,6 +311,12 @@ export class HybridMindmapRenderer implements RendererAdapter {
     this.svg.transition().duration(160).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(nextK));
   }
 
+  handleZoomInput(factor: number): boolean {
+    if (this.options.onZoomInput?.(factor)) return true;
+    this.zoomBy(factor);
+    return true;
+  }
+
   fitRoot(): void {
     const root = this.options.getDocument().nodes[0];
     if (!root) return;
@@ -329,7 +336,7 @@ export class HybridMindmapRenderer implements RendererAdapter {
     const zoomSpeed = this.options.getSettings().zoomSpeed;
     const factor = Math.exp(-event.deltaY * zoomSpeed);
     if (!Number.isFinite(factor) || factor === 1) return;
-    this.zoomBy(factor);
+    this.handleZoomInput(factor);
   };
 
   private scheduleRender(): void {
