@@ -74,7 +74,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
         version: 1,
         title: "Untitled Mindmap",
         layoutMode: "tree-mirror",
-        viewport: { x: 0, y: 0, zoom: 1 },
+        viewport: { x: 400, y: 300, zoom: 1 },
         nodes: [
           { id: "root", kind: "text", title: "中心主题", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" },
         ],
