@@ -14,6 +14,7 @@ import { computeSemanticDetailLevel } from "./semantic-zoom-policy";
 import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
+import { getTextNodeDisplaySize } from "./text-layout";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -116,15 +117,17 @@ export function createSemanticProjection(
 
   const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
 
-  if (!isTreeLayout || hasExpandedNotebook) {
+  const needsRelaxation = !isTreeLayout || hasExpandedNotebook || hasDynamicNodeSizes(projectedNodes);
+  
+  if (needsRelaxation) {
     projectedNodes = relaxProjectedNodes(projectedNodes, {
       zoom: context.zoom,
-      iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 2 : 4,
-      pushStrength: hasExpandedNotebook ? 36 : 28,
-      maxMovePerIteration: hasExpandedNotebook ? 72 : 48,
-      settleUntilNoOverlap: hasExpandedNotebook,
-      maxSettlePasses: hasExpandedNotebook ? 8 : 0,
-      overlapPadding: hasExpandedNotebook ? 16 : 12,
+      iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 4 : 8,
+      pushStrength: hasExpandedNotebook ? 36 : 32,
+      maxMovePerIteration: hasExpandedNotebook ? 72 : 56,
+      settleUntilNoOverlap: hasExpandedNotebook || !isTreeLayout,
+      maxSettlePasses: hasExpandedNotebook ? 8 : 12,
+      overlapPadding: hasExpandedNotebook ? 16 : 14,
     });
   }
 
@@ -238,11 +241,33 @@ function resolveProjectedDisplaySize(args: {
     };
   }
 
-  const sizeDetail: NodeDetailLevel = args.node.kind === "text" ? 2 : args.detail;
-  const visual = getVisualSpec(args.node.kind, sizeDetail);
+  const visual = getVisualSpec(args.node.kind, args.detail);
+  
+  if (args.node.kind === "text") {
+    const dynamicSize = getTextNodeDisplaySize({
+      title: args.node.title,
+      fontSize: visual.titleFontSize,
+    });
+    return {
+      width: dynamicSize.width,
+      height: dynamicSize.height,
+      usesCustomSize: false,
+    };
+  }
+
   return {
     width: visual.width,
     height: visual.height,
     usesCustomSize: false,
   };
+}
+
+function hasDynamicNodeSizes(nodes: ProjectedNode[]): boolean {
+  for (const node of nodes) {
+    if (node.kind === "text") {
+      const textLength = node.title.length;
+      if (textLength > 10) return true;
+    }
+  }
+  return false;
 }

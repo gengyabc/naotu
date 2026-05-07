@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { canDragNodes, clampNotebookResizeSize, screenDragDeltaToWorldDelta, shouldStartNodeDrag } from "../renderer/projected-node-renderer";
+import {
+  canDragNodes,
+  clampNotebookResizeSize,
+  screenDragDeltaToWorldDelta,
+  shouldStartInlineTitleEdit,
+  shouldStartNodeDrag,
+} from "../renderer/projected-node-renderer";
 
 describe("projected node dragging", () => {
   it("maps screen drag deltas directly to document movement under semantic zoom", () => {
@@ -27,6 +33,18 @@ describe("projected node dragging", () => {
       shouldStartNodeDrag({ closest: (selector: string) => (selector.includes("mindmap-node-resize-handle") ? {} : null) } as unknown as EventTarget),
     ).toBe(false);
     expect(shouldStartNodeDrag({ closest: () => null } as unknown as EventTarget)).toBe(true);
+  });
+
+  it("starts inline title editing from regular node targets", () => {
+    expect(
+      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector === ".mindmap-node" ? {} : null) } as unknown as EventTarget),
+    ).toBe(true);
+    expect(
+      shouldStartInlineTitleEdit({
+        closest: (selector: string) => (selector.includes("mindmap-node-open-notebook") || selector === ".mindmap-node" ? {} : null),
+      } as unknown as EventTarget),
+    ).toBe(false);
+    expect(shouldStartInlineTitleEdit({ closest: () => null } as unknown as EventTarget)).toBe(false);
   });
 
   it("only enables node dragging in free layout", () => {

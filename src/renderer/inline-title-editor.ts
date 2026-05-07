@@ -1,3 +1,5 @@
+import { shouldSuggestNotebook } from "../core/text-layout";
+
 export interface InlineTitleEditorOptions {
   layer: HTMLElement;
   x: number;
@@ -10,6 +12,7 @@ export interface InlineTitleEditorOptions {
 
 export class InlineTitleEditor {
   private input: HTMLInputElement | null = null;
+  private warning: HTMLDivElement | null = null;
 
   constructor(private options: InlineTitleEditorOptions) {}
 
@@ -41,16 +44,51 @@ export class InlineTitleEditor {
 
     input.addEventListener("input", () => {
       input.value = input.value.replace(/\n/g, " ");
+      this.checkLengthWarning();
     });
 
     input.addEventListener("blur", () => {
       void this.commit();
     });
+
+    this.checkLengthWarning();
+  }
+
+  private checkLengthWarning(): void {
+    if (!this.input) return;
+
+    const value = this.input.value;
+    if (shouldSuggestNotebook(value)) {
+      this.showWarning();
+    } else {
+      this.hideWarning();
+    }
+  }
+
+  private showWarning(): void {
+    if (this.warning) return;
+    if (!this.input) return;
+
+    const warning = document.createElement("div");
+    warning.className = "mindmap-inline-title-warning";
+    warning.textContent = "内容较多，建议转为笔记节点";
+    warning.style.left = `${this.options.x}px`;
+    warning.style.top = `${this.options.y + 32}px`;
+    warning.style.width = `${this.options.width}px`;
+
+    this.options.layer.appendChild(warning);
+    this.warning = warning;
+  }
+
+  private hideWarning(): void {
+    this.warning?.remove();
+    this.warning = null;
   }
 
   async commit(): Promise<void> {
     if (!this.input) return;
     const value = this.input.value.trim();
+    this.hideWarning();
     this.close();
 
     if (!value) {
@@ -62,6 +100,7 @@ export class InlineTitleEditor {
   }
 
   cancel(): void {
+    this.hideWarning();
     this.close();
     this.options.onCancel();
   }
@@ -69,5 +108,7 @@ export class InlineTitleEditor {
   close(): void {
     this.input?.remove();
     this.input = null;
+    this.warning?.remove();
+    this.warning = null;
   }
 }

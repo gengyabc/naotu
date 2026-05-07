@@ -9,6 +9,7 @@ import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/notebook-size";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
+import { layoutText } from "../core/text-layout";
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
@@ -77,6 +78,13 @@ export function shouldStartNodeDrag(target: EventTarget | null): boolean {
   const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
   return !(typeof elementTarget?.closest === "function" &&
     elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
+}
+
+export function shouldStartInlineTitleEdit(target: EventTarget | null): boolean {
+  const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
+  if (typeof elementTarget?.closest !== "function") return false;
+  if (elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle")) return false;
+  return Boolean(elementTarget.closest(".mindmap-node"));
 }
 
 export function canDragNodes(layoutMode: LayoutMode): boolean {
@@ -188,9 +196,21 @@ export function renderProjectedNodes(args: {
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
+      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target)) {
+        event.preventDefault();
+        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
+        return;
+      }
+
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
       else args.onSelectNode(node.id, "replace");
+    })
+    .on("dblclick", (event) => {
+      if (!shouldStartInlineTitleEdit(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
@@ -219,16 +239,38 @@ export function renderProjectedNodes(args: {
 
     group.select<SVGRectElement>("rect.mindmap-node-bg").attr("width", node.displayWidth).attr("height", node.displayHeight);
 
-    group
-      .select<SVGTextElement>("text.mindmap-node-title")
-      .attr("x", 12)
-      .attr("y", 26)
-      .style("font-size", `${visual.titleFontSize}px`)
-      .text(node.title)
-      .on("dblclick", (event) => {
-        event.stopPropagation();
-        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
+    const titleText = group.select<SVGTextElement>("text.mindmap-node-title");
+    titleText.selectAll("*").remove();
+    titleText.text("");
+    
+    if (node.kind === "text") {
+      const textLayout = layoutText({
+        text: node.title,
+        fontSize: visual.titleFontSize,
       });
+      
+      const lineHeight = visual.titleFontSize * 1.4;
+      const startY = textLayout.lines.length === 1 ? 26 : 18;
+      
+      titleText
+        .attr("x", 12)
+        .attr("y", startY)
+        .style("font-size", `${visual.titleFontSize}px`);
+      
+      textLayout.lines.forEach((line, index) => {
+        titleText.append("tspan")
+          .attr("x", 12)
+          .attr("y", startY + index * lineHeight)
+          .style("pointer-events", "auto")
+          .text(line);
+      });
+    } else {
+      titleText
+        .attr("x", 12)
+        .attr("y", 26)
+        .style("font-size", `${visual.titleFontSize}px`)
+        .text(node.title);
+    }
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
     badgeText.attr("x", 12).attr("y", 48);

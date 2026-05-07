@@ -302,3 +302,15 @@
   font-size: 12px;
   align-self: center;
 }
+
+.mindmap-inline-title-warning {
+  position: absolute;
+  z-index: 21;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--background-modifier-warning);
+  color: var(--text-warning);
+  font-size: 12px;
+  font-family: var(--font-interface);
+}
