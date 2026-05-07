@@ -1,5 +1,6 @@
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import { buildHierarchy } from "./hierarchy";
+import { getStoredNodeSize } from "./notebook-size";
 
 export interface TreeLayoutOptions {
   mode: "tree-mirror" | "tree-right";
@@ -21,7 +22,7 @@ export class TreeLayoutEngine {
     root.x = 0;
     root.y = 0;
 
-    const weights = computeVisibleSubtreeWeights(rootId, hierarchy.childrenById, nodeMap);
+    const spans = computeVisibleSubtreeSpans(rootId, hierarchy.childrenById, nodeMap, options.verticalSpacing);
     const rootChildren = hierarchy.childrenById.get(rootId) ?? [];
 
     if (options.mode === "tree-right") {
@@ -30,20 +31,20 @@ export class TreeLayoutEngine {
         children: rootChildren,
         direction: 1,
         childrenById: hierarchy.childrenById,
-        weights,
+        spans,
         nodeMap,
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
         visiting: new Set<string>(),
       });
     } else {
-      const split = splitRootChildrenForMirror(rootChildren, weights);
+      const split = splitRootChildrenForMirror(rootChildren, spans);
       layoutDirectedSubtree({
         parentId: rootId,
         children: split.left,
         direction: -1,
         childrenById: hierarchy.childrenById,
-        weights,
+        spans,
         nodeMap,
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
@@ -54,7 +55,7 @@ export class TreeLayoutEngine {
         children: split.right,
         direction: 1,
         childrenById: hierarchy.childrenById,
-        weights,
+        spans,
         nodeMap,
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
@@ -67,10 +68,11 @@ export class TreeLayoutEngine {
   }
 }
 
-function computeVisibleSubtreeWeights(
+function computeVisibleSubtreeSpans(
   rootId: string,
   childrenById: Map<string, string[]>,
   nodeMap: Map<string, MindmapNode>,
+  verticalSpacing: number,
 ): Map<string, number> {
   const result = new Map<string, number>();
   const visiting = new Set<string>();
@@ -88,36 +90,39 @@ function computeVisibleSubtreeWeights(
       return 1;
     }
 
+    const nodeHeight = getStoredNodeSize(node).height;
+
     if (isCollapsedForLayout(node)) {
       visiting.delete(nodeId);
-      result.set(nodeId, 1);
-      return 1;
+      result.set(nodeId, nodeHeight);
+      return nodeHeight;
     }
 
     const children = childrenById.get(nodeId) ?? [];
     if (children.length === 0) {
       visiting.delete(nodeId);
-      result.set(nodeId, 1);
-      return 1;
+      result.set(nodeId, nodeHeight);
+      return nodeHeight;
     }
 
     let total = 0;
-    for (const childId of children) {
-      total += dfs(childId);
+    for (let index = 0; index < children.length; index++) {
+      total += dfs(children[index]);
+      if (index < children.length - 1) total += verticalSpacing;
     }
 
-    const weight = Math.max(1, total);
+    const span = Math.max(nodeHeight, total);
     visiting.delete(nodeId);
-    result.set(nodeId, weight);
-    return weight;
+    result.set(nodeId, span);
+    return span;
   };
 
   dfs(rootId);
   return result;
 }
 
-function splitRootChildrenForMirror(children: string[], weights: Map<string, number>): { left: string[]; right: string[] } {
-  const total = children.reduce((sum, childId) => sum + (weights.get(childId) ?? 1), 0);
+function splitRootChildrenForMirror(children: string[], spans: Map<string, number>): { left: string[]; right: string[] } {
+  const total = children.reduce((sum, childId) => sum + (spans.get(childId) ?? 0), 0);
   let bestIndex = 0;
   let bestDiff = Number.POSITIVE_INFINITY;
   let prefix = 0;
@@ -128,7 +133,7 @@ function splitRootChildrenForMirror(children: string[], weights: Map<string, num
       bestDiff = diff;
       bestIndex = i;
     }
-    if (i < children.length) prefix += weights.get(children[i] ?? "") ?? 1;
+    if (i < children.length) prefix += spans.get(children[i] ?? "") ?? 0;
   }
 
   return {
@@ -142,7 +147,7 @@ function layoutDirectedSubtree(args: {
   children: string[];
   direction: -1 | 1;
   childrenById: Map<string, string[]>;
-  weights: Map<string, number>;
+  spans: Map<string, number>;
   nodeMap: Map<string, MindmapNode>;
   horizontalSpacing: number;
   verticalSpacing: number;
@@ -157,16 +162,21 @@ function layoutDirectedSubtree(args: {
     return;
   }
 
-  const totalHeight = args.children.reduce((sum, childId) => sum + (args.weights.get(childId) ?? 1) * args.verticalSpacing, 0);
+  const parentSize = getStoredNodeSize(parent);
+  const totalHeight = args.children.reduce((sum, childId, index) => {
+    const childSpan = args.spans.get(childId) ?? 0;
+    return sum + childSpan + (index < args.children.length - 1 ? args.verticalSpacing : 0);
+  }, 0);
   let cursorTop = parent.y - totalHeight / 2;
 
   for (const childId of args.children) {
     const child = args.nodeMap.get(childId);
     if (!child) continue;
 
-    const childHeight = (args.weights.get(childId) ?? 1) * args.verticalSpacing;
-    const childCenterY = cursorTop + childHeight / 2;
-    child.x = parent.x + args.direction * args.horizontalSpacing;
+    const childSize = getStoredNodeSize(child);
+    const childSpan = args.spans.get(childId) ?? childSize.height;
+    const childCenterY = cursorTop + childSpan / 2;
+    child.x = parent.x + args.direction * (parentSize.width / 2 + args.horizontalSpacing + childSize.width / 2);
     child.y = childCenterY;
 
     if (!isCollapsedForLayout(child)) {
@@ -176,7 +186,7 @@ function layoutDirectedSubtree(args: {
         children: args.childrenById.get(childId) ?? [],
       });
     }
-    cursorTop += childHeight;
+    cursorTop += childSpan + args.verticalSpacing;
   }
 
   args.visiting.delete(args.parentId);
