@@ -202,9 +202,21 @@ export function renderProjectedNodes(args: {
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
+      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target)) {
+        event.preventDefault();
+        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
+        return;
+      }
+
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
       else args.onSelectNode(node.id, "replace");
+    })
+    .on("dblclick", (event) => {
+      if (!shouldStartInlineTitleEdit(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
@@ -258,7 +270,6 @@ export function renderProjectedNodes(args: {
         titleText.append("tspan")
           .attr("x", 12)
           .attr("y", startY + index * lineHeight)
-          .style("pointer-events", "auto")
           .text(line);
       });
     } else {
@@ -282,12 +293,6 @@ export function renderProjectedNodes(args: {
       .style("cursor", "text")
       .on("pointerdown.title-hitbox", (event) => {
         event.stopPropagation();
-      })
-      .on("dblclick.title-hitbox", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");

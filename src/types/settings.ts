@@ -20,6 +20,9 @@ export interface SemanticMindmapSettings {
   zoomSpeed: number;
 }
 
+export const DEFAULT_LAYOUT_HORIZONTAL_SPACING = 160;
+export const DEFAULT_LAYOUT_VERTICAL_SPACING = 60;
+
 export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
   notebookFolder: "notebooks",
   notebookTemplate: "# {{title}}\n",
@@ -37,7 +40,7 @@ export const DEFAULT_SETTINGS: SemanticMindmapSettings = {
   autoSaveDelayMs: 800,
   defaultExportFormat: "svg",
   language: "auto",
-  layoutHorizontalSpacing: 220,
-  layoutVerticalSpacing: 80,
+  layoutHorizontalSpacing: DEFAULT_LAYOUT_HORIZONTAL_SPACING,
+  layoutVerticalSpacing: DEFAULT_LAYOUT_VERTICAL_SPACING,
   zoomSpeed: 0.003,
 };

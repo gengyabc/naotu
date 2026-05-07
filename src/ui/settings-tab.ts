@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type SemanticZoomMindmapPlugin from "../main";
+import { DEFAULT_LAYOUT_HORIZONTAL_SPACING, DEFAULT_LAYOUT_VERTICAL_SPACING } from "../types/settings";
 
 export class SemanticMindmapSettingTab extends PluginSettingTab {
   constructor(
@@ -161,7 +162,7 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       .addText((text) =>
         text.setValue(String(this.plugin.settings.layoutHorizontalSpacing)).onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.layoutHorizontalSpacing = Number.isFinite(parsed) ? Math.max(120, parsed) : 220;
+          this.plugin.settings.layoutHorizontalSpacing = Number.isFinite(parsed) ? Math.max(120, parsed) : DEFAULT_LAYOUT_HORIZONTAL_SPACING;
           await this.plugin.saveSettings();
           await this.plugin.notifyLayoutSettingsChanged();
         }),
@@ -173,7 +174,7 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       .addText((text) =>
         text.setValue(String(this.plugin.settings.layoutVerticalSpacing)).onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.layoutVerticalSpacing = Number.isFinite(parsed) ? Math.max(32, parsed) : 80;
+          this.plugin.settings.layoutVerticalSpacing = Number.isFinite(parsed) ? Math.max(32, parsed) : DEFAULT_LAYOUT_VERTICAL_SPACING;
           await this.plugin.saveSettings();
           await this.plugin.notifyLayoutSettingsChanged();
         }),

@@ -1,5 +1,6 @@
 import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
+import { DEFAULT_LAYOUT_HORIZONTAL_SPACING, DEFAULT_LAYOUT_VERTICAL_SPACING } from "../types/settings";
 import { createId } from "./id";
 import { TreeLayoutEngine } from "./tree-layout";
 
@@ -64,8 +65,8 @@ export function createSampleMindmap(nodeCount: number): MindmapDocument {
     doc,
     {
       mode: "tree-mirror",
-      horizontalSpacing: 220,
-      verticalSpacing: 80,
+      horizontalSpacing: DEFAULT_LAYOUT_HORIZONTAL_SPACING,
+      verticalSpacing: DEFAULT_LAYOUT_VERTICAL_SPACING,
     },
     rootId,
   );
