@@ -7,6 +7,8 @@ import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/notebook-size";
+import { resolveObsidianLinkFile } from "../core/obsidian-link";
+import { globalPreviewCache } from "../core/preview-cache";
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
@@ -18,6 +20,47 @@ const NOTEBOOK_PREVIEW_RIGHT_PADDING = 8;
 const NOTEBOOK_PREVIEW_BOTTOM_PADDING = 20;
 const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
 const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
+
+const descriptionCache = new Map<string, string | null>();
+let descriptionCacheVersion = -1;
+
+function getNotebookDescription(args: {
+  app: App;
+  link: string;
+  sourcePath: string;
+  storedPath?: string;
+}): string | null {
+  const version = globalPreviewCache.getVersion();
+  if (descriptionCacheVersion !== version) {
+    descriptionCache.clear();
+    descriptionCacheVersion = version;
+  }
+
+  const file = resolveObsidianLinkFile({
+    app: args.app,
+    link: args.link,
+    sourcePath: args.sourcePath,
+    storedPath: args.storedPath,
+  });
+  if (!file) return null;
+
+  const cacheKey = file.path;
+  const cached = descriptionCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const fileCache = args.app.metadataCache.getFileCache(file);
+  const description = fileCache?.frontmatter?.description;
+  const result = typeof description === "string" ? description : null;
+  descriptionCache.set(cacheKey, result);
+  return result;
+}
+
+function truncateDescription(text: string, maxWidth: number): string {
+  const avgCharWidth = 8;
+  const maxChars = Math.floor((maxWidth - 12) / avgCharWidth);
+  if (text.length <= maxChars) return text;
+  return text.substring(0, maxChars - 1) + "...";
+}
 
 export function screenDragDeltaToWorldDelta(args: { dx: number; dy: number }): { dx: number; dy: number } {
   return { dx: args.dx, dy: args.dy };
@@ -187,12 +230,27 @@ export function renderProjectedNodes(args: {
         args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
       });
 
-    group
-      .select<SVGTextElement>("text.mindmap-node-kind-badge")
-      .attr("x", 12)
-      .attr("y", 48)
-      .style("display", node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4 ? "" : "none")
-      .text("notebook");
+    const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
+    badgeText.attr("x", 12).attr("y", 48);
+
+    if (node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4) {
+      badgeText.style("display", "");
+      const description = node.notebook?.link
+        ? getNotebookDescription({
+            app: args.app,
+            link: node.notebook.link,
+            sourcePath: args.sourcePath,
+            storedPath: node.notebook.path,
+          })
+        : null;
+      if (description) {
+        badgeText.text(truncateDescription(description, node.displayWidth));
+      } else {
+        badgeText.style("display", "none");
+      }
+    } else {
+      badgeText.style("display", "none");
+    }
 
     group
       .select<SVGGElement>("g.mindmap-node-open-notebook")
