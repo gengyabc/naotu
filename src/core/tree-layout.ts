@@ -1,6 +1,7 @@
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import { buildHierarchy } from "./hierarchy";
 import { getStoredNodeSize } from "./notebook-size";
+import { getTextNodeDisplaySize } from "./text-layout";
 
 export interface TreeLayoutOptions {
   mode: "tree-mirror" | "tree-right";
@@ -90,7 +91,7 @@ function computeVisibleSubtreeSpans(
       return 1;
     }
 
-    const nodeHeight = getStoredNodeSize(node).height;
+    const nodeHeight = getLayoutNodeSize(node).height;
 
     if (isCollapsedForLayout(node)) {
       visiting.delete(nodeId);
@@ -162,7 +163,7 @@ function layoutDirectedSubtree(args: {
     return;
   }
 
-  const parentSize = getStoredNodeSize(parent);
+  const parentSize = getLayoutNodeSize(parent);
   const totalHeight = args.children.reduce((sum, childId, index) => {
     const childSpan = args.spans.get(childId) ?? 0;
     return sum + childSpan + (index < args.children.length - 1 ? args.verticalSpacing : 0);
@@ -173,7 +174,7 @@ function layoutDirectedSubtree(args: {
     const child = args.nodeMap.get(childId);
     if (!child) continue;
 
-    const childSize = getStoredNodeSize(child);
+    const childSize = getLayoutNodeSize(child);
     const childSpan = args.spans.get(childId) ?? childSize.height;
     const childCenterY = cursorTop + childSpan / 2;
     child.x = parent.x + args.direction * (parentSize.width / 2 + args.horizontalSpacing + childSize.width / 2);
@@ -194,4 +195,12 @@ function layoutDirectedSubtree(args: {
 
 function isCollapsedForLayout(node: MindmapNode): boolean {
   return node.treeControl === "manual-collapsed";
+}
+
+function getLayoutNodeSize(node: MindmapNode): { width: number; height: number } {
+  if (node.kind === "text") {
+    return getTextNodeDisplaySize({ title: node.title, fontSize: 14 });
+  }
+
+  return getStoredNodeSize(node);
 }

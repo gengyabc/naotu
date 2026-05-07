@@ -20,7 +20,7 @@ export interface SemanticMindmapSettings {
   zoomSpeed: number;
 }
 
-export const DEFAULT_LAYOUT_HORIZONTAL_SPACING = 160;
+export const DEFAULT_LAYOUT_HORIZONTAL_SPACING = 50;
 export const DEFAULT_LAYOUT_VERTICAL_SPACING = 60;
 
 export const DEFAULT_SETTINGS: SemanticMindmapSettings = {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TreeLayoutEngine } from "../core/tree-layout";
 import { nodeWorldRect } from "../core/geometry";
+import { getTextNodeDisplaySize } from "../core/text-layout";
 import { createSmallTestDocument } from "./test-fixtures";
 
 describe("TreeLayoutEngine", () => {
@@ -85,5 +86,23 @@ describe("TreeLayoutEngine", () => {
     const firstRect = nodeWorldRect(child!);
     const secondRect = nodeWorldRect(child2!);
     expect(secondRect.y).toBeGreaterThanOrEqual(firstRect.y + firstRect.height + 80);
+  });
+
+  it("uses rendered text width for short text node spacing", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0] = { ...doc.nodes[0]!, title: "中心主题" };
+    doc.nodes[1] = { ...doc.nodes[1]!, title: "新节点" };
+
+    const next = new TreeLayoutEngine().layout(doc, { mode: "tree-right", horizontalSpacing: 10, verticalSpacing: 80 }, "root");
+    const root = next.nodes.find((node) => node.id === "root");
+    const child = next.nodes.find((node) => node.id === "child");
+
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+
+    const rootSize = getTextNodeDisplaySize({ title: root!.title, fontSize: 14 });
+    const childSize = getTextNodeDisplaySize({ title: child!.title, fontSize: 14 });
+    const visibleGap = child!.x - root!.x - rootSize.width / 2 - childSize.width / 2;
+    expect(Math.round(visibleGap)).toBe(10);
   });
 });

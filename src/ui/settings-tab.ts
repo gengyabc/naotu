@@ -162,7 +162,7 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       .addText((text) =>
         text.setValue(String(this.plugin.settings.layoutHorizontalSpacing)).onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.layoutHorizontalSpacing = Number.isFinite(parsed) ? Math.max(120, parsed) : DEFAULT_LAYOUT_HORIZONTAL_SPACING;
+          this.plugin.settings.layoutHorizontalSpacing = Number.isFinite(parsed) ? Math.max(0, parsed) : DEFAULT_LAYOUT_HORIZONTAL_SPACING;
           await this.plugin.saveSettings();
           await this.plugin.notifyLayoutSettingsChanged();
         }),
