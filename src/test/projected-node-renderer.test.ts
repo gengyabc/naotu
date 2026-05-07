@@ -35,13 +35,19 @@ describe("projected node dragging", () => {
     expect(shouldStartNodeDrag({ closest: () => null } as unknown as EventTarget)).toBe(true);
   });
 
-  it("starts inline title editing from regular node targets", () => {
+  it("starts inline title editing only from title targets", () => {
     expect(
-      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector === ".mindmap-node" ? {} : null) } as unknown as EventTarget),
+      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector.includes(".mindmap-node-title") ? {} : null) } as unknown as EventTarget),
     ).toBe(true);
     expect(
+      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector.includes(".mindmap-node-title-hitbox") ? {} : null) } as unknown as EventTarget),
+    ).toBe(true);
+    expect(
+      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector === ".mindmap-node" ? {} : null) } as unknown as EventTarget),
+    ).toBe(false);
+    expect(
       shouldStartInlineTitleEdit({
-        closest: (selector: string) => (selector.includes("mindmap-node-open-notebook") || selector === ".mindmap-node" ? {} : null),
+        closest: (selector: string) => (selector.includes("mindmap-node-open-notebook") || selector === ".mindmap-node-title" ? {} : null),
       } as unknown as EventTarget),
     ).toBe(false);
     expect(shouldStartInlineTitleEdit({ closest: () => null } as unknown as EventTarget)).toBe(false);

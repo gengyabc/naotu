@@ -85,7 +85,11 @@
 .mindmap-node-title {
   fill: var(--text-normal);
   font-weight: 600;
-  pointer-events: auto;
+  pointer-events: none;
+}
+
+.mindmap-node-title-hitbox {
+  pointer-events: all;
   cursor: text;
 }
 

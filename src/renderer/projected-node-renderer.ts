@@ -80,11 +80,16 @@ export function shouldStartNodeDrag(target: EventTarget | null): boolean {
     elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
 }
 
+const TITLE_HITBOX_INSET_X = 8;
+const TITLE_HITBOX_INSET_Y = 6;
+const TITLE_HITBOX_MIN_HEIGHT = 32;
+const TITLE_HITBOX_PADDING = 12;
+
 export function shouldStartInlineTitleEdit(target: EventTarget | null): boolean {
   const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
   if (typeof elementTarget?.closest !== "function") return false;
   if (elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle")) return false;
-  return Boolean(elementTarget.closest(".mindmap-node"));
+  return Boolean(elementTarget.closest(".mindmap-node-title, .mindmap-node-title-hitbox"));
 }
 
 export function canDragNodes(layoutMode: LayoutMode): boolean {
@@ -123,6 +128,7 @@ export function renderProjectedNodes(args: {
 
   const entered = selection.enter().append("g").attr("class", "mindmap-node");
   entered.append("rect").attr("class", "mindmap-node-bg").attr("rx", 12).attr("ry", 12);
+  entered.append("rect").attr("class", "mindmap-node-title-hitbox");
   entered.append("text").attr("class", "mindmap-node-title");
   entered.append("text").attr("class", "mindmap-node-kind-badge");
   const openNotebook = entered.append("g").attr("class", "mindmap-node-open-notebook");
@@ -196,21 +202,9 @@ export function renderProjectedNodes(args: {
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
-      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target)) {
-        event.preventDefault();
-        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
-        return;
-      }
-
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
       else args.onSelectNode(node.id, "replace");
-    })
-    .on("dblclick", (event) => {
-      if (!shouldStartInlineTitleEdit(event.target)) return;
-      event.preventDefault();
-      event.stopPropagation();
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
@@ -226,6 +220,8 @@ export function renderProjectedNodes(args: {
     const group = d3.select(this);
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
     const visual = getVisualSpec(node.kind, node.detailLevel);
+    const titleHitbox = group.select<SVGRectElement>("rect.mindmap-node-title-hitbox");
+    let titleHitboxHeight = TITLE_HITBOX_MIN_HEIGHT;
 
     group.attr("transform", `translate(${screen.x}, ${screen.y})`);
     group.classed("is-text", node.kind === "text");
@@ -251,6 +247,7 @@ export function renderProjectedNodes(args: {
       
       const lineHeight = visual.titleFontSize * 1.4;
       const startY = textLayout.lines.length === 1 ? 26 : 18;
+      titleHitboxHeight = Math.min(node.displayHeight - TITLE_HITBOX_INSET_X, Math.max(TITLE_HITBOX_MIN_HEIGHT, Math.ceil(textLayout.lines.length * lineHeight) + TITLE_HITBOX_PADDING));
       
       titleText
         .attr("x", 12)
@@ -271,6 +268,27 @@ export function renderProjectedNodes(args: {
         .style("font-size", `${visual.titleFontSize}px`)
         .text(node.title);
     }
+
+    titleHitbox
+      .attr("x", TITLE_HITBOX_INSET_X)
+      .attr("y", TITLE_HITBOX_INSET_Y)
+      .attr("width", Math.max(0, node.displayWidth - TITLE_HITBOX_INSET_X * 2))
+      .attr("height", titleHitboxHeight)
+      .attr("rx", 8)
+      .attr("ry", 8)
+      .attr("fill", "currentColor")
+      .attr("fill-opacity", 0.001)
+      .style("pointer-events", "all")
+      .style("cursor", "text")
+      .on("pointerdown.title-hitbox", (event) => {
+        event.stopPropagation();
+      })
+      .on("dblclick.title-hitbox", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
+      });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
     badgeText.attr("x", 12).attr("y", 48);
