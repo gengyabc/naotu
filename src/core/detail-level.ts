@@ -70,9 +70,9 @@ function getTextSpec(level: NodeDetailLevel): DetailVisualSpec {
 function getNotebookSpec(level: NodeDetailLevel): DetailVisualSpec {
   switch (level) {
     case 0:
-      return { width: 110, height: 34, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
+      return { width: 180, height: 54, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
     case 1:
-      return { width: 150, height: 46, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
+      return { width: 180, height: 54, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
     case 2:
       return { width: 190, height: 66, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
     case 3:

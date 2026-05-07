@@ -1059,11 +1059,15 @@ export class MindmapView extends ItemView {
     });
     if (!plan) {
       this.subtreeVirtualZoomState = null;
+      this.renderer?.zoomBy?.(factor);
       return true;
     }
 
     this.subtreeVirtualZoomState = { nodeId: selectedId, zoom: plan.nextVirtualZoom };
-    if (plan.controls.size === 0) return true;
+    if (plan.controls.size === 0) {
+      this.renderer?.zoomBy?.(factor);
+      return true;
+    }
 
     this.applyDocumentChange(() => {
       this.store.applyTreeControls(plan.controls);

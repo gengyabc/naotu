@@ -377,7 +377,7 @@ describe("createSemanticProjection", () => {
     expect(child?.usesCustomSize).toBe(true);
   });
 
-  it("keeps notebook size stable across detail levels", () => {
+  it("scales notebook size by detail level", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {
       ...doc.nodes[1]!,
@@ -400,8 +400,8 @@ describe("createSemanticProjection", () => {
     const lowChild = lowDetail.nodes.find((node) => node.id === "child");
     const highChild = highDetail.nodes.find((node) => node.id === "child");
 
-    expect(lowChild?.displayWidth).toBe(highChild?.displayWidth);
-    expect(lowChild?.displayHeight).toBe(highChild?.displayHeight);
+    expect(lowChild?.displayWidth).toBeLessThan(highChild!.displayWidth);
+    expect(lowChild?.displayHeight).toBeLessThan(highChild!.displayHeight);
   });
 
   it("clamps custom size for level 5 notebook nodes", () => {

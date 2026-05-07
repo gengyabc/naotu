@@ -229,10 +229,8 @@ function resolveProjectedDisplaySize(args: {
   node: MindmapNode;
   detail: NodeDetailLevel;
 }): { width: number; height: number; usesCustomSize: boolean } {
-  const sizeDetail: NodeDetailLevel = args.node.kind === "text" ? 2 : 5;
-  const visual = getVisualSpec(args.node.kind, sizeDetail);
   const customSize = args.node.kind === "notebook" ? getCustomNotebookSize(args.node) : null;
-  if (customSize) {
+  if (customSize && args.detail >= 4) {
     return {
       width: customSize.width,
       height: customSize.height,
@@ -240,6 +238,8 @@ function resolveProjectedDisplaySize(args: {
     };
   }
 
+  const sizeDetail: NodeDetailLevel = args.node.kind === "text" ? 2 : args.detail;
+  const visual = getVisualSpec(args.node.kind, sizeDetail);
   return {
     width: visual.width,
     height: visual.height,
