@@ -10,6 +10,8 @@ import { DEFAULT_SETTINGS, type SemanticMindmapSettings } from "./types/settings
 import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
 
+import { MindmapFileSuggestModal } from "./ui/mindmap-file-suggest-modal";
+
 export default class SemanticZoomMindmapPlugin extends Plugin {
   settings!: SemanticMindmapSettings;
 
@@ -94,6 +96,12 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     const view = leaf.view;
     if (view instanceof MindmapView) await view.setFile(file);
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  openMindmapFileSelector(): void {
+    new MindmapFileSuggestModal(this.app, async (file) => {
+      await this.openMindmapFile(file);
+    }).open();
   }
 
   async createMindmapFromMarkdownFile(file: TFile): Promise<void> {

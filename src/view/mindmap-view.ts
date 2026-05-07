@@ -201,6 +201,12 @@ export class MindmapView extends ItemView {
     this.freeLayoutButton.toggleClass("is-active", currentLayoutMode === "free");
     this.freeLayoutButton.onclick = () => this.applyTreeLayoutMode("free");
 
+    const openButton = toolbar.createEl("button", { text: "打开" });
+    setButtonA11y(openButton, "打开脑图");
+    openButton.onclick = () => {
+      this.plugin.openMindmapFileSelector();
+    };
+
     const saveButton = toolbar.createEl("button", { text: "保存" });
     setButtonA11y(saveButton, "保存脑图");
     saveButton.onclick = () => {
