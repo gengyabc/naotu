@@ -91,10 +91,11 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
 
   async openMindmapFile(file: TFile): Promise<void> {
     const leaf = this.app.workspace.getLeaf(true);
-    await leaf.setViewState({ type: VIEW_TYPE_MINDMAP, active: true });
-
-    const view = leaf.view;
-    if (view instanceof MindmapView) await view.setFile(file);
+    await leaf.setViewState({
+      type: VIEW_TYPE_MINDMAP,
+      active: true,
+      state: { file: file.path },
+    });
     this.app.workspace.revealLeaf(leaf);
   }
 

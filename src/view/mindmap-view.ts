@@ -106,6 +106,21 @@ export class MindmapView extends ItemView {
     return this.sourceFile?.basename ?? "Semantic Mindmap";
   }
 
+  getState(): { file?: string } {
+    return this.sourceFile ? { file: this.sourceFile.path } : {};
+  }
+
+  async setState(state: { file?: string }, _result: unknown): Promise<void> {
+    if (state.file) {
+      const file = this.app.vault.getAbstractFileByPath(state.file);
+      if (file instanceof TFile) {
+        await this.setFile(file);
+      } else {
+        new Notice(`Mindmap file not found: ${state.file}`);
+      }
+    }
+  }
+
   async setFile(file: TFile): Promise<void> {
     this.sourceFile = file;
     await this.store.openFile(file);
