@@ -174,7 +174,10 @@ export class SvgMindmapRenderer implements RendererAdapter {
           getDragNodeIds: this.options.getDragNodeIds,
           onSelectNode: (id, mode) => {
             this.lastFocusNodeId = id;
-            this.clearForcedDetailExcept(id);
+            const selectedNode = doc.nodes.find((node) => node.id === id);
+            if (mode === "replace" && selectedNode?.kind === "notebook") {
+              this.clearForcedDetailExcept(id);
+            }
             this.options.onSelectNode(id, mode);
             this.render();
           },

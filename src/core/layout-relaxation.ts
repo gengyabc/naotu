@@ -125,7 +125,7 @@ function resolveOverlaps(
 }
 
 function isExpandedNotebook(node: ProjectedNode): boolean {
-  return node.kind === "notebook";
+  return node.kind === "notebook" && node.detailLevel === 5;
 }
 
 function hasAnyOverlap(nodes: ProjectedNode[], zoom: number, padding: number): boolean {

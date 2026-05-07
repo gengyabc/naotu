@@ -528,6 +528,8 @@ export class MindmapView extends ItemView {
       this.setSelectionOnly(id);
       this.renderer?.setLastFocusNodeId(id);
       this.renderer?.forceDetailLevel(id, 5);
+      this.renderer?.focusNode(id);
+      this.renderer?.render();
     } catch (error) {
       showErrorNotice(error, "无法创建 notebook");
     }
@@ -632,6 +634,8 @@ export class MindmapView extends ItemView {
                 this.setSelectionOnly(node.id);
                 this.renderer?.setLastFocusNodeId(node.id);
                 this.renderer?.forceDetailLevel(node.id, 5);
+                this.renderer?.focusNode(node.id);
+                this.renderer?.render();
                 this.refreshMissingNotebookLinks();
               }).open();
             });

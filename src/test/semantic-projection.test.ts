@@ -470,4 +470,74 @@ describe("createSemanticProjection", () => {
     const childRect = toScreenRect(child!, 1, -1000, -1000);
     expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
   });
+
+  it("settles forced expanded notebook overlaps in tree layout", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-mirror";
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      link: "[[Root]]",
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "text",
+      x: 40,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 5]]),
+      },
+    );
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+
+    const rootRect = toScreenRect(root!, 1, -1000, -1000);
+    const childRect = toScreenRect(child!, 1, -1000, -1000);
+    expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
+  });
+
+  it("keeps a forced notebook expanded while a child node is selected", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-mirror";
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      link: "[[Root]]",
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["child"],
+        lastFocusNodeId: "child",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 5]]),
+      },
+    );
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    expect(root?.detailLevel).toBe(5);
+    expect(root?.displayWidth).toBe(360);
+    expect(root?.displayHeight).toBe(300);
+  });
 });

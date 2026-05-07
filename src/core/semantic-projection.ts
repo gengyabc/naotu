@@ -114,9 +114,9 @@ export function createSemanticProjection(
     });
   }
 
-  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook");
+  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
 
-  if (!isTreeLayout) {
+  if (!isTreeLayout || hasExpandedNotebook) {
     projectedNodes = relaxProjectedNodes(projectedNodes, {
       zoom: context.zoom,
       iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 2 : 4,
