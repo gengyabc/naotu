@@ -270,7 +270,7 @@ function getDocument(view: MindmapView): MindmapDocument {
 }
 
 function getDirtyState(view: MindmapView): string {
-  return (view as any).dirtyState.getState();
+  return (view as any).editSession.getDirtyState();
 }
 
 function getSelection(view: MindmapView): string[] {
@@ -394,6 +394,21 @@ describe("MindmapView", () => {
     const nodeCountBeforeDelete = getDocument(harness.view).nodes.length;
     (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "Delete", target: harness.view.contentEl as never }));
     expect(getDocument(harness.view).nodes.length).toBe(nodeCountBeforeDelete - 1);
+  });
+
+  it("undoes and redoes document edits through keyboard shortcuts", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).setSelectionOnly("root");
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "Tab", target: harness.view.contentEl as never }));
+    const nodeCountAfterAdd = getDocument(harness.view).nodes.length;
+
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "z", ctrlKey: true, target: harness.view.contentEl as never }));
+    expect(getDocument(harness.view).nodes.length).toBe(nodeCountAfterAdd - 1);
+
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "z", ctrlKey: true, shiftKey: true, target: harness.view.contentEl as never }));
+    expect(getDocument(harness.view).nodes.length).toBe(nodeCountAfterAdd);
   });
 
   it("focuses the first search result", async () => {

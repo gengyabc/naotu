@@ -7,7 +7,6 @@ import {
   DEFAULT_TEXT_NODE_TITLE,
 } from "../constants";
 import { MindmapDocumentStore } from "../core/document-store";
-import { DebouncedAutosave } from "../core/autosave";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
 import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
@@ -16,7 +15,6 @@ import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { TreeLayoutEngine } from "../core/tree-layout";
 import { createId } from "../core/id";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
-import { HistoryManager } from "../core/history";
 import { searchNodes } from "../core/search";
 import {
   createTextNodeNearParent,
@@ -39,22 +37,21 @@ import { findNearestNodeInDirection, findRootNodeId } from "../core/keyboard-nav
 import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
 import { MinimapRenderer } from "../renderer/minimap-renderer";
 import { findMissingNotebookLinks } from "../core/missing-link-detector";
-import { DirtyStateManager } from "../core/dirty-state";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
 import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
 import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
 import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
+import { MindmapEditSession } from "./mindmap-edit-session";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
-  private autosave: DebouncedAutosave;
+  private editSession: MindmapEditSession;
   private selection = new SelectionState();
   private notebookService: NotebookService;
   private renderer: RendererAdapter | null = null;
   private sourceFile: TFile | null = null;
-  private history = new HistoryManager();
   private searchQuery = "";
   private searchResultIds = new Set<string>();
   private connectionMode = false;
@@ -64,7 +61,6 @@ export class MindmapView extends ItemView {
   private toolbar: MindmapToolbar | null = null;
   private minimap: MinimapRenderer | null = null;
   private missingNotebookNodeIds = new Set<string>();
-  private dirtyState = new DirtyStateManager();
   private unsubscribeDirtyState: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
@@ -76,19 +72,15 @@ export class MindmapView extends ItemView {
   ) {
     super(leaf);
     this.store = new MindmapDocumentStore(this.app);
-    this.autosave = new DebouncedAutosave(async () => {
-      try {
-        this.dirtyState.setState("saving");
-        await this.store.save();
-        this.dirtyState.setState("saved");
-      } catch (error) {
-        this.dirtyState.setState("error");
-        showErrorNotice(error, "保存失败");
-      }
-    }, () => ({
-      enabled: this.plugin.settings.autoSave,
-      delayMs: this.plugin.settings.autoSaveDelayMs,
-    }));
+    this.editSession = new MindmapEditSession(this.store, {
+      relayoutDocument: (doc) => this.relayoutDocument(doc),
+      render: () => this.renderer?.render(),
+      getAutosaveConfig: () => ({
+        enabled: this.plugin.settings.autoSave,
+        delayMs: this.plugin.settings.autoSaveDelayMs,
+      }),
+      onSaveError: (error) => showErrorNotice(error, "保存失败"),
+    });
     this.notebookService = new NotebookService(
       this.app,
       () => this.plugin.settings.notebookFolder,
@@ -124,11 +116,11 @@ export class MindmapView extends ItemView {
     await this.store.openFile(file);
     this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
     this.clearSelection();
-    this.history.clear();
+    this.editSession.clearHistory();
     await this.syncNotebookPaths();
     this.refreshMissingNotebookLinks();
     const loadError = this.store.getLoadError();
-    this.dirtyState.setState(loadError ? "error" : "saved");
+    this.editSession.setDirtyState(loadError ? "error" : "saved");
     if (loadError) showErrorNotice(loadError, "无法打开脑图文件");
     this.renderView();
   }
@@ -144,7 +136,7 @@ export class MindmapView extends ItemView {
   }
 
   async onClose(): Promise<void> {
-    await this.autosave.flush();
+    await this.editSession.flushAutosave();
     this.renderer?.unmount();
     this.debugOverlay?.remove();
     this.debugOverlay = null;
@@ -164,9 +156,9 @@ export class MindmapView extends ItemView {
     if (!this.sourceFile) return;
 
     if (file.path === this.sourceFile.path) {
-      if (this.dirtyState.getState() === "saving") return;
-      if (this.dirtyState.getState() === "dirty") {
-        this.dirtyState.setState("error");
+      if (this.editSession.getDirtyState() === "saving") return;
+      if (this.editSession.getDirtyState() === "dirty") {
+        this.editSession.setDirtyState("error");
         new Notice("脑图文件已在外部更新，当前视图有未保存更改。请重新打开文件以解决冲突。", 6000);
         return;
       }
@@ -177,7 +169,7 @@ export class MindmapView extends ItemView {
       await this.syncNotebookPaths();
       this.refreshMissingNotebookLinks();
       const loadError = this.store.getLoadError();
-      this.dirtyState.setState(loadError ? "error" : "saved");
+      this.editSession.setDirtyState(loadError ? "error" : "saved");
       if (loadError) showErrorNotice(loadError, "无法重新加载脑图文件");
       this.renderer?.render();
       return;
@@ -199,13 +191,13 @@ export class MindmapView extends ItemView {
       layoutMode: this.store.getDocument().layoutMode,
       searchQuery: this.searchQuery,
       connectionMode: this.connectionMode,
-      saveStatus: this.getDirtyStateLabel(this.dirtyState.getState()),
+      saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
       onAddNode: () => this.addTextNode(),
       onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
       onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
       onSaveMindmap: () => {
         this.markDirty();
-        void this.autosave.flush();
+        void this.editSession.flushAutosave();
       },
       onExportSvg: () => void this.exportSvg(),
       onExportPng: () => void this.exportPng(),
@@ -221,7 +213,7 @@ export class MindmapView extends ItemView {
     });
 
     this.unsubscribeDirtyState?.();
-    this.unsubscribeDirtyState = this.dirtyState.subscribe((state) => {
+    this.unsubscribeDirtyState = this.editSession.subscribeDirtyState((state) => {
       this.toolbar?.setSaveStatus(this.getDirtyStateLabel(state));
     });
 
@@ -255,7 +247,7 @@ export class MindmapView extends ItemView {
         this.store.setViewportAndSyncTreeControls(x, y, zoom);
         this.subtreeVirtualZoomState = null;
         this.markDirty();
-        this.autosave.schedule();
+        this.editSession.scheduleAutosave();
       },
       onZoomInput: (factor) => this.handleZoomInput(factor),
       onSelectNode: (id, mode) => {
@@ -285,7 +277,7 @@ export class MindmapView extends ItemView {
         this.openEdgeContextMenu(id, x, y);
       },
       onBeforeNodeDragStart: (node) => {
-        this.commitHistory();
+        this.editSession.commitHistory();
         if (!this.selection.has(node.id)) {
           this.setSelectionOnly(node.id);
         }
@@ -310,7 +302,7 @@ export class MindmapView extends ItemView {
         this.store.updateNodePositions(expandedMoves);
         this.renderer?.render();
         this.markDirty();
-        this.autosave.schedule();
+        this.editSession.scheduleAutosave();
       },
       onNodeDragEnd: ({ node }) => {
         if (this.isTreeLayoutMode()) {
@@ -331,7 +323,7 @@ export class MindmapView extends ItemView {
           return;
         }
         this.markDirty();
-        this.autosave.schedule();
+        this.editSession.scheduleAutosave();
       },
       onNotebookResizeStart: (id) => {
         this.handleNotebookResizeStart(id);
@@ -391,20 +383,12 @@ export class MindmapView extends ItemView {
     }
   }
 
-  private commitHistory(): void {
-    this.history.push(this.store.getDocument());
-  }
-
   private undo(): void {
-    const previous = this.history.undo(this.store.getDocument());
-    if (!previous) return;
-    this.applyReplacedDocument(this.relayoutDocument(previous), { commitHistory: false });
+    this.editSession.undo();
   }
 
   private redo(): void {
-    const next = this.history.redo(this.store.getDocument());
-    if (!next) return;
-    this.applyReplacedDocument(this.relayoutDocument(next), { commitHistory: false });
+    this.editSession.redo();
   }
 
   private addTextNode(): void {
@@ -496,7 +480,7 @@ export class MindmapView extends ItemView {
     if (!node || node.kind !== "text") return;
 
     try {
-      this.commitHistory();
+      this.editSession.commitHistory();
       const result = await this.notebookService.createOrBindNotebookForTextNode(node, this.sourceFile?.path ?? "");
       this.applyDocumentChange(() => {
         this.store.patchNode(id, result.patch);
@@ -539,7 +523,7 @@ export class MindmapView extends ItemView {
 
   private handleNotebookResizeStart(id: string): void {
     if (this.notebookResizeSession?.id === id) return;
-    this.commitHistory();
+    this.editSession.commitHistory();
     this.notebookResizeSession = { id };
   }
 
@@ -553,7 +537,7 @@ export class MindmapView extends ItemView {
     this.store.updateNodeSize(args.id, args.width, args.height);
     this.renderer?.render();
     this.markDirty();
-    this.autosave.schedule();
+    this.editSession.scheduleAutosave();
     this.notebookResizeSession = null;
   }
 
@@ -569,7 +553,7 @@ export class MindmapView extends ItemView {
     }
 
     try {
-      this.commitHistory();
+      this.editSession.commitHistory();
       const patch = await this.notebookService.renameNotebookFileForNode(node, title, this.sourceFile?.path ?? "");
       this.applyDocumentChange(() => {
         this.store.patchNode(id, patch);
@@ -684,30 +668,14 @@ export class MindmapView extends ItemView {
     mutator: () => void,
     options?: { commitHistory?: boolean; relayout?: boolean; render?: boolean; autosave?: boolean },
   ): void {
-    if (options?.commitHistory !== false) this.commitHistory();
-    mutator();
-    if (options?.relayout !== false) {
-      const next = this.relayoutDocument(structuredClone(this.store.getDocument()));
-      this.store.replaceDocument(next);
-    }
-    if (options?.render !== false) this.renderer?.render();
-    if (options?.autosave !== false) {
-      this.markDirty();
-      this.autosave.schedule();
-    }
+    this.editSession.applyDocumentChange(mutator, options);
   }
 
   private applyReplacedDocument(
     doc: MindmapDocument,
     options?: { commitHistory?: boolean; render?: boolean; autosave?: boolean },
   ): void {
-    if (options?.commitHistory !== false) this.commitHistory();
-    this.store.replaceDocument(doc);
-    if (options?.render !== false) this.renderer?.render();
-    if (options?.autosave !== false) {
-      this.markDirty();
-      this.autosave.schedule();
-    }
+    this.editSession.applyReplacedDocument(doc, options);
   }
 
   private async syncNotebookPaths(): Promise<void> {
@@ -722,7 +690,7 @@ export class MindmapView extends ItemView {
     if (changed) {
       this.refreshMissingNotebookLinks();
       this.markDirty();
-      this.autosave.schedule();
+      this.editSession.scheduleAutosave();
     }
   }
 
@@ -804,7 +772,7 @@ export class MindmapView extends ItemView {
   }
 
   private markDirty(): void {
-    this.dirtyState.setState("dirty");
+    this.editSession.markDirty();
   }
 
   private getDirtyStateLabel(state: DirtyState): string {
@@ -1078,7 +1046,7 @@ export class MindmapView extends ItemView {
       return true;
     }
 
-    this.commitHistory();
+    this.editSession.commitHistory();
     this.applyDocumentChange(() => {
       this.store.addEdge({ source: this.connectionSourceId!, target: id, relation: "reference", type: "curve" });
     }, { commitHistory: false });
