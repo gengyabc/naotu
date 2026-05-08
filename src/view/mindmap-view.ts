@@ -30,13 +30,11 @@ import {
 } from "../core/tree-editing";
 import { buildHierarchy } from "../core/hierarchy";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
-import { MarkdownFileSuggestModal } from "../ui/file-suggest-modal";
 import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
 import { chooseRenderMode } from "../core/render-mode";
 import { findNearestNodeInDirection, findRootNodeId } from "../core/keyboard-navigation";
 import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
 import { MinimapRenderer } from "../renderer/minimap-renderer";
-import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
@@ -44,12 +42,14 @@ import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
 import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
 import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
 import { MindmapEditSession } from "./mindmap-edit-session";
+import { MindmapNotebookActions } from "./mindmap-notebook-actions";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
   private editSession: MindmapEditSession;
   private selection = new SelectionState();
   private notebookService: NotebookService;
+  private notebookActions: MindmapNotebookActions;
   private renderer: RendererAdapter | null = null;
   private sourceFile: TFile | null = null;
   private searchQuery = "";
@@ -60,7 +60,6 @@ export class MindmapView extends ItemView {
   private canvasEl: HTMLDivElement | null = null;
   private toolbar: MindmapToolbar | null = null;
   private minimap: MinimapRenderer | null = null;
-  private missingNotebookNodeIds = new Set<string>();
   private unsubscribeDirtyState: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
@@ -86,6 +85,23 @@ export class MindmapView extends ItemView {
       () => this.plugin.settings.notebookFolder,
       () => this.plugin.settings.notebookTemplate,
     );
+    this.notebookActions = new MindmapNotebookActions({
+      app: this.app,
+      notebookService: this.notebookService,
+      store: this.store,
+      getSourcePath: () => this.sourceFile?.path ?? "",
+      applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
+      commitHistory: () => this.editSession.commitHistory(),
+      markDirty: () => this.markDirty(),
+      scheduleAutosave: () => this.editSession.scheduleAutosave(),
+      render: () => this.renderer?.render(),
+      setSelectionOnly: (id) => this.setSelectionOnly(id),
+      setLastFocusNodeId: (id) => this.renderer?.setLastFocusNodeId(id),
+      forceDetailLevel: (id, level) => this.renderer?.forceDetailLevel(id, level),
+      focusNode: (id) => this.renderer?.focusNode(id),
+      setMissingNotebookNodeIds: (ids) => this.renderer?.setMissingNotebookNodeIds?.(ids),
+      showMissingNotebookWarnings: () => this.plugin.settings.showMissingNotebookWarnings,
+    });
   }
 
   getViewType(): string {
@@ -117,8 +133,8 @@ export class MindmapView extends ItemView {
     this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
     this.clearSelection();
     this.editSession.clearHistory();
-    await this.syncNotebookPaths();
-    this.refreshMissingNotebookLinks();
+    await this.notebookActions.syncNotebookPaths();
+    this.notebookActions.refreshMissingNotebookLinks();
     const loadError = this.store.getLoadError();
     this.editSession.setDirtyState(loadError ? "error" : "saved");
     if (loadError) showErrorNotice(loadError, "无法打开脑图文件");
@@ -147,9 +163,7 @@ export class MindmapView extends ItemView {
   }
 
   async refreshNotebookLinks(): Promise<void> {
-    await this.syncNotebookPaths();
-    this.refreshMissingNotebookLinks();
-    this.renderer?.render();
+    await this.notebookActions.refreshNotebookLinks();
   }
 
   async handleVaultModify(file: TFile): Promise<void> {
@@ -166,8 +180,8 @@ export class MindmapView extends ItemView {
       await this.store.openFile(file);
       this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
       this.clearSelection();
-      await this.syncNotebookPaths();
-      this.refreshMissingNotebookLinks();
+      await this.notebookActions.syncNotebookPaths();
+      this.notebookActions.refreshMissingNotebookLinks();
       const loadError = this.store.getLoadError();
       this.editSession.setDirtyState(loadError ? "error" : "saved");
       if (loadError) showErrorNotice(loadError, "无法重新加载脑图文件");
@@ -175,13 +189,10 @@ export class MindmapView extends ItemView {
       return;
     }
 
-    const usesModifiedFile = this.store.getDocument().nodes.some((node) => {
-      if (node.kind !== "notebook") return false;
-      return this.notebookService.resolveNotebookFile(node, this.sourceFile?.path ?? "")?.path === file.path;
-    });
+    const usesModifiedFile = this.notebookActions.usesNotebookFile(file);
 
     if (!usesModifiedFile) return;
-    this.refreshMissingNotebookLinks();
+    this.notebookActions.refreshMissingNotebookLinks();
     this.renderer?.render();
   }
 
@@ -265,7 +276,7 @@ export class MindmapView extends ItemView {
         this.subtreeVirtualZoomState = null;
       },
       onOpenNotebook: (id) => {
-        void this.handleOpenNotebook(id);
+        void this.notebookActions.openNotebook(id);
       },
       onInlineTitleCommit: async (id, title) => {
         await this.handleInlineTitleCommit(id, title);
@@ -368,9 +379,7 @@ export class MindmapView extends ItemView {
     });
 
     this.renderer.mount();
-    this.renderer.setMissingNotebookNodeIds?.(
-      this.plugin.settings.showMissingNotebookWarnings ? this.missingNotebookNodeIds : new Set<string>(),
-    );
+    this.notebookActions.applyMissingNotebookNodeIds();
     this.renderer.setSearchResultIds(this.searchResultIds);
     this.renderer.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
     this.renderer.render();
@@ -476,49 +485,15 @@ export class MindmapView extends ItemView {
   }
 
   private async createNotebookForTextNode(id: string): Promise<void> {
-    const node = this.store.getDocument().nodes.find((item) => item.id === id);
-    if (!node || node.kind !== "text") return;
-
-    try {
-      this.editSession.commitHistory();
-      const result = await this.notebookService.createOrBindNotebookForTextNode(node, this.sourceFile?.path ?? "");
-      this.applyDocumentChange(() => {
-        this.store.patchNode(id, result.patch);
-      }, { commitHistory: false });
-      this.refreshMissingNotebookLinks();
-      this.setSelectionOnly(id);
-      this.renderer?.setLastFocusNodeId(id);
-      this.renderer?.forceDetailLevel(id, 5);
-      this.renderer?.focusNode(id);
-      this.renderer?.render();
-    } catch (error) {
-      showErrorNotice(error, "无法创建 notebook");
-    }
+    await this.notebookActions.createNotebookForTextNode(id);
   }
 
   private focusNotebookPreview(id: string): void {
-    const node = this.store.getDocument().nodes.find((item) => item.id === id);
-    if (!node || node.kind !== "notebook") return;
-
-    this.setSelectionOnly(id);
-    this.renderer?.setLastFocusNodeId(id);
-    this.renderer?.forceDetailLevel(id, 5);
-    this.renderer?.focusNode(id);
-    this.renderer?.render();
+    this.notebookActions.focusNotebookPreview(id);
   }
 
   private async handleOpenNotebook(id: string): Promise<void> {
-    const node = this.store.getDocument().nodes.find((item) => item.id === id);
-    if (!node || node.kind !== "notebook" || !node.notebook?.link) return;
-
-    const file = this.notebookService.resolveNotebookFile(node, this.sourceFile?.path ?? "");
-    if (!file) {
-      showErrorNotice(new Error("找不到 notebook 文件"), "无法打开 notebook");
-      return;
-    }
-
-    const leaf = this.app.workspace.getLeaf("split");
-    await leaf.openFile(file, { active: true });
+    await this.notebookActions.openNotebook(id);
   }
 
   private handleNotebookResizeStart(id: string): void {
@@ -552,15 +527,7 @@ export class MindmapView extends ItemView {
       return;
     }
 
-    try {
-      this.editSession.commitHistory();
-      const patch = await this.notebookService.renameNotebookFileForNode(node, title, this.sourceFile?.path ?? "");
-      this.applyDocumentChange(() => {
-        this.store.patchNode(id, patch);
-      }, { commitHistory: false });
-    } catch (error) {
-      showErrorNotice(error, "无法重命名 notebook");
-    }
+    await this.notebookActions.renameNotebookNode(id, title);
   }
 
   private openContextMenu(id: string, x: number, y: number): void {
@@ -573,29 +540,9 @@ export class MindmapView extends ItemView {
       onCreateNotebook: () => {
         void this.createNotebookForTextNode(id);
       },
-      onBindExistingNotebook: () => {
-        new MarkdownFileSuggestModal(this.app, (file) => {
-          this.applyDocumentChange(() => {
-            this.store.patchNode(node.id, this.notebookService.bindExistingFileAsNotebook(file));
-          });
-          this.setSelectionOnly(node.id);
-          this.renderer?.setLastFocusNodeId(node.id);
-          this.renderer?.forceDetailLevel(node.id, 5);
-          this.renderer?.focusNode(node.id);
-          this.renderer?.render();
-          this.refreshMissingNotebookLinks();
-        }).open();
-      },
+      onBindExistingNotebook: () => this.notebookActions.bindExistingNotebook(node.id),
       onPreviewNotebook: () => this.focusNotebookPreview(id),
-      onRebindNotebook: () => {
-        new MarkdownFileSuggestModal(this.app, (file) => {
-          const patch = this.notebookService.bindExistingFileAsNotebook(file);
-          this.applyDocumentChange(() => {
-            this.store.patchNode(node.id, patch);
-          });
-          this.refreshMissingNotebookLinks();
-        }).open();
-      },
+      onRebindNotebook: () => this.notebookActions.rebindNotebook(node.id),
       onExpandSubtree: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-expanded");
@@ -629,16 +576,7 @@ export class MindmapView extends ItemView {
   }
 
   private convertNotebookToText(id: string): void {
-    const node = this.store.getDocument().nodes.find((item) => item.id === id);
-    if (!node || node.kind !== "notebook") return;
-
-    const confirmed = window.confirm("此操作会将该节点转为普通节点，并断开与 notebook 的连接。原 notebook 文件不会删除。是否继续？");
-    if (!confirmed) return;
-
-    this.applyDocumentChange(() => {
-      this.store.patchNode(id, this.notebookService.disconnectNotebook(node));
-    });
-    this.refreshMissingNotebookLinks();
+    this.notebookActions.convertNotebookToText(id);
   }
 
   private applyTreeLayoutMode(mode: "tree-mirror" | "tree-right" | "free"): void {
@@ -676,22 +614,6 @@ export class MindmapView extends ItemView {
     options?: { commitHistory?: boolean; render?: boolean; autosave?: boolean },
   ): void {
     this.editSession.applyReplacedDocument(doc, options);
-  }
-
-  private async syncNotebookPaths(): Promise<void> {
-    let changed = false;
-    for (const node of this.store.getDocument().nodes) {
-      const patch = await this.notebookService.syncNotebookPathIfMoved(node, this.sourceFile?.path ?? "");
-      if (patch) {
-        this.store.patchNode(node.id, patch);
-        changed = true;
-      }
-    }
-    if (changed) {
-      this.refreshMissingNotebookLinks();
-      this.markDirty();
-      this.editSession.scheduleAutosave();
-    }
   }
 
   private deleteSelectedNodes(): void {
@@ -751,18 +673,6 @@ export class MindmapView extends ItemView {
 
   private focusSearchInput(): void {
     this.toolbar?.focusSearchInput();
-  }
-
-  private refreshMissingNotebookLinks(): void {
-    const missing = findMissingNotebookLinks({
-      app: this.app,
-      doc: this.store.getDocument(),
-      sourcePath: this.sourceFile?.path ?? "",
-    });
-    this.missingNotebookNodeIds = new Set(missing.map((item) => item.nodeId));
-    this.renderer?.setMissingNotebookNodeIds?.(
-      this.plugin.settings.showMissingNotebookWarnings ? this.missingNotebookNodeIds : new Set<string>(),
-    );
   }
 
   private updateMinimap(): void {

@@ -487,6 +487,26 @@ describe("MindmapView", () => {
     expect(renderer.setMissingNotebookNodeIds).toHaveBeenLastCalledWith(new Set(["child"]));
   });
 
+  it("creates, opens, and disconnects notebook-backed nodes through notebook actions", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+
+    await (harness.view as any).createNotebookForTextNode("child");
+
+    const createdNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(createdNode?.kind).toBe("notebook");
+    expect(createdNode?.notebook?.path).toBe("notebooks/Child.md");
+
+    await (harness.view as any).handleOpenNotebook("child");
+    const openedLeaf = harness.workspace.getLeaf.mock.results.at(-1)?.value as { lastOpenedFile?: TFile } | undefined;
+    expect(openedLeaf?.lastOpenedFile?.path).toBe("notebooks/Child.md");
+
+    (harness.view as any).convertNotebookToText("child");
+    const disconnectedNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(disconnectedNode?.kind).toBe("text");
+    expect(disconnectedNode?.notebook).toBeUndefined();
+  });
+
   it("deletes a node through the extracted node context menu", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);
