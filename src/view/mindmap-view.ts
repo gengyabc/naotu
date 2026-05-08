@@ -12,23 +12,14 @@ import { NotebookService } from "../core/notebook-service";
 import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
 import { HybridMindmapRenderer } from "../renderer/hybrid-mindmap-renderer";
 import type { RendererAdapter } from "../renderer/renderer-adapter";
-import { TreeLayoutEngine } from "../core/tree-layout";
 import { createId } from "../core/id";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import { searchNodes } from "../core/search";
 import {
   createTextNodeNearParent,
-  findParentId,
-  findRootId,
-  getMindmapChildIds,
-  isDescendantNode,
-  addChildMindmapNode,
-  addSiblingMindmapNode,
   expandDraggedNodeMoves,
-  moveMindmapNode,
   resolveDraggedNodeIds,
 } from "../core/tree-editing";
-import { buildHierarchy } from "../core/hierarchy";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
 import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
 import { chooseRenderMode } from "../core/render-mode";
@@ -43,6 +34,7 @@ import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar
 import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
 import { MindmapEditSession } from "./mindmap-edit-session";
 import { MindmapNotebookActions } from "./mindmap-notebook-actions";
+import { MindmapTreeActions, isTreeLayoutMode } from "./mindmap-tree-actions";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -50,6 +42,7 @@ export class MindmapView extends ItemView {
   private selection = new SelectionState();
   private notebookService: NotebookService;
   private notebookActions: MindmapNotebookActions;
+  private treeActions: MindmapTreeActions;
   private renderer: RendererAdapter | null = null;
   private sourceFile: TFile | null = null;
   private searchQuery = "";
@@ -101,6 +94,16 @@ export class MindmapView extends ItemView {
       focusNode: (id) => this.renderer?.focusNode(id),
       setMissingNotebookNodeIds: (ids) => this.renderer?.setMissingNotebookNodeIds?.(ids),
       showMissingNotebookWarnings: () => this.plugin.settings.showMissingNotebookWarnings,
+    });
+    this.treeActions = new MindmapTreeActions({
+      getDocument: () => this.store.getDocument(),
+      applyReplacedDocument: (doc, options) => this.applyReplacedDocument(doc, options),
+      applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
+      toggleTreeControl: (id, zoom) => this.store.toggleTreeControl(id, zoom),
+      setTreeControl: (id, control) => this.store.setTreeControl(id, control),
+      getLayoutHorizontalSpacing: () => this.plugin.settings.layoutHorizontalSpacing,
+      getLayoutVerticalSpacing: () => this.plugin.settings.layoutVerticalSpacing,
+      clearSubtreeVirtualZoomState: () => { this.subtreeVirtualZoomState = null; },
     });
   }
 
@@ -292,13 +295,13 @@ export class MindmapView extends ItemView {
         if (!this.selection.has(node.id)) {
           this.setSelectionOnly(node.id);
         }
-        if (this.isTreeLayoutMode()) {
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
           this.treeDragStartPosition = { x: node.worldX, y: node.worldY };
           this.renderer?.render();
         }
       },
       onNodesMove: ({ node, moves }) => {
-        if (this.isTreeLayoutMode()) {
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
           this.applyDocumentChange(() => {
             this.store.updateNodePositions(moves);
           }, { commitHistory: false, relayout: false, autosave: false });
@@ -316,21 +319,12 @@ export class MindmapView extends ItemView {
         this.editSession.scheduleAutosave();
       },
       onNodeDragEnd: ({ node }) => {
-        if (this.isTreeLayoutMode()) {
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
           const start = this.treeDragStartPosition;
-          const moved = start !== null && (Math.abs(node.worldX - start.x) > 0.5 || Math.abs(node.worldY - start.y) > 0.5);
-          if (!moved) {
+          if (start) {
+            this.treeActions.applyTreeDrop(node.id, start.x, start.y, node.worldX, node.worldY);
             this.treeDragStartPosition = null;
-            return;
           }
-          const action = this.resolveTreeDrop(node.id);
-          const doc = this.store.getDocument();
-          let next = doc;
-          if (action?.type === "reparent" || action?.type === "reorder") {
-            next = moveMindmapNode(doc, { nodeId: node.id, newParentId: action.newParentId, targetIndex: action.targetIndex });
-          }
-          this.applyReplacedDocument(this.relayoutDocument(next), { commitHistory: false });
-          this.treeDragStartPosition = null;
           return;
         }
         this.markDirty();
@@ -443,12 +437,8 @@ export class MindmapView extends ItemView {
     const selectedId = this.selection.getIds()[0];
     if (!selectedId) return;
 
-    const doc = this.store.getDocument();
-    const parent = doc.nodes.find((node) => node.id === selectedId);
-    if (!parent) return;
-
-    const child = createTextNodeNearParent(parent);
-    this.applyReplacedDocument(this.relayoutDocument(addChildMindmapNode(doc, parent.id, child)));
+    const child = this.treeActions.addChildNode(selectedId);
+    if (!child) return;
 
     this.setSelectionOnly(child.id);
     this.renderer?.setLastFocusNodeId(child.id);
@@ -461,21 +451,8 @@ export class MindmapView extends ItemView {
     const selectedId = this.selection.getIds()[0];
     if (!selectedId) return;
 
-    const doc = this.store.getDocument();
-    const selected = doc.nodes.find((node) => node.id === selectedId);
-    if (!selected) return;
-
-    const parentId = findParentId(doc, selectedId) ?? findRootId(doc);
-    const parent = parentId ? doc.nodes.find((node) => node.id === parentId) : undefined;
-    if (!parent) return;
-
-    const sibling = {
-      ...createTextNodeNearParent(parent),
-      x: selected.x + 40,
-      y: selected.y + 100,
-    };
-
-    this.applyReplacedDocument(this.relayoutDocument(addSiblingMindmapNode(doc, selectedId, sibling)));
+    const sibling = this.treeActions.addSiblingNode(selectedId);
+    if (!sibling) return;
 
     this.setSelectionOnly(sibling.id);
     this.renderer?.setLastFocusNodeId(sibling.id);
@@ -581,25 +558,11 @@ export class MindmapView extends ItemView {
 
   private applyTreeLayoutMode(mode: "tree-mirror" | "tree-right" | "free"): void {
     this.toolbar?.setLayoutMode(mode);
-    this.subtreeVirtualZoomState = null;
-
-    const next = structuredClone(this.store.getDocument());
-    next.layoutMode = mode;
-    this.applyReplacedDocument(this.relayoutDocument(next));
-  }
-
-  private isTreeLayoutMode(mode = this.store.getDocument().layoutMode): boolean {
-    return mode === "tree-mirror" || mode === "tree-right";
+    this.treeActions.applyTreeLayoutMode(mode);
   }
 
   private relayoutDocument(doc: MindmapDocument): MindmapDocument {
-    if (!this.isTreeLayoutMode(doc.layoutMode)) return doc;
-    const engine = new TreeLayoutEngine();
-    return engine.layout(doc, {
-      mode: doc.layoutMode === "tree-right" ? "tree-right" : "tree-mirror",
-      horizontalSpacing: this.plugin.settings.layoutHorizontalSpacing,
-      verticalSpacing: this.plugin.settings.layoutVerticalSpacing,
-    });
+    return this.treeActions.relayoutDocument(doc);
   }
 
   private applyDocumentChange(
@@ -653,16 +616,7 @@ export class MindmapView extends ItemView {
   private toggleSelectedTree(): void {
     const id = this.selection.getIds()[0];
     if (!id) return;
-    const projectedNode = this.renderer?.getLastProjectedNodes?.().find((node) => node.id === id);
-    if (projectedNode && !projectedNode.hasChildren) return;
-    this.applyDocumentChange(() => {
-      if (!projectedNode) {
-        this.store.toggleTreeControl(id, this.store.getDocument().viewport.zoom);
-        return;
-      }
-      this.store.setTreeControl(id, projectedNode.childrenExpanded ? "manual-collapsed" : "manual-expanded");
-    }, { relayout: false });
-    this.subtreeVirtualZoomState = null;
+    this.treeActions.toggleSelectedTree(id, this.renderer?.getLastProjectedNodes?.());
   }
 
   private startEditingSelectedNode(): void {
@@ -888,55 +842,7 @@ export class MindmapView extends ItemView {
   }
 
   handleLayoutSettingsChanged(): void {
-    if (!this.isTreeLayoutMode()) return;
-    this.subtreeVirtualZoomState = null;
-    this.applyReplacedDocument(this.relayoutDocument(structuredClone(this.store.getDocument())), {
-      commitHistory: false,
-      autosave: false,
-    });
-  }
-
-  private resolveTreeDrop(nodeId: string):
-    | { type: "reparent"; newParentId: string; targetIndex: number }
-    | { type: "reorder"; newParentId: string; targetIndex: number }
-    | null {
-    const doc = this.store.getDocument();
-    const dragging = doc.nodes.find((node) => node.id === nodeId);
-    if (!dragging) return null;
-    const dropX = dragging.x;
-    const dropY = dragging.y;
-
-    for (const target of doc.nodes) {
-      if (target.id === nodeId) continue;
-      if (isDescendantNode(doc, nodeId, target.id)) continue;
-      const rect = nodeWorldRect(target);
-      if (dropX < rect.x || dropX > rect.x + rect.width || dropY < rect.y || dropY > rect.y + rect.height) continue;
-      return { type: "reparent", newParentId: target.id, targetIndex: getMindmapChildIds(doc, target.id).length };
-    }
-
-    const hierarchy = buildHierarchy(doc);
-    const parentId = hierarchy.parentById.get(nodeId);
-    if (!parentId) return null;
-
-    const siblings = (hierarchy.childrenById.get(parentId) ?? []).filter((id) => id !== nodeId);
-    const siblingNodes = siblings
-      .map((id) => doc.nodes.find((node) => node.id === id))
-      .filter(Boolean)
-      .sort((a, b) => (a?.y ?? 0) - (b?.y ?? 0));
-
-    const parent = doc.nodes.find((node) => node.id === parentId);
-    if (!parent) return null;
-    const standardX = parent.x + (dragging.x >= parent.x ? 1 : -1) * this.plugin.settings.layoutHorizontalSpacing;
-    if (Math.abs(dropX - standardX) > this.plugin.settings.layoutHorizontalSpacing * 0.75) return null;
-
-    for (let i = 0; i < siblingNodes.length; i++) {
-      const sibling = siblingNodes[i];
-      if (!sibling) continue;
-      const centerY = sibling.y;
-      if (dropY < centerY) return { type: "reorder", newParentId: parentId, targetIndex: i };
-    }
-
-    return { type: "reorder", newParentId: parentId, targetIndex: siblingNodes.length };
+    this.treeActions.handleLayoutSettingsChanged();
   }
 
   private handleNodeSelectedForConnection(id: string): boolean {
