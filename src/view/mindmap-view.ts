@@ -14,7 +14,6 @@ import { HybridMindmapRenderer } from "../renderer/hybrid-mindmap-renderer";
 import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { createId } from "../core/id";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
-import { searchNodes } from "../core/search";
 import {
   createTextNodeNearParent,
   expandDraggedNodeMoves,
@@ -23,16 +22,15 @@ import {
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
 import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
 import { chooseRenderMode } from "../core/render-mode";
-import { findNearestNodeInDirection, findRootNodeId } from "../core/keyboard-navigation";
 import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
 import { MinimapRenderer } from "../renderer/minimap-renderer";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
-import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
 import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
 import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
 import { MindmapEditSession } from "./mindmap-edit-session";
+import { MindmapInteractions } from "./mindmap-interactions";
 import { MindmapNotebookActions } from "./mindmap-notebook-actions";
 import { MindmapTreeActions, isTreeLayoutMode } from "./mindmap-tree-actions";
 
@@ -40,15 +38,12 @@ export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
   private editSession: MindmapEditSession;
   private selection = new SelectionState();
+  private interactions: MindmapInteractions;
   private notebookService: NotebookService;
   private notebookActions: MindmapNotebookActions;
   private treeActions: MindmapTreeActions;
   private renderer: RendererAdapter | null = null;
   private sourceFile: TFile | null = null;
-  private searchQuery = "";
-  private searchResultIds = new Set<string>();
-  private connectionMode = false;
-  private connectionSourceId: string | undefined;
   private debugOverlay: PerformanceDebugOverlay | null = null;
   private canvasEl: HTMLDivElement | null = null;
   private toolbar: MindmapToolbar | null = null;
@@ -56,7 +51,6 @@ export class MindmapView extends ItemView {
   private unsubscribeDirtyState: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
-  private subtreeVirtualZoomState: { nodeId: string; zoom: number } | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -103,7 +97,34 @@ export class MindmapView extends ItemView {
       setTreeControl: (id, control) => this.store.setTreeControl(id, control),
       getLayoutHorizontalSpacing: () => this.plugin.settings.layoutHorizontalSpacing,
       getLayoutVerticalSpacing: () => this.plugin.settings.layoutVerticalSpacing,
-      clearSubtreeVirtualZoomState: () => { this.subtreeVirtualZoomState = null; },
+      clearSubtreeVirtualZoomState: () => { this.clearSubtreeVirtualZoomState(); },
+    });
+    this.interactions = new MindmapInteractions({
+      selection: this.selection,
+      getDocument: () => this.store.getDocument(),
+      getProjectedNodes: () => this.renderer?.getLastProjectedNodes?.(),
+      render: () => this.renderer?.render(),
+      focusNode: (id) => this.renderer?.focusNode(id),
+      setLastFocusNodeId: (id) => this.renderer?.setLastFocusNodeId(id),
+      setSearchResultIds: (ids) => this.renderer?.setSearchResultIds(ids),
+      setConnectionState: (state) => this.renderer?.setConnectionState(state),
+      focusCanvas: () => this.canvasEl?.focus(),
+      focusSearchInput: () => this.toolbar?.focusSearchInput(),
+      startInlineEdit: (id) => this.renderer?.startInlineEditByNodeId?.(id),
+      zoomBy: (factor) => this.renderer?.zoomBy?.(factor),
+      fitRoot: () => this.renderer?.fitRoot?.(),
+      addChildNode: () => this.addChildNode(),
+      addSiblingNode: () => this.addSiblingNode(),
+      toggleSelectedTree: () => this.toggleSelectedTree(),
+      deleteSelectedNodes: () => this.deleteSelectedNodes(),
+      undo: () => this.undo(),
+      redo: () => this.redo(),
+      commitHistory: () => this.editSession.commitHistory(),
+      addReferenceEdge: (sourceId, targetId) => {
+        this.store.addEdge({ source: sourceId, target: targetId, relation: "reference", type: "curve" });
+      },
+      applyTreeControls: (controls) => this.store.applyTreeControls(controls),
+      applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
     });
   }
 
@@ -203,8 +224,8 @@ export class MindmapView extends ItemView {
     this.contentEl.empty();
     this.toolbar = createMindmapToolbar(this.contentEl, {
       layoutMode: this.store.getDocument().layoutMode,
-      searchQuery: this.searchQuery,
-      connectionMode: this.connectionMode,
+      searchQuery: this.interactions.getSearchQuery(),
+      connectionMode: this.interactions.isConnectionMode(),
       saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
       onAddNode: () => this.addTextNode(),
       onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
@@ -218,11 +239,8 @@ export class MindmapView extends ItemView {
       onSearchChange: (query) => this.updateSearch(query),
       onSearchSubmit: () => this.focusFirstSearchResult(),
       onToggleConnectionMode: () => {
-        this.connectionMode = !this.connectionMode;
-        this.connectionSourceId = undefined;
-        this.toolbar?.setConnectionMode(this.connectionMode);
-        this.renderer?.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
-        this.renderer?.render();
+        this.toggleConnectionMode();
+        this.toolbar?.setConnectionMode(this.interactions.isConnectionMode());
       },
     });
 
@@ -259,24 +277,17 @@ export class MindmapView extends ItemView {
       getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
       onViewportChange: (x, y, zoom) => {
         this.store.setViewportAndSyncTreeControls(x, y, zoom);
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
         this.markDirty();
         this.editSession.scheduleAutosave();
       },
       onZoomInput: (factor) => this.handleZoomInput(factor),
-      onSelectNode: (id, mode) => {
-        if (this.handleNodeSelectedForConnection(id)) return;
-        if (mode === "replace") this.setSelectionOnly(id);
-        if (mode === "toggle") this.toggleSelection(id);
-        if (mode === "add") this.addSelection(id);
-        this.renderer?.setLastFocusNodeId(id);
-        requestAnimationFrame(() => this.canvasEl?.focus());
-      },
+      onSelectNode: (id, mode) => this.interactions.handleNodeSelection(id, mode),
       onToggleTree: (id, expanded) => {
         this.applyDocumentChange(() => {
           this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
         }, { relayout: false });
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
       },
       onOpenNotebook: (id) => {
         void this.notebookActions.openNotebook(id);
@@ -374,8 +385,8 @@ export class MindmapView extends ItemView {
 
     this.renderer.mount();
     this.notebookActions.applyMissingNotebookNodeIds();
-    this.renderer.setSearchResultIds(this.searchResultIds);
-    this.renderer.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
+    this.renderer.setSearchResultIds(this.interactions.getSearchResultIds());
+    this.renderer.setConnectionState(this.interactions.getConnectionState());
     this.renderer.render();
 
     if (this.plugin.settings.showMinimap) {
@@ -417,20 +428,11 @@ export class MindmapView extends ItemView {
   }
 
   private updateSearch(query: string): void {
-    this.searchQuery = query;
-    const results = searchNodes(this.store.getDocument().nodes, query);
-    this.searchResultIds = new Set(results.map((node) => node.id));
-    this.renderer?.setSearchResultIds(this.searchResultIds);
-    this.renderer?.render();
+    this.interactions.updateSearch(query);
   }
 
   private focusFirstSearchResult(): void {
-    const firstId = [...this.searchResultIds][0];
-    if (!firstId) return;
-    this.setSelectionOnly(firstId);
-    this.renderer?.setLastFocusNodeId(firstId);
-    this.renderer?.focusNode(firstId);
-    this.renderer?.render();
+    this.interactions.focusFirstSearchResult();
   }
 
   private addChildNode(): void {
@@ -524,25 +526,25 @@ export class MindmapView extends ItemView {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-expanded");
         }, { relayout: false });
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
       },
       onCollapseSubtree: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-collapsed");
         }, { relayout: false });
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
       },
       onExpandAll: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("manual-expanded");
         }, { relayout: false });
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
       },
       onRestoreAutoExpand: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("auto");
         }, { relayout: false });
-        this.subtreeVirtualZoomState = null;
+        this.clearSubtreeVirtualZoomState();
       },
       onDeleteNode: () => {
         this.applyDocumentChange(() => {
@@ -590,43 +592,10 @@ export class MindmapView extends ItemView {
     this.clearSelection();
   }
 
-  private moveSelectionByDirection(direction: "up" | "down" | "left" | "right"): void {
-    const current = this.selection.getIds()[0];
-    if (!current) return;
-
-    const nodes = this.renderer?.getLastProjectedNodes?.() ?? [];
-    const nextId = findNearestNodeInDirection({ fromNodeId: current, nodes, direction });
-    if (!nextId) return;
-
-    this.setSelectionOnly(nextId);
-    this.renderer?.setLastFocusNodeId(nextId);
-    this.renderer?.focusNode(nextId);
-    this.renderer?.render();
-  }
-
-  private selectRootNode(): void {
-    const rootId = findRootNodeId(this.store.getDocument());
-    if (!rootId) return;
-    this.setSelectionOnly(rootId);
-    this.renderer?.setLastFocusNodeId(rootId);
-    this.renderer?.focusNode(rootId);
-    this.renderer?.render();
-  }
-
   private toggleSelectedTree(): void {
     const id = this.selection.getIds()[0];
     if (!id) return;
     this.treeActions.toggleSelectedTree(id, this.renderer?.getLastProjectedNodes?.());
-  }
-
-  private startEditingSelectedNode(): void {
-    const id = this.selection.getIds()[0];
-    if (!id) return;
-    this.renderer?.startInlineEditByNodeId?.(id);
-  }
-
-  private focusSearchInput(): void {
-    this.toolbar?.focusSearchInput();
   }
 
   private updateMinimap(): void {
@@ -675,202 +644,43 @@ export class MindmapView extends ItemView {
   }
 
   private handleCanvasKeydown(event: KeyboardEvent): void {
-    const target = event.target as HTMLElement;
-    if (target.closest("input, textarea")) return;
-
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
-      event.preventDefault();
-      if (event.shiftKey) this.redo();
-      else this.undo();
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
-      event.preventDefault();
-      this.focusSearchInput();
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && event.key === "0") {
-      event.preventDefault();
-      this.subtreeVirtualZoomState = null;
-      this.renderer?.fitRoot?.();
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=" || event.code === "NumpadAdd")) {
-      event.preventDefault();
-      this.handleZoomInput(1.2);
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && (event.key === "-" || event.code === "NumpadSubtract")) {
-      event.preventDefault();
-      this.handleZoomInput(1 / 1.2);
-      return;
-    }
-
-    if (event.key === "Tab") {
-      event.preventDefault();
-      this.addChildNode();
-      return;
-    }
-
-    if (event.key === "Enter") {
-      event.preventDefault();
-      this.addSiblingNode();
-      return;
-    }
-
-    if (event.key === " ") {
-      event.preventDefault();
-      this.toggleSelectedTree();
-      return;
-    }
-
-    if (event.key === "F2") {
-      event.preventDefault();
-      this.startEditingSelectedNode();
-      return;
-    }
-
-    if (event.key === "Home") {
-      event.preventDefault();
-      this.selectRootNode();
-      return;
-    }
-
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      this.moveSelectionByDirection("left");
-      return;
-    }
-
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
-      this.moveSelectionByDirection("right");
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      this.moveSelectionByDirection("up");
-      return;
-    }
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      this.moveSelectionByDirection("down");
-      return;
-    }
-
-    if (event.key === "Delete" || event.key === "Backspace") {
-      event.preventDefault();
-      this.deleteSelectedNodes();
-      return;
-    }
-
-    if (event.key === "Escape") {
-      this.clearSelection();
-      this.renderer?.render();
-    }
+    this.interactions.handleCanvasKeydown(event);
   }
 
   private setSelectionOnly(id: string): void {
-    this.selection.setOnly(id);
-    this.subtreeVirtualZoomState = null;
+    this.interactions.setSelectionOnly(id);
   }
 
   private toggleSelection(id: string): void {
-    this.selection.toggle(id);
-    this.subtreeVirtualZoomState = null;
+    this.interactions.toggleSelection(id);
   }
 
   private addSelection(id: string): void {
-    this.selection.add(id);
-    this.subtreeVirtualZoomState = null;
+    this.interactions.addSelection(id);
   }
 
   private clearSelection(): void {
-    this.selection.clear();
-    this.subtreeVirtualZoomState = null;
+    this.interactions.clearSelection();
   }
 
   private replaceSelection(ids: Iterable<string>): void {
-    this.selection.clear();
-    for (const id of ids) this.selection.add(id);
-    this.subtreeVirtualZoomState = null;
+    this.interactions.replaceSelection(ids);
+  }
+
+  private clearSubtreeVirtualZoomState(): void {
+    this.interactions.clearSubtreeVirtualZoomState();
   }
 
   private handleZoomInput(factor: number): boolean {
-    const selectedIds = this.selection.getIds();
-    if (selectedIds.length !== 1) {
-      this.subtreeVirtualZoomState = null;
-      this.renderer?.zoomBy?.(factor);
-      return true;
-    }
-
-    const selectedId = selectedIds[0];
-    const currentVirtualZoom = this.subtreeVirtualZoomState?.nodeId === selectedId
-      ? this.subtreeVirtualZoomState.zoom
-      : this.store.getDocument().viewport.zoom;
-
-    const plan = planSubtreeSemanticZoom({
-      doc: this.store.getDocument(),
-      rootId: selectedId,
-      currentVirtualZoom,
-      projectionZoom: this.store.getDocument().viewport.zoom,
-      factor,
-      maxDepthStep: 3,
-    });
-    if (!plan) {
-      this.subtreeVirtualZoomState = null;
-      this.renderer?.zoomBy?.(factor);
-      return true;
-    }
-
-    this.subtreeVirtualZoomState = { nodeId: selectedId, zoom: plan.nextVirtualZoom };
-    if (plan.controls.size === 0) {
-      this.renderer?.zoomBy?.(factor);
-      return true;
-    }
-
-    this.applyDocumentChange(() => {
-      this.store.applyTreeControls(plan.controls);
-    }, { relayout: false });
-    return true;
+    return this.interactions.handleZoomInput(factor);
   }
 
   handleLayoutSettingsChanged(): void {
     this.treeActions.handleLayoutSettingsChanged();
   }
 
-  private handleNodeSelectedForConnection(id: string): boolean {
-    if (!this.connectionMode) return false;
-
-    if (!this.connectionSourceId) {
-      this.connectionSourceId = id;
-      this.renderer?.setConnectionState({ enabled: true, sourceId: id });
-      this.renderer?.render();
-      return true;
-    }
-
-    if (this.connectionSourceId === id) {
-      this.connectionSourceId = undefined;
-      this.renderer?.setConnectionState({ enabled: true, sourceId: undefined });
-      this.renderer?.render();
-      return true;
-    }
-
-    this.editSession.commitHistory();
-    this.applyDocumentChange(() => {
-      this.store.addEdge({ source: this.connectionSourceId!, target: id, relation: "reference", type: "curve" });
-    }, { commitHistory: false });
-
-    this.connectionSourceId = undefined;
-    this.renderer?.setConnectionState({ enabled: true, sourceId: undefined });
-    this.renderer?.render();
-    return true;
+  private toggleConnectionMode(): void {
+    this.interactions.toggleConnectionMode();
   }
 
   private openEdgeContextMenu(edgeId: string, x: number, y: number): void {

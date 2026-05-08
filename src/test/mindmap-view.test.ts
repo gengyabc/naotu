@@ -277,6 +277,10 @@ function getSelection(view: MindmapView): string[] {
   return (view as any).selection.getIds();
 }
 
+function getSubtreeVirtualZoomState(view: MindmapView): { nodeId: string; zoom: number } | null {
+  return (view as any).interactions.getSubtreeVirtualZoomState();
+}
+
 function createKeyEvent(args: Partial<KeyboardEvent> & { key: string }): KeyboardEvent {
   return {
     key: args.key,
@@ -424,6 +428,32 @@ describe("MindmapView", () => {
     expect(renderer.focusNode).toHaveBeenCalledWith("child");
   });
 
+  it("clears subtree semantic zoom state when selection changes", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).setSelectionOnly("root");
+    (harness.view as any).handleZoomInput(1.2);
+    expect(getSubtreeVirtualZoomState(harness.view)).toMatchObject({ nodeId: "root" });
+
+    (harness.view as any).setSelectionOnly("child");
+    expect(getSubtreeVirtualZoomState(harness.view)).toBeNull();
+  });
+
+  it("clears subtree semantic zoom state when fitting root from keyboard", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).setSelectionOnly("root");
+    (harness.view as any).handleZoomInput(1.2);
+    expect(getSubtreeVirtualZoomState(harness.view)).toMatchObject({ nodeId: "root" });
+
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "0", ctrlKey: true, target: harness.view.contentEl as never }));
+    expect(getSubtreeVirtualZoomState(harness.view)).toBeNull();
+    expect(renderer.fitRoot).toHaveBeenCalled();
+  });
+
   it("toggles selected tree nodes through keyboard collapse flow", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
@@ -539,7 +569,7 @@ describe("MindmapView", () => {
     await harness.view.setFile(harness.sourceFile);
     const renderer = harness.getRenderer();
 
-    (harness.view as any).connectionMode = true;
+    (harness.view as any).toggleConnectionMode();
     renderer.options.onSelectNode("root", "replace");
     renderer.options.onSelectNode("child", "replace");
 
