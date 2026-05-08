@@ -42,18 +42,59 @@ Manual checks for cross-feature UI changes:
 ## Architecture
 
 - `src/main.ts` — plugin entrypoint, registers view/commands/settings
-- `src/core/` — domain logic (tree layout, semantic zoom, document store, history, search, notebook service, etc.)
-- `src/renderer/` — SVG, Canvas, hybrid renderers; node/edge projection; minimap; export
-- `src/view/mindmap-view.ts` — Obsidian `ItemView` subclass, wires renderers to DOM
+- `src/constants.ts` — shared constants (view type, defaults, default document template)
+- `src/core/` — domain logic (47 modules, see breakdown below)
+- `src/renderer/` — SVG, Canvas, hybrid renderers; shared base; node/edge projection; minimap; export (11 files)
+- `src/view/` — Obsidian `ItemView` and extracted subsystems (6 files, see breakdown below)
 - `src/types/` — shared type definitions (`mindmap.ts`, `renderer.ts`, `settings.ts`)
-- `src/ui/` — settings tab, context menu, modals
-- `src/migrations/` — document version migrations
-- `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts`
+- `src/ui/` — settings tab, context menu, modals, toolbar, debug overlays (8 files)
+- `src/migrations/` — document version migrations (`migration-runner.ts`)
+- `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts` (21 test files)
+
+### Core modules (`src/core/`)
+
+Data & document layer: `document-store`, `document-migration`, `versioning`, `id`, `autosave`, `dirty-state`, `history`
+
+Tree layout: `tree-layout`, `tree-control`, `tree-editing`, `hierarchy`
+
+Semantic zoom & projection: `semantic-projection`, `semantic-zoom-policy`, `detail-level`, `subtree-semantic-zoom`, `focus`
+
+Layout relaxation: `layout-collision`, `layout-relaxation`
+
+Rendering mode & performance: `render-mode`, `render-partition`, `performance-monitor`, `viewport-culling`, `tile-index`
+
+Notebook system: `notebook-service`, `notebook-content-extractor`, `notebook-size`, `obsidian-link`, `missing-link-detector`, `preview-cache`
+
+Text & sizing: `text-layout`
+
+Interaction: `keyboard-navigation`, `selection`, `search`, `edge-routing`, `screen-transform`, `geometry`
+
+Import/generation: `mindmap-from-markdown`, `markdown-heading-parser`, `local-knowledge-map`, `sample-data`
+
+Infrastructure: `accessibility`, `command-registry`, `error-boundary`, `i18n`, `sanitize-filename`, `telemetry-disabled`, `export-bounds`
+
+### View decomposition (`src/view/`)
+
+- `mindmap-view.ts` — `ItemView` subclass, integration hub
+- `mindmap-edit-session.ts` — orchestrates history, dirty state, autosave
+- `mindmap-interactions.ts` — keyboard shortcuts, search, connection mode, subtree zoom
+- `mindmap-notebook-actions.ts` — notebook CRUD, bind/unbind, rename, missing-link detection
+- `mindmap-tree-actions.ts` — add/delete/move nodes, tree structure mutations
+- `mindmap-renderer-coordinator.ts` — renderer lifecycle, mode switching, render scheduling
+
+### UI modules (`src/ui/`)
+
+`settings-tab`, `context-menu`, `mindmap-toolbar`, `error-notice`, `debug-overlay`, `performance-debug-overlay`, `file-suggest-modal`, `mindmap-file-suggest-modal`
+
+### Renderer modules (`src/renderer/`)
+
+`shared-mindmap-renderer-base` (shared logic for SVG & hybrid), `svg-mindmap-renderer`, `hybrid-mindmap-renderer`, `canvas-background-renderer`, `projected-node-renderer`, `projected-edge-renderer`, `notebook-preview-renderer`, `inline-title-editor`, `minimap-renderer`, `export-renderer`, `renderer-adapter`
 
 Hotspots:
 
 - `src/view/mindmap-view.ts` is the main integration hub and is easy to regress with broad edits.
 - Changes that span `src/view/`, `src/renderer/`, and `src/core/` deserve extra skepticism and a tighter verification loop.
+- `src/core/semantic-projection.ts` is the largest and most complex projection engine — changes here ripple to rendering and zoom behavior.
 
 ## Build specifics
 

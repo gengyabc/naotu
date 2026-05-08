@@ -41,8 +41,10 @@
 
 1. 点击左侧功能区脑图图标创建新脑图
 2. 或使用命令面板：`Create semantic zoom mindmap`
-3. 从 Markdown 文件创建：打开 .md 文件后执行 `Create mindmap from current markdown headings`
-4. 创建局部知识地图：打开 .md 文件后执行 `Create local knowledge map from current file`
+3. 打开已有脑图文件：命令面板 `Open mindmap file`，或在文件中打开 `.naotu` 后执行 `Open current .naotu`
+4. 从 Markdown 文件创建：打开 .md 文件后执行 `Create mindmap from current markdown headings`
+5. 创建局部知识地图：打开 .md 文件后执行 `Create local knowledge map from current file`
+6. 创建示例脑图：命令面板选择 100 / 1000 / 3000 节点示例（用于性能测试）
 
 #### 节点类型
 
@@ -64,10 +66,15 @@
 | 展开/收起节点 | Space |
 | 编辑当前节点 | F2 |
 | 节点间移动 | 方向键 |
+| 回到根节点 | Home |
+| 删除节点 | Delete / Backspace |
 | 撤销 | Cmd/Ctrl + Z |
 | 重做 | Cmd/Ctrl + Shift + Z |
 | 搜索 | Cmd/Ctrl + F |
-| 回到根节点 | Cmd/Ctrl + 0 |
+| 回到根节点并适配视口 | Cmd/Ctrl + 0 |
+| 放大 | Cmd/Ctrl + + |
+| 缩小 | Cmd/Ctrl + - |
+| 清除选择 | Escape |
 
 #### 鼠标操作
 
@@ -113,7 +120,12 @@
 
 - **自动保存** - 编辑后自动保存脑图文件
 - **自动保存延迟** - 输入停止后多久执行自动保存
-- **语言** - 界面语言（预留）
+- **语言** - 界面语言（auto 自动检测、中文、English）
+
+#### Debug 设置
+
+- **显示调试信息** - 显示 zoom、节点数量等调试信息
+- **显示 missing notebook 警告** - 标注丢失链接的 notebook 节点
 
 ### 文件格式
 
@@ -234,8 +246,10 @@ Place plugin files in your Obsidian vault's `.obsidian/plugins/naotu/` directory
 
 1. Click the mindmap icon in the left ribbon to create a new mindmap
 2. Or use command palette: `Create semantic zoom mindmap`
-3. Create from Markdown file: Open a .md file and run `Create mindmap from current markdown headings`
-4. Create local knowledge map: Open a .md file and run `Create local knowledge map from current file`
+3. Open an existing mindmap: command palette `Open mindmap file`, or open a `.naotu` file and run `Open current .naotu`
+4. Create from Markdown file: Open a .md file and run `Create mindmap from current markdown headings`
+5. Create local knowledge map: Open a .md file and run `Create local knowledge map from current file`
+6. Create sample mindmaps: command palette offers 100 / 1000 / 3000 node samples (for performance testing)
 
 #### Node Types
 
@@ -257,10 +271,15 @@ Nodes bound to Obsidian notes, with content preview when zoomed in.
 | Expand/collapse node | Space |
 | Edit current node | F2 |
 | Navigate between nodes | Arrow keys |
+| Go to root node | Home |
+| Delete node | Delete / Backspace |
 | Undo | Cmd/Ctrl + Z |
 | Redo | Cmd/Ctrl + Shift + Z |
 | Search | Cmd/Ctrl + F |
-| Go to root | Cmd/Ctrl + 0 |
+| Fit root in viewport | Cmd/Ctrl + 0 |
+| Zoom in | Cmd/Ctrl + + |
+| Zoom out | Cmd/Ctrl + - |
+| Clear selection | Escape |
 
 #### Mouse Operations
 
@@ -306,7 +325,12 @@ Nodes bound to Obsidian notes, with content preview when zoomed in.
 
 - **Auto-save** - Automatically save mindmap file after edits
 - **Auto-save delay** - Time to wait after input stops before auto-saving
-- **Language** - Interface language (reserved)
+- **Language** - Interface language (auto detects from browser, Chinese, English)
+
+#### Debug Settings
+
+- **Show debug info** - Display zoom, node count, and other debug info
+- **Show missing notebook warnings** - Mark notebook nodes with broken links
 
 ### File Format
 
