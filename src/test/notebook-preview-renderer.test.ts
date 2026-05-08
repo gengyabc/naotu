@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TFile } from "obsidian";
+import { TFile, Component } from "obsidian";
 
 import { globalPreviewCache } from "../core/preview-cache";
 import { renderNotebookPreview } from "../renderer/notebook-preview-renderer";
@@ -10,6 +10,7 @@ interface FakeWrapper {
   clientHeight: number;
   scrollHeight: number;
   renderedMarkdown?: string;
+  renderedSourcePath?: string;
   empty: () => void;
   createDiv: (args: { cls: string; text: string }) => void;
   addEventListener: (type: string, listener: EventListener) => void;
@@ -37,6 +38,18 @@ function createFile(path: string, basename: string): TFile {
   return Object.assign(Object.create(TFile.prototype), { path, basename }) as TFile;
 }
 
+function createApp(read: ReturnType<typeof vi.fn>) {
+  return {
+    vault: {
+      getAbstractFileByPath: vi.fn().mockReturnValue(createFile("notes/right.md", "right")),
+      read,
+    },
+    metadataCache: {
+      getFirstLinkpathDest: vi.fn(),
+    },
+  } as never;
+}
+
 describe("renderNotebookPreview", () => {
   it("rerenders mounted previews after the preview cache is cleared", async () => {
     globalPreviewCache.clear();
@@ -59,15 +72,9 @@ describe("renderNotebookPreview", () => {
     });
 
     try {
-      const app = {
-        vault: {
-          getAbstractFileByPath: vi.fn().mockReturnValue(createFile("notes/right.md", "right")),
-          read,
-        },
-        metadataCache: {
-          getFirstLinkpathDest: vi.fn(),
-        },
-      } as never;
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
 
       await renderNotebookPreview({
         app,
@@ -75,6 +82,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
 
       globalPreviewCache.clear();
@@ -85,7 +93,10 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
+
+      component.unload();
     } finally {
       vi.unstubAllGlobals();
       if (originalDocument) vi.stubGlobal("document", originalDocument);
@@ -117,15 +128,9 @@ describe("renderNotebookPreview", () => {
     });
 
     try {
-      const app = {
-        vault: {
-          getAbstractFileByPath: vi.fn().mockReturnValue(createFile("notes/right.md", "right")),
-          read,
-        },
-        metadataCache: {
-          getFirstLinkpathDest: vi.fn(),
-        },
-      } as never;
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
 
       await renderNotebookPreview({
         app,
@@ -133,6 +138,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
 
       globalPreviewCache.clear();
@@ -143,7 +149,10 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
+
+      component.unload();
     } finally {
       vi.unstubAllGlobals();
       if (originalDocument) vi.stubGlobal("document", originalDocument);
@@ -179,15 +188,9 @@ describe("renderNotebookPreview", () => {
     });
 
     try {
-      const app = {
-        vault: {
-          getAbstractFileByPath: vi.fn().mockReturnValue(createFile("notes/right.md", "right")),
-          read,
-        },
-        metadataCache: {
-          getFirstLinkpathDest: vi.fn(),
-        },
-      } as never;
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
 
       await renderNotebookPreview({
         app,
@@ -195,7 +198,10 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
+
+      component.unload();
     } finally {
       vi.unstubAllGlobals();
       if (originalDocument) vi.stubGlobal("document", originalDocument);
@@ -232,15 +238,9 @@ describe("renderNotebookPreview", () => {
     });
 
     try {
-      const app = {
-        vault: {
-          getAbstractFileByPath: vi.fn().mockReturnValue(createFile("notes/right.md", "right")),
-          read,
-        },
-        metadataCache: {
-          getFirstLinkpathDest: vi.fn(),
-        },
-      } as never;
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
 
       await renderNotebookPreview({
         app,
@@ -248,7 +248,10 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        component,
       });
+
+      component.unload();
     } finally {
       vi.unstubAllGlobals();
       if (originalDocument) vi.stubGlobal("document", originalDocument);
@@ -263,5 +266,188 @@ describe("renderNotebookPreview", () => {
     const stopAtBottom = vi.fn();
     wheelListener?.({ deltaY: 20, stopPropagation: stopAtBottom } as unknown as Event);
     expect(stopAtBottom).not.toHaveBeenCalled();
+  });
+
+  it("unloads previous child component before re-rendering", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nContent");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    const addedChildren: Component[] = [];
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      const origAddChild = component.addChild.bind(component);
+      component.addChild = <T extends Component>(child: T): T => {
+        addedChildren.push(child);
+        return origAddChild(child);
+      };
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        component,
+      });
+
+      expect(addedChildren.length).toBe(1);
+      const firstChild = addedChildren[0];
+      const firstChildUnload = vi.spyOn(firstChild, "unload");
+
+      globalPreviewCache.clear();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        component,
+      });
+
+      expect(firstChildUnload).toHaveBeenCalledTimes(1);
+      expect(addedChildren.length).toBe(2);
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("uses the notebook file path as sourcePath for MarkdownRenderer.render", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nWith image ![[photo.jpg]]");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const notebookFile = createFile("notebooks/华强集团.md", "华强集团");
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(notebookFile),
+          read,
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi.fn().mockReturnValue(notebookFile),
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[华强集团]]",
+        sourcePath: "maps/source.naotu",
+        component,
+      });
+
+      expect(wrapper.renderedSourcePath).toBe("notebooks/华强集团.md");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("retries preview rendering after a previously missing notebook becomes available", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nRecovered content");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(null),
+          read,
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi
+            .fn()
+            .mockReturnValueOnce(null)
+            .mockReturnValueOnce(createFile("notes/right.md", "right")),
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        sourcePath: "maps/source.naotu",
+        component,
+      });
+
+      expect(wrapper.createDiv).toHaveBeenCalledWith({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        sourcePath: "maps/source.naotu",
+        component,
+      });
+
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(wrapper.renderedMarkdown).toBe("# Note\nRecovered content");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
   });
 });

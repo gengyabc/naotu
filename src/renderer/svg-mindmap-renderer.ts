@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { App } from "obsidian";
+import { App, Component } from "obsidian";
 import type { MindmapDocument, NodeDetailLevel, Rect } from "../types/mindmap";
 import type { ProjectedNode } from "../types/mindmap";
 import { normalizeRect } from "../core/geometry";
@@ -36,6 +36,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
   constructor(
     private options: {
       app: App;
+      component: Component;
       container: HTMLElement;
       sourcePath: string;
       getDocument: () => MindmapDocument;
@@ -165,6 +166,7 @@ export class SvgMindmapRenderer implements RendererAdapter {
 
         renderProjectedNodes({
           app: this.options.app,
+          component: this.options.component,
           layoutMode: doc.layoutMode,
           nodeLayer: this.nodeScreenLayer,
           nodes: renderNodes,

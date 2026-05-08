@@ -294,6 +294,7 @@ export class MindmapView extends ItemView {
 
     this.renderer = new RendererClass({
       app: this.app,
+      component: this,
       container: canvas,
       sourcePath: this.sourceFile?.path ?? "",
       getDocument: () => this.store.getDocument(),

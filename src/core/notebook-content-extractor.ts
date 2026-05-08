@@ -8,7 +8,7 @@ export async function readNotebookPreviewMarkdown(args: {
   sourcePath: string;
   storedPath?: string;
   maxLines?: number;
-}): Promise<string | null> {
+}): Promise<{ markdown: string; resolvedPath: string } | null> {
   const parsed = parseObsidianLink(args.link);
   if (!parsed) return null;
 
@@ -22,7 +22,7 @@ export async function readNotebookPreviewMarkdown(args: {
 
   const cacheKey = `${file.path}::${parsed.subpath ?? ""}`;
   const cached = globalPreviewCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) return { markdown: cached, resolvedPath: file.path };
 
   const content = await args.app.vault.read(file);
 
@@ -39,7 +39,7 @@ export async function readNotebookPreviewMarkdown(args: {
 
   const result = markdown.split("\n").slice(0, args.maxLines ?? 40).join("\n");
   globalPreviewCache.set(cacheKey, result);
-  return result;
+  return { markdown: result, resolvedPath: file.path };
 }
 
 export function extractHeadingSection(content: string, heading: string): string {

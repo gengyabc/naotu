@@ -28,7 +28,8 @@ describe("readNotebookPreviewMarkdown", () => {
       sourcePath: "maps/source.naotu",
     });
 
-    expect(result).toContain("Expected content");
+    expect(result?.markdown).toContain("Expected content");
+    expect(result?.resolvedPath).toBe("notes/right.md");
     expect(read).toHaveBeenCalledWith(storedFile);
     expect(lookup).not.toHaveBeenCalled();
   });

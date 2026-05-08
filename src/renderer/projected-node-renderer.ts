@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { App } from "obsidian";
+import { App, Component } from "obsidian";
 import type { ProjectedNode } from "../types/mindmap";
 import type { LayoutMode } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
@@ -98,6 +98,7 @@ export function canDragNodes(layoutMode: LayoutMode): boolean {
 
 export function renderProjectedNodes(args: {
   app: App;
+  component: Component;
   layoutMode: LayoutMode;
   nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
   nodes: ProjectedNode[];
@@ -418,6 +419,7 @@ export function renderProjectedNodes(args: {
         link: node.notebook.link,
         sourcePath: args.sourcePath,
         storedPath: node.notebook.path,
+        component: args.component,
       });
     } else {
       preview.style("display", "none");

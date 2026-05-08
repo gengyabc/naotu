@@ -1,9 +1,10 @@
-import { App, MarkdownRenderer } from "obsidian";
+import { App, Component, MarkdownRenderer } from "obsidian";
 import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 const wheelBindingByElement = new WeakSet<HTMLDivElement>();
+const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 
 function shouldKeepWheelWithinPreview(wrapper: HTMLDivElement, deltaY: number): boolean {
   if (wrapper.scrollHeight <= wrapper.clientHeight) return false;
@@ -22,6 +23,7 @@ export async function renderNotebookPreview(args: {
   link: string;
   sourcePath: string;
   storedPath?: string;
+  component: Component;
 }): Promise<void> {
   if (!args.foreignObject) return;
   const key = `${globalPreviewCache.getVersion()}::${args.sourcePath}::${args.storedPath ?? args.link}`;
@@ -43,18 +45,40 @@ export async function renderNotebookPreview(args: {
     wheelBindingByElement.add(wrapper);
   }
 
-  wrapper.empty();
-  const markdown = await readNotebookPreviewMarkdown({
-    app: args.app,
-    link: args.link,
-    sourcePath: args.sourcePath,
-    storedPath: args.storedPath,
-    maxLines: 40,
-  });
-  if (!markdown) {
-    wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
-    return;
+  const prev = childComponentByElement.get(args.foreignObject);
+  if (prev) {
+    args.component.removeChild(prev);
+    childComponentByElement.delete(args.foreignObject);
   }
 
-  await MarkdownRenderer.render(args.app, markdown, wrapper, args.sourcePath, null as never);
+  wrapper.empty();
+  try {
+    const result = await readNotebookPreviewMarkdown({
+      app: args.app,
+      link: args.link,
+      sourcePath: args.sourcePath,
+      storedPath: args.storedPath,
+      maxLines: 40,
+    });
+    if (!result) {
+      renderedKeyByElement.delete(args.foreignObject);
+      wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+      return;
+    }
+
+    // Use the notebook file's own path so image links resolve relative to it.
+    const child = new Component();
+    args.component.addChild(child);
+    childComponentByElement.set(args.foreignObject, child);
+
+    await MarkdownRenderer.render(args.app, result.markdown, wrapper, result.resolvedPath, child);
+  } catch (error) {
+    renderedKeyByElement.delete(args.foreignObject);
+    const child = childComponentByElement.get(args.foreignObject);
+    if (child) {
+      args.component.removeChild(child);
+      childComponentByElement.delete(args.foreignObject);
+    }
+    throw error;
+  }
 }
