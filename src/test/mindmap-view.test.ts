@@ -7,8 +7,7 @@ import type { MindmapDocument, ProjectedNode } from "../types/mindmap";
 import { createNotebookFile, createSmallTestDocument, createSourceMindmapFile } from "./test-fixtures";
 
 const hoisted = vi.hoisted(() => {
-  class FakeRenderer {
-    static instances: FakeRenderer[] = [];
+  class BaseFakeRenderer {
     options: any;
     projectedNodes: ProjectedNode[] = [];
     render = vi.fn();
@@ -28,11 +27,28 @@ const hoisted = vi.hoisted(() => {
 
     constructor(options: any) {
       this.options = options;
-      FakeRenderer.instances.push(this);
     }
 
     getLastProjectedNodes(): ProjectedNode[] {
       return this.projectedNodes;
+    }
+  }
+
+  class FakeSvgRenderer extends BaseFakeRenderer {
+    static instances: FakeSvgRenderer[] = [];
+
+    constructor(options: any) {
+      super(options);
+      FakeSvgRenderer.instances.push(this);
+    }
+  }
+
+  class FakeHybridRenderer extends BaseFakeRenderer {
+    static instances: FakeHybridRenderer[] = [];
+
+    constructor(options: any) {
+      super(options);
+      FakeHybridRenderer.instances.push(this);
     }
   }
 
@@ -58,17 +74,31 @@ const hoisted = vi.hoisted(() => {
   }
 
   class FakeMinimapRenderer {
+    static instances: FakeMinimapRenderer[] = [];
     render = vi.fn();
     remove = vi.fn();
+
+    constructor(
+      public container: HTMLElement,
+      public onJumpToWorldPoint: (x: number, y: number) => void,
+    ) {
+      FakeMinimapRenderer.instances.push(this);
+    }
   }
 
   class FakePerformanceDebugOverlay {
+    static instances: FakePerformanceDebugOverlay[] = [];
     update = vi.fn();
     remove = vi.fn();
+
+    constructor(public container: HTMLElement) {
+      FakePerformanceDebugOverlay.instances.push(this);
+    }
   }
 
   return {
-    FakeRenderer,
+    FakeSvgRenderer,
+    FakeHybridRenderer,
     FakeMarkdownFileSuggestModal,
     FakeMinimapRenderer,
     FakePerformanceDebugOverlay,
@@ -78,11 +108,11 @@ const hoisted = vi.hoisted(() => {
 });
 
 vi.mock("../renderer/svg-mindmap-renderer", () => ({
-  SvgMindmapRenderer: hoisted.FakeRenderer,
+  SvgMindmapRenderer: hoisted.FakeSvgRenderer,
 }));
 
 vi.mock("../renderer/hybrid-mindmap-renderer", () => ({
-  HybridMindmapRenderer: hoisted.FakeRenderer,
+  HybridMindmapRenderer: hoisted.FakeHybridRenderer,
 }));
 
 vi.mock("../renderer/minimap-renderer", () => ({
@@ -259,8 +289,8 @@ function createHarness(args: { document?: MindmapDocument } = {}) {
       const record = getByPath(path);
       if (record) record.content = content;
     },
-    getRenderer(): InstanceType<typeof hoisted.FakeRenderer> {
-      return hoisted.FakeRenderer.instances[hoisted.FakeRenderer.instances.length - 1]!;
+    getRenderer(): InstanceType<typeof hoisted.FakeSvgRenderer> | InstanceType<typeof hoisted.FakeHybridRenderer> {
+      return hoisted.FakeHybridRenderer.instances.at(-1) ?? hoisted.FakeSvgRenderer.instances.at(-1)!;
     },
   };
 }
@@ -298,7 +328,10 @@ describe("MindmapView", () => {
     vi.useFakeTimers();
     (Notice as any).reset();
     (Menu as any).lastShown = null;
-    hoisted.FakeRenderer.instances = [];
+    hoisted.FakeSvgRenderer.instances = [];
+    hoisted.FakeHybridRenderer.instances = [];
+    hoisted.FakeMinimapRenderer.instances = [];
+    hoisted.FakePerformanceDebugOverlay.instances = [];
     hoisted.FakeMarkdownFileSuggestModal.lastInstance = null;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
@@ -588,5 +621,49 @@ describe("MindmapView", () => {
     expect(hoisted.renderMindmapToSvgString).toHaveBeenCalled();
     expect(harness.vault.create).toHaveBeenCalledWith("maps/source.export.svg", "<svg />");
     expect(harness.vault.createBinary).toHaveBeenCalledWith("maps/source.export.png", expect.any(ArrayBuffer));
+  });
+
+  it("chooses the hybrid renderer when hybrid mode is enabled", async () => {
+    const harness = createHarness();
+    harness.plugin.settings.defaultRenderMode = "hybrid";
+    harness.plugin.settings.enableHybridRenderer = true;
+
+    await harness.view.setFile(harness.sourceFile);
+
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(0);
+  });
+
+  it("keeps minimap and debug overlay hooks wired through render stats", async () => {
+    const harness = createHarness();
+    harness.plugin.settings.showMinimap = true;
+    harness.plugin.settings.showDebugOverlay = true;
+
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+    const minimap = hoisted.FakeMinimapRenderer.instances.at(-1);
+    const overlay = hoisted.FakePerformanceDebugOverlay.instances.at(-1);
+
+    expect(hoisted.FakeMinimapRenderer.instances).toHaveLength(1);
+    expect(minimap).toBeDefined();
+    expect(overlay).toBeDefined();
+
+    renderer.options.onRenderStats({
+      mode: "svg",
+      zoom: 1,
+      totalNodes: 2,
+      renderedNodes: 2,
+      totalEdges: 1,
+      renderedEdges: 1,
+      durationMs: 12,
+      averageDurationMs: 10,
+      isSlow: false,
+    });
+
+    expect(overlay?.update).toHaveBeenCalledTimes(1);
+    expect(minimap?.render).toHaveBeenCalled();
+
+    minimap?.onJumpToWorldPoint(320, 180);
+    expect(renderer.jumpToWorldPoint).toHaveBeenCalledWith(320, 180);
   });
 });

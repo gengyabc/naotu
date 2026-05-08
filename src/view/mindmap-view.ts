@@ -9,21 +9,14 @@ import {
 import { MindmapDocumentStore } from "../core/document-store";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
-import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
-import { HybridMindmapRenderer } from "../renderer/hybrid-mindmap-renderer";
-import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { createId } from "../core/id";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import {
-  createTextNodeNearParent,
   expandDraggedNodeMoves,
   resolveDraggedNodeIds,
 } from "../core/tree-editing";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
-import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
-import { chooseRenderMode } from "../core/render-mode";
 import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
-import { MinimapRenderer } from "../renderer/minimap-renderer";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
@@ -32,6 +25,7 @@ import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu
 import { MindmapEditSession } from "./mindmap-edit-session";
 import { MindmapInteractions } from "./mindmap-interactions";
 import { MindmapNotebookActions } from "./mindmap-notebook-actions";
+import { MindmapRendererCoordinator } from "./mindmap-renderer-coordinator";
 import { MindmapTreeActions, isTreeLayoutMode } from "./mindmap-tree-actions";
 
 export class MindmapView extends ItemView {
@@ -42,12 +36,10 @@ export class MindmapView extends ItemView {
   private notebookService: NotebookService;
   private notebookActions: MindmapNotebookActions;
   private treeActions: MindmapTreeActions;
-  private renderer: RendererAdapter | null = null;
+  private rendererCoordinator: MindmapRendererCoordinator;
   private sourceFile: TFile | null = null;
-  private debugOverlay: PerformanceDebugOverlay | null = null;
   private canvasEl: HTMLDivElement | null = null;
   private toolbar: MindmapToolbar | null = null;
-  private minimap: MinimapRenderer | null = null;
   private unsubscribeDirtyState: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
@@ -60,7 +52,7 @@ export class MindmapView extends ItemView {
     this.store = new MindmapDocumentStore(this.app);
     this.editSession = new MindmapEditSession(this.store, {
       relayoutDocument: (doc) => this.relayoutDocument(doc),
-      render: () => this.renderer?.render(),
+      render: () => this.rendererCoordinator.render(),
       getAutosaveConfig: () => ({
         enabled: this.plugin.settings.autoSave,
         delayMs: this.plugin.settings.autoSaveDelayMs,
@@ -81,12 +73,12 @@ export class MindmapView extends ItemView {
       commitHistory: () => this.editSession.commitHistory(),
       markDirty: () => this.markDirty(),
       scheduleAutosave: () => this.editSession.scheduleAutosave(),
-      render: () => this.renderer?.render(),
+      render: () => this.rendererCoordinator.render(),
       setSelectionOnly: (id) => this.setSelectionOnly(id),
-      setLastFocusNodeId: (id) => this.renderer?.setLastFocusNodeId(id),
-      forceDetailLevel: (id, level) => this.renderer?.forceDetailLevel(id, level),
-      focusNode: (id) => this.renderer?.focusNode(id),
-      setMissingNotebookNodeIds: (ids) => this.renderer?.setMissingNotebookNodeIds?.(ids),
+      setLastFocusNodeId: (id) => this.rendererCoordinator.setLastFocusNodeId(id),
+      forceDetailLevel: (id, level) => this.rendererCoordinator.forceDetailLevel(id, level),
+      focusNode: (id) => this.rendererCoordinator.focusNode(id),
+      setMissingNotebookNodeIds: (ids) => this.rendererCoordinator.setMissingNotebookNodeIds(ids),
       showMissingNotebookWarnings: () => this.plugin.settings.showMissingNotebookWarnings,
     });
     this.treeActions = new MindmapTreeActions({
@@ -102,17 +94,17 @@ export class MindmapView extends ItemView {
     this.interactions = new MindmapInteractions({
       selection: this.selection,
       getDocument: () => this.store.getDocument(),
-      getProjectedNodes: () => this.renderer?.getLastProjectedNodes?.(),
-      render: () => this.renderer?.render(),
-      focusNode: (id) => this.renderer?.focusNode(id),
-      setLastFocusNodeId: (id) => this.renderer?.setLastFocusNodeId(id),
-      setSearchResultIds: (ids) => this.renderer?.setSearchResultIds(ids),
-      setConnectionState: (state) => this.renderer?.setConnectionState(state),
+      getProjectedNodes: () => this.rendererCoordinator.getLastProjectedNodes(),
+      render: () => this.rendererCoordinator.render(),
+      focusNode: (id) => this.rendererCoordinator.focusNode(id),
+      setLastFocusNodeId: (id) => this.rendererCoordinator.setLastFocusNodeId(id),
+      setSearchResultIds: (ids) => this.rendererCoordinator.setSearchResultIds(ids),
+      setConnectionState: (state) => this.rendererCoordinator.setConnectionState(state),
       focusCanvas: () => this.canvasEl?.focus(),
       focusSearchInput: () => this.toolbar?.focusSearchInput(),
-      startInlineEdit: (id) => this.renderer?.startInlineEditByNodeId?.(id),
-      zoomBy: (factor) => this.renderer?.zoomBy?.(factor),
-      fitRoot: () => this.renderer?.fitRoot?.(),
+      startInlineEdit: (id) => this.rendererCoordinator.startInlineEditByNodeId(id),
+      zoomBy: (factor) => this.rendererCoordinator.zoomBy(factor),
+      fitRoot: () => this.rendererCoordinator.fitRoot(),
       addChildNode: () => this.addChildNode(),
       addSiblingNode: () => this.addSiblingNode(),
       toggleSelectedTree: () => this.toggleSelectedTree(),
@@ -125,6 +117,106 @@ export class MindmapView extends ItemView {
       },
       applyTreeControls: (controls) => this.store.applyTreeControls(controls),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
+    });
+    this.rendererCoordinator = new MindmapRendererCoordinator({
+      app: this.app,
+      component: this,
+      getSettings: () => this.plugin.settings,
+      getSourcePath: () => this.sourceFile?.path ?? "",
+      getDocument: () => this.store.getDocument(),
+      getSelectedNodeIds: () => this.selection.getIds(),
+      getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
+      onViewportChange: (x, y, zoom) => {
+        this.store.setViewportAndSyncTreeControls(x, y, zoom);
+        this.clearSubtreeVirtualZoomState();
+        this.markDirty();
+        this.editSession.scheduleAutosave();
+      },
+      onZoomInput: (factor) => this.handleZoomInput(factor),
+      onSelectNode: (id, mode) => this.interactions.handleNodeSelection(id, mode),
+      onToggleTree: (id, expanded) => {
+        this.applyDocumentChange(() => {
+          this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
+        }, { relayout: false });
+        this.clearSubtreeVirtualZoomState();
+      },
+      onOpenNotebook: (id) => {
+        void this.notebookActions.openNotebook(id);
+      },
+      onInlineTitleCommit: async (id, title) => {
+        await this.handleInlineTitleCommit(id, title);
+      },
+      onContextMenu: (id, x, y) => {
+        this.openContextMenu(id, x, y);
+      },
+      onEdgeContextMenu: (id, x, y) => {
+        this.openEdgeContextMenu(id, x, y);
+      },
+      onBeforeNodeDragStart: (node) => {
+        this.editSession.commitHistory();
+        if (!this.selection.has(node.id)) {
+          this.setSelectionOnly(node.id);
+        }
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
+          this.treeDragStartPosition = { x: node.worldX, y: node.worldY };
+          this.rendererCoordinator.render();
+        }
+      },
+      onNodesMove: ({ node, moves }) => {
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
+          this.applyDocumentChange(() => {
+            this.store.updateNodePositions(moves);
+          }, { commitHistory: false, relayout: false, autosave: false });
+          return;
+        }
+
+        const doc = this.store.getDocument();
+        const expandedMoves = expandDraggedNodeMoves(doc, {
+          draggedNodeId: node.id,
+          selectedIds: this.selection.getIds(),
+          moves,
+        });
+        this.store.updateNodePositions(expandedMoves);
+        this.rendererCoordinator.render();
+        this.markDirty();
+        this.editSession.scheduleAutosave();
+      },
+      onNodeDragEnd: ({ node }) => {
+        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
+          const start = this.treeDragStartPosition;
+          if (start) {
+            this.treeActions.applyTreeDrop(node.id, start.x, start.y, node.worldX, node.worldY);
+            this.treeDragStartPosition = null;
+          }
+          return;
+        }
+
+        this.markDirty();
+        this.editSession.scheduleAutosave();
+      },
+      onNotebookResizeStart: (id) => {
+        this.handleNotebookResizeStart(id);
+      },
+      onNotebookResize: (args) => {
+        this.handleNotebookResize(args);
+      },
+      onNotebookResizeEnd: (args) => {
+        this.handleNotebookResizeEnd(args);
+      },
+      onBoxSelect: (rect) => {
+        const ids = this.store
+          .getDocument()
+          .nodes
+          .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
+          .map((node) => node.id);
+
+        this.replaceSelection(ids);
+        this.rendererCoordinator.render();
+      },
+      onClearSelection: () => {
+        this.clearSelection();
+        this.rendererCoordinator.render();
+      },
     });
   }
 
@@ -177,11 +269,7 @@ export class MindmapView extends ItemView {
 
   async onClose(): Promise<void> {
     await this.editSession.flushAutosave();
-    this.renderer?.unmount();
-    this.debugOverlay?.remove();
-    this.debugOverlay = null;
-    this.minimap?.remove();
-    this.minimap = null;
+    this.rendererCoordinator.dispose();
     this.unsubscribeDirtyState?.();
     this.unsubscribeDirtyState = null;
   }
@@ -209,7 +297,7 @@ export class MindmapView extends ItemView {
       const loadError = this.store.getLoadError();
       this.editSession.setDirtyState(loadError ? "error" : "saved");
       if (loadError) showErrorNotice(loadError, "无法重新加载脑图文件");
-      this.renderer?.render();
+      this.rendererCoordinator.render();
       return;
     }
 
@@ -217,7 +305,7 @@ export class MindmapView extends ItemView {
 
     if (!usesModifiedFile) return;
     this.notebookActions.refreshMissingNotebookLinks();
-    this.renderer?.render();
+    this.rendererCoordinator.render();
   }
 
   private renderView(): void {
@@ -255,146 +343,11 @@ export class MindmapView extends ItemView {
     setCanvasA11y(canvas);
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
 
-    if (this.plugin.settings.showDebugOverlay) {
-      this.debugOverlay = new PerformanceDebugOverlay(canvas);
-    }
-
-    const doc = this.store.getDocument();
-    const renderMode = chooseRenderMode({
-      nodeCount: doc.nodes.length,
-      edgeCount: doc.edges.length,
-      settings: this.plugin.settings,
-    });
-    const RendererClass = renderMode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
-
-    this.renderer = new RendererClass({
-      app: this.app,
-      component: this,
-      container: canvas,
-      sourcePath: this.sourceFile?.path ?? "",
-      getDocument: () => this.store.getDocument(),
-      getSelectedNodeIds: () => this.selection.getIds(),
-      getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
-      onViewportChange: (x, y, zoom) => {
-        this.store.setViewportAndSyncTreeControls(x, y, zoom);
-        this.clearSubtreeVirtualZoomState();
-        this.markDirty();
-        this.editSession.scheduleAutosave();
-      },
-      onZoomInput: (factor) => this.handleZoomInput(factor),
-      onSelectNode: (id, mode) => this.interactions.handleNodeSelection(id, mode),
-      onToggleTree: (id, expanded) => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
-        }, { relayout: false });
-        this.clearSubtreeVirtualZoomState();
-      },
-      onOpenNotebook: (id) => {
-        void this.notebookActions.openNotebook(id);
-      },
-      onInlineTitleCommit: async (id, title) => {
-        await this.handleInlineTitleCommit(id, title);
-      },
-      onContextMenu: (id, x, y) => {
-        this.openContextMenu(id, x, y);
-      },
-      onEdgeContextMenu: (id, x, y) => {
-        this.openEdgeContextMenu(id, x, y);
-      },
-      onBeforeNodeDragStart: (node) => {
-        this.editSession.commitHistory();
-        if (!this.selection.has(node.id)) {
-          this.setSelectionOnly(node.id);
-        }
-        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
-          this.treeDragStartPosition = { x: node.worldX, y: node.worldY };
-          this.renderer?.render();
-        }
-      },
-      onNodesMove: ({ node, moves }) => {
-        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
-          this.applyDocumentChange(() => {
-            this.store.updateNodePositions(moves);
-          }, { commitHistory: false, relayout: false, autosave: false });
-          return;
-        }
-        const doc = this.store.getDocument();
-        const expandedMoves = expandDraggedNodeMoves(doc, {
-          draggedNodeId: node.id,
-          selectedIds: this.selection.getIds(),
-          moves,
-        });
-        this.store.updateNodePositions(expandedMoves);
-        this.renderer?.render();
-        this.markDirty();
-        this.editSession.scheduleAutosave();
-      },
-      onNodeDragEnd: ({ node }) => {
-        if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
-          const start = this.treeDragStartPosition;
-          if (start) {
-            this.treeActions.applyTreeDrop(node.id, start.x, start.y, node.worldX, node.worldY);
-            this.treeDragStartPosition = null;
-          }
-          return;
-        }
-        this.markDirty();
-        this.editSession.scheduleAutosave();
-      },
-      onNotebookResizeStart: (id) => {
-        this.handleNotebookResizeStart(id);
-      },
-      onNotebookResize: (args) => {
-        this.handleNotebookResize(args);
-      },
-      onNotebookResizeEnd: (args) => {
-        this.handleNotebookResizeEnd(args);
-      },
-      onBoxSelect: (rect) => {
-        const ids = this.store
-          .getDocument()
-          .nodes
-          .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
-          .map((node) => node.id);
-
-        this.replaceSelection(ids);
-        this.renderer?.render();
-      },
-      onClearSelection: () => {
-        this.clearSelection();
-        this.renderer?.render();
-      },
-      getSettings: () => this.plugin.settings,
-      onRenderStats: (stats) => {
-        this.debugOverlay?.update({
-          sample: {
-            timestamp: Date.now(),
-            mode: stats.mode,
-            durationMs: stats.durationMs,
-            nodeCount: stats.totalNodes,
-            edgeCount: stats.totalEdges,
-            renderedNodeCount: stats.renderedNodes,
-            renderedEdgeCount: stats.renderedEdges,
-          },
-          averageDuration: stats.averageDurationMs,
-          isSlow: stats.isSlow,
-        });
-        this.updateMinimap();
-      },
-    });
-
-    this.renderer.mount();
+    this.rendererCoordinator.mount(canvas);
     this.notebookActions.applyMissingNotebookNodeIds();
-    this.renderer.setSearchResultIds(this.interactions.getSearchResultIds());
-    this.renderer.setConnectionState(this.interactions.getConnectionState());
-    this.renderer.render();
-
-    if (this.plugin.settings.showMinimap) {
-      this.minimap = new MinimapRenderer(canvas, (x, y) => {
-        this.renderer?.jumpToWorldPoint?.(x, y);
-      });
-      this.updateMinimap();
-    }
+    this.rendererCoordinator.setSearchResultIds(this.interactions.getSearchResultIds());
+    this.rendererCoordinator.setConnectionState(this.interactions.getConnectionState());
+    this.rendererCoordinator.render();
   }
 
   private undo(): void {
@@ -421,9 +374,9 @@ export class MindmapView extends ItemView {
       this.store.addNode(node);
     });
     this.setSelectionOnly(node.id);
-    this.renderer?.setLastFocusNodeId(node.id);
-    this.renderer?.render();
-    this.renderer?.focusNode(node.id);
+    this.rendererCoordinator.setLastFocusNodeId(node.id);
+    this.rendererCoordinator.render();
+    this.rendererCoordinator.focusNode(node.id);
     requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
@@ -443,9 +396,9 @@ export class MindmapView extends ItemView {
     if (!child) return;
 
     this.setSelectionOnly(child.id);
-    this.renderer?.setLastFocusNodeId(child.id);
-    this.renderer?.render();
-    this.renderer?.focusNode(child.id);
+    this.rendererCoordinator.setLastFocusNodeId(child.id);
+    this.rendererCoordinator.render();
+    this.rendererCoordinator.focusNode(child.id);
     requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
@@ -457,9 +410,9 @@ export class MindmapView extends ItemView {
     if (!sibling) return;
 
     this.setSelectionOnly(sibling.id);
-    this.renderer?.setLastFocusNodeId(sibling.id);
-    this.renderer?.render();
-    this.renderer?.focusNode(sibling.id);
+    this.rendererCoordinator.setLastFocusNodeId(sibling.id);
+    this.rendererCoordinator.render();
+    this.rendererCoordinator.focusNode(sibling.id);
     requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
@@ -483,13 +436,13 @@ export class MindmapView extends ItemView {
 
   private handleNotebookResize(args: { id: string; width: number; height: number }): void {
     this.store.updateNodeSize(args.id, args.width, args.height);
-    this.renderer?.render();
+    this.rendererCoordinator.render();
     this.markDirty();
   }
 
   private handleNotebookResizeEnd(args: { id: string; width: number; height: number }): void {
     this.store.updateNodeSize(args.id, args.width, args.height);
-    this.renderer?.render();
+    this.rendererCoordinator.render();
     this.markDirty();
     this.editSession.scheduleAutosave();
     this.notebookResizeSession = null;
@@ -595,13 +548,7 @@ export class MindmapView extends ItemView {
   private toggleSelectedTree(): void {
     const id = this.selection.getIds()[0];
     if (!id) return;
-    this.treeActions.toggleSelectedTree(id, this.renderer?.getLastProjectedNodes?.());
-  }
-
-  private updateMinimap(): void {
-    const viewport = this.renderer?.getViewportWorldRect?.();
-    if (!viewport) return;
-    this.minimap?.render({ doc: this.store.getDocument(), viewportWorldRect: viewport });
+    this.treeActions.toggleSelectedTree(id, this.rendererCoordinator.getLastProjectedNodes());
   }
 
   private markDirty(): void {
