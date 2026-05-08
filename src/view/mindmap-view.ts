@@ -1,4 +1,4 @@
-import { ItemView, Menu, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type SemanticZoomMindmapPlugin from "../main";
 import {
   VIEW_TYPE_MINDMAP,
@@ -45,6 +45,7 @@ import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
 import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
 import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
+import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -582,105 +583,65 @@ export class MindmapView extends ItemView {
     const node = this.store.getDocument().nodes.find((item) => item.id === id);
     if (!node) return;
 
-    const menu = new Menu();
-    if (node.kind === "notebook") {
-      menu.addItem((item) => {
-        item.setTitle("转为普通节点").setIcon("unlink").onClick(() => this.convertNotebookToText(id));
-      });
-    }
-
-    if (node.kind === "text") {
-      menu.addItem((item) => {
-        item
-          .setTitle("创建 notebook")
-          .setIcon("file-plus")
-          .onClick(() => {
-            void this.createNotebookForTextNode(id);
+    createNodeContextMenu({
+      nodeKind: node.kind,
+      onConvertNotebookToText: () => this.convertNotebookToText(id),
+      onCreateNotebook: () => {
+        void this.createNotebookForTextNode(id);
+      },
+      onBindExistingNotebook: () => {
+        new MarkdownFileSuggestModal(this.app, (file) => {
+          this.applyDocumentChange(() => {
+            this.store.patchNode(node.id, this.notebookService.bindExistingFileAsNotebook(file));
           });
-      });
-      menu.addItem((item) => {
-        item
-          .setTitle("选择已有 notebook...")
-            .setIcon("file-text")
-            .onClick(() => {
-              new MarkdownFileSuggestModal(this.app, (file) => {
-                this.applyDocumentChange(() => {
-                  this.store.patchNode(node.id, this.notebookService.bindExistingFileAsNotebook(file));
-                });
-                this.setSelectionOnly(node.id);
-                this.renderer?.setLastFocusNodeId(node.id);
-                this.renderer?.forceDetailLevel(node.id, 5);
-                this.renderer?.focusNode(node.id);
-                this.renderer?.render();
-                this.refreshMissingNotebookLinks();
-              }).open();
-            });
-      });
-    }
-
-    if (node.kind === "notebook") {
-      menu.addItem((item) => {
-        item.setTitle("预览 notebook").setIcon("scan-search").onClick(() => this.focusNotebookPreview(id));
-      });
-      menu.addItem((item) => {
-        item
-          .setTitle("重新选择 notebook...")
-            .setIcon("file-search")
-            .onClick(() => {
-              new MarkdownFileSuggestModal(this.app, (file) => {
-                const patch = this.notebookService.bindExistingFileAsNotebook(file);
-                this.applyDocumentChange(() => {
-                  this.store.patchNode(node.id, patch);
-                });
-                this.refreshMissingNotebookLinks();
-              }).open();
-            });
-      });
-    }
-
-    menu.addSeparator();
-    menu.addItem((item) => {
-      item.setTitle("展开此子树").setIcon("chevrons-down").onClick(() => {
+          this.setSelectionOnly(node.id);
+          this.renderer?.setLastFocusNodeId(node.id);
+          this.renderer?.forceDetailLevel(node.id, 5);
+          this.renderer?.focusNode(node.id);
+          this.renderer?.render();
+          this.refreshMissingNotebookLinks();
+        }).open();
+      },
+      onPreviewNotebook: () => this.focusNotebookPreview(id),
+      onRebindNotebook: () => {
+        new MarkdownFileSuggestModal(this.app, (file) => {
+          const patch = this.notebookService.bindExistingFileAsNotebook(file);
+          this.applyDocumentChange(() => {
+            this.store.patchNode(node.id, patch);
+          });
+          this.refreshMissingNotebookLinks();
+        }).open();
+      },
+      onExpandSubtree: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-expanded");
         }, { relayout: false });
         this.subtreeVirtualZoomState = null;
-      });
-    });
-    menu.addItem((item) => {
-      item.setTitle("收起此子树").setIcon("chevrons-up").onClick(() => {
+      },
+      onCollapseSubtree: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForSubtree(id, "manual-collapsed");
         }, { relayout: false });
         this.subtreeVirtualZoomState = null;
-      });
-    });
-    menu.addSeparator();
-    menu.addItem((item) => {
-      item.setTitle("展开全部").setIcon("list-tree").onClick(() => {
+      },
+      onExpandAll: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("manual-expanded");
         }, { relayout: false });
         this.subtreeVirtualZoomState = null;
-      });
-    });
-    menu.addItem((item) => {
-      item.setTitle("恢复自动展开").setIcon("refresh-cw").onClick(() => {
+      },
+      onRestoreAutoExpand: () => {
         this.applyDocumentChange(() => {
           this.store.setTreeControlForAll("auto");
         }, { relayout: false });
         this.subtreeVirtualZoomState = null;
-      });
-    });
-
-    menu.addItem((item) => {
-      item.setTitle("删除节点").setIcon("trash").onClick(() => {
+      },
+      onDeleteNode: () => {
         this.applyDocumentChange(() => {
           this.store.deleteNode(id);
         });
-      });
-    });
-    menu.showAtPosition({ x, y });
+      },
+    }).showAtPosition({ x, y });
   }
 
   private convertNotebookToText(id: string): void {
@@ -1129,14 +1090,12 @@ export class MindmapView extends ItemView {
   }
 
   private openEdgeContextMenu(edgeId: string, x: number, y: number): void {
-    const menu = new Menu();
-    menu.addItem((item) => {
-      item.setTitle("删除连线").setIcon("trash").onClick(() => {
+    createEdgeContextMenu({
+      onDeleteEdge: () => {
         this.applyDocumentChange(() => {
           this.store.deleteEdge(edgeId);
         });
-      });
-    });
-    menu.showAtPosition({ x, y });
+      },
+    }).showAtPosition({ x, y });
   }
 }
