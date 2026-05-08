@@ -22,6 +22,23 @@ Vitest aliases `obsidian` to `src/test/obsidian-stub.ts`. This stub is minimal �
 
 Run a single test: `npx vitest run src/test/<file>.test.ts`
 
+## Stability workflow
+
+- When fixing a bug, add or extend a regression test in the nearest existing test file before or alongside the code change. If no suitable test file exists, create one in `src/test/` for the touched behavior.
+- If the change touches `src/view/mindmap-view.ts`, treat it as integration-sensitive work. Verify both automated coverage and the user flow you changed.
+- If the change touches renderer or projection code, run the most relevant focused tests plus `npm run test` before finishing.
+- After any `npm run dev` session or incremental edit, run `tsc --noEmit` before considering the work stable.
+- Prefer small diffs that keep domain logic in `src/core/` testable. Avoid adding new behavior directly into view/render wiring when it can live in a pure helper.
+- Do not close a bugfix after only reproducing it manually. Capture the solved case in a test so the same issue does not re-enter through a later diff.
+
+Manual checks for cross-feature UI changes:
+
+- Selection and keyboard shortcuts still work.
+- Tree expand/collapse and semantic zoom still behave correctly.
+- Dragging/resizing still marks the document dirty and autosaves.
+- Notebook binding, rename, moved-file sync, and missing-link warnings still behave correctly.
+- Search, minimap, and export still render after the change.
+
 ## Architecture
 
 - `src/main.ts` — plugin entrypoint, registers view/commands/settings
@@ -32,6 +49,11 @@ Run a single test: `npx vitest run src/test/<file>.test.ts`
 - `src/ui/` — settings tab, context menu, modals
 - `src/migrations/` — document version migrations
 - `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts`
+
+Hotspots:
+
+- `src/view/mindmap-view.ts` is the main integration hub and is easy to regress with broad edits.
+- Changes that span `src/view/`, `src/renderer/`, and `src/core/` deserve extra skepticism and a tighter verification loop.
 
 ## Build specifics
 
