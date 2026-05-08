@@ -220,6 +220,8 @@ export class MindmapInteractions {
 
   clearSelection(): void {
     this.options.selection.clear();
+    const rootId = findRootNodeId(this.options.getDocument());
+    if (rootId) this.options.setLastFocusNodeId(rootId);
     this.clearSubtreeVirtualZoomState();
   }
 

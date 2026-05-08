@@ -473,6 +473,18 @@ describe("MindmapView", () => {
     expect(getSubtreeVirtualZoomState(harness.view)).toBeNull();
   });
 
+  it("resets focus to root when clicking empty canvas", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).setSelectionOnly("child");
+    renderer.options.onClearSelection();
+
+    expect(getSelection(harness.view)).toEqual([]);
+    expect(renderer.setLastFocusNodeId).toHaveBeenCalledWith("root");
+  });
+
   it("clears subtree semantic zoom state when fitting root from keyboard", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);
