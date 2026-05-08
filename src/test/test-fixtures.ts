@@ -1,3 +1,4 @@
+import { TFile } from "obsidian";
 import type { MindmapDocument } from "../types/mindmap";
 
 export function createSmallTestDocument(): MindmapDocument {
@@ -38,4 +39,22 @@ export function createSmallTestDocument(): MindmapDocument {
       },
     ],
   };
+}
+
+export function createSourceMindmapFile(path = "maps/source.naotu"): TFile {
+  return Object.assign(Object.create(TFile.prototype), {
+    path,
+    basename: path.split("/").pop()?.replace(/\.naotu$/, "") ?? "source",
+    extension: "naotu",
+    parent: { path: path.split("/").slice(0, -1).join("/") || "" },
+  }) as TFile;
+}
+
+export function createNotebookFile(path = "notes/topic.md"): TFile {
+  return Object.assign(Object.create(TFile.prototype), {
+    path,
+    basename: path.split("/").pop()?.replace(/\.md$/, "") ?? "topic",
+    extension: "md",
+    parent: { path: path.split("/").slice(0, -1).join("/") || "" },
+  }) as TFile;
 }

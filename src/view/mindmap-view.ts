@@ -41,9 +41,10 @@ import { MinimapRenderer } from "../renderer/minimap-renderer";
 import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { DirtyStateManager } from "../core/dirty-state";
 import { showErrorNotice } from "../ui/error-notice";
-import { setButtonA11y, setCanvasA11y } from "../core/accessibility";
+import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
 import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
+import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
 
 export class MindmapView extends ItemView {
   private store: MindmapDocumentStore;
@@ -59,17 +60,13 @@ export class MindmapView extends ItemView {
   private connectionSourceId: string | undefined;
   private debugOverlay: PerformanceDebugOverlay | null = null;
   private canvasEl: HTMLDivElement | null = null;
-  private searchInputEl: HTMLInputElement | null = null;
+  private toolbar: MindmapToolbar | null = null;
   private minimap: MinimapRenderer | null = null;
   private missingNotebookNodeIds = new Set<string>();
   private dirtyState = new DirtyStateManager();
-  private saveStatusEl: HTMLElement | null = null;
   private unsubscribeDirtyState: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
-  private mirrorLayoutButton: HTMLButtonElement | null = null;
-  private rightLayoutButton: HTMLButtonElement | null = null;
-  private freeLayoutButton: HTMLButtonElement | null = null;
   private subtreeVirtualZoomState: { nodeId: string; zoom: number } | null = null;
 
   constructor(
@@ -197,81 +194,34 @@ export class MindmapView extends ItemView {
 
   private renderView(): void {
     this.contentEl.empty();
-
-    const toolbar = this.contentEl.createDiv({ cls: "semantic-mindmap-toolbar" });
-    const addButton = toolbar.createEl("button", { text: "新增节点" });
-    setButtonA11y(addButton, "新增节点");
-    addButton.onclick = () => this.addTextNode();
-
-    const currentLayoutMode = this.store.getDocument().layoutMode;
-
-    this.mirrorLayoutButton = toolbar.createEl("button", { text: "镜像树" });
-    setButtonA11y(this.mirrorLayoutButton, "镜像树布局");
-    this.mirrorLayoutButton.toggleClass("is-active", currentLayoutMode === "tree-mirror");
-    this.mirrorLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-mirror");
-
-    this.rightLayoutButton = toolbar.createEl("button", { text: "右向树" });
-    setButtonA11y(this.rightLayoutButton, "右向树布局");
-    this.rightLayoutButton.toggleClass("is-active", currentLayoutMode === "tree-right");
-    this.rightLayoutButton.onclick = () => this.applyTreeLayoutMode("tree-right");
-
-    this.freeLayoutButton = toolbar.createEl("button", { text: "自由布局" });
-    setButtonA11y(this.freeLayoutButton, "自由布局");
-    this.freeLayoutButton.toggleClass("is-active", currentLayoutMode === "free");
-    this.freeLayoutButton.onclick = () => this.applyTreeLayoutMode("free");
-
-    const openButton = toolbar.createEl("button", { text: "打开" });
-    setButtonA11y(openButton, "打开脑图");
-    openButton.onclick = () => {
-      this.plugin.openMindmapFileSelector();
-    };
-
-    const saveButton = toolbar.createEl("button", { text: "保存" });
-    setButtonA11y(saveButton, "保存脑图");
-    saveButton.onclick = () => {
-      this.markDirty();
-      void this.autosave.flush();
-    };
-
-    const exportSvgButton = toolbar.createEl("button", { text: "导出 SVG" });
-    exportSvgButton.onclick = () => void this.exportSvg();
-
-    const exportPngButton = toolbar.createEl("button", { text: "导出 PNG" });
-    exportPngButton.onclick = () => void this.exportPng();
-
-    const searchInput = toolbar.createEl("input", {
-      type: "text",
-      placeholder: "搜索节点...",
+    this.toolbar = createMindmapToolbar(this.contentEl, {
+      layoutMode: this.store.getDocument().layoutMode,
+      searchQuery: this.searchQuery,
+      connectionMode: this.connectionMode,
+      saveStatus: this.getDirtyStateLabel(this.dirtyState.getState()),
+      onAddNode: () => this.addTextNode(),
+      onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
+      onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
+      onSaveMindmap: () => {
+        this.markDirty();
+        void this.autosave.flush();
+      },
+      onExportSvg: () => void this.exportSvg(),
+      onExportPng: () => void this.exportPng(),
+      onSearchChange: (query) => this.updateSearch(query),
+      onSearchSubmit: () => this.focusFirstSearchResult(),
+      onToggleConnectionMode: () => {
+        this.connectionMode = !this.connectionMode;
+        this.connectionSourceId = undefined;
+        this.toolbar?.setConnectionMode(this.connectionMode);
+        this.renderer?.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
+        this.renderer?.render();
+      },
     });
-    searchInput.value = this.searchQuery;
-    this.searchInputEl = searchInput;
-    searchInput.oninput = () => {
-      this.updateSearch(searchInput.value);
-    };
-    searchInput.onkeydown = (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        this.focusFirstSearchResult();
-      }
-    };
 
-    const connectButton = toolbar.createEl("button", { text: "连线" });
-    setButtonA11y(connectButton, "连线模式", this.connectionMode);
-    connectButton.toggleClass("is-active", this.connectionMode);
-    connectButton.onclick = () => {
-      this.connectionMode = !this.connectionMode;
-      this.connectionSourceId = undefined;
-      connectButton.toggleClass("is-active", this.connectionMode);
-      setButtonA11y(connectButton, "连线模式", this.connectionMode);
-      this.renderer?.setConnectionState({ enabled: this.connectionMode, sourceId: this.connectionSourceId });
-      this.renderer?.render();
-    };
-
-    this.saveStatusEl = toolbar.createSpan({ cls: "mindmap-save-status", text: this.getDirtyStateLabel(this.dirtyState.getState()) });
     this.unsubscribeDirtyState?.();
     this.unsubscribeDirtyState = this.dirtyState.subscribe((state) => {
-      if (!this.saveStatusEl) return;
-      this.saveStatusEl.setText(this.getDirtyStateLabel(state));
+      this.toolbar?.setSaveStatus(this.getDirtyStateLabel(state));
     });
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });
@@ -747,9 +697,7 @@ export class MindmapView extends ItemView {
   }
 
   private applyTreeLayoutMode(mode: "tree-mirror" | "tree-right" | "free"): void {
-    this.mirrorLayoutButton?.toggleClass("is-active", mode === "tree-mirror");
-    this.rightLayoutButton?.toggleClass("is-active", mode === "tree-right");
-    this.freeLayoutButton?.toggleClass("is-active", mode === "free");
+    this.toolbar?.setLayoutMode(mode);
     this.subtreeVirtualZoomState = null;
 
     const next = structuredClone(this.store.getDocument());
@@ -873,8 +821,7 @@ export class MindmapView extends ItemView {
   }
 
   private focusSearchInput(): void {
-    this.searchInputEl?.focus();
-    this.searchInputEl?.select();
+    this.toolbar?.focusSearchInput();
   }
 
   private refreshMissingNotebookLinks(): void {
