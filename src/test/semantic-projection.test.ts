@@ -541,8 +541,103 @@ describe("createSemanticProjection", () => {
     expect(root?.displayHeight).toBe(300);
   });
 
-  it("settles custom-sized notebook overlaps at level 4", () => {
+  it("does not auto-resolve overlaps in free layout even for custom-sized notebooks", () => {
     const doc = createSmallTestDocument();
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      customWidth: 400,
+      customHeight: 280,
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "text",
+      x: 50,
+      y: 0,
+    };
+
+    const projectionNoSelection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4]]),
+      },
+    );
+
+    const projectionWithSelection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4]]),
+      },
+    );
+
+    const rootNoSel = projectionNoSelection.nodes.find((node) => node.id === "root");
+    const childNoSel = projectionNoSelection.nodes.find((node) => node.id === "child");
+    const rootSel = projectionWithSelection.nodes.find((node) => node.id === "root");
+    const childSel = projectionWithSelection.nodes.find((node) => node.id === "child");
+
+    expect(rootNoSel).toBeDefined();
+    expect(childNoSel).toBeDefined();
+    expect(rootSel).toBeDefined();
+    expect(childSel).toBeDefined();
+
+    expect(rootSel!.projectedX).toBeCloseTo(rootNoSel!.projectedX, 1);
+    expect(rootSel!.projectedY).toBeCloseTo(rootNoSel!.projectedY, 1);
+    expect(childSel!.projectedX).toBeCloseTo(childNoSel!.projectedX, 1);
+    expect(childSel!.projectedY).toBeCloseTo(childNoSel!.projectedY, 1);
+  });
+
+  it("does not move overlapping nodes when one is selected in free layout", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[0]!.x = 0;
+    doc.nodes[0]!.y = 0;
+    doc.nodes[1]!.x = 5;
+    doc.nodes[1]!.y = 5;
+
+    const projectionWithoutSelection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: [],
+    });
+
+    const projectionWithSelection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+    });
+
+    const childUnselected = projectionWithoutSelection.nodes.find((n) => n.id === "child");
+    const rootUnselected = projectionWithoutSelection.nodes.find((n) => n.id === "root");
+    const childSelected = projectionWithSelection.nodes.find((n) => n.id === "child");
+    const rootSelected = projectionWithSelection.nodes.find((n) => n.id === "root");
+
+    expect(childUnselected).toBeDefined();
+    expect(rootUnselected).toBeDefined();
+    expect(childSelected).toBeDefined();
+    expect(rootSelected).toBeDefined();
+
+    expect(childSelected!.projectedX).toBeCloseTo(childUnselected!.projectedX, 1);
+    expect(childSelected!.projectedY).toBeCloseTo(childUnselected!.projectedY, 1);
+    expect(rootSelected!.projectedX).toBeCloseTo(rootUnselected!.projectedX, 1);
+    expect(rootSelected!.projectedY).toBeCloseTo(rootUnselected!.projectedY, 1);
+  });
+
+  it("settles custom-sized notebook overlaps in tree layout at level 4", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
     doc.nodes[0] = {
       ...doc.nodes[0]!,
       kind: "notebook",

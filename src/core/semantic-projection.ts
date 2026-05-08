@@ -117,15 +117,17 @@ export function createSemanticProjection(
 
   const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
 
-  const needsRelaxation = !isTreeLayout || hasExpandedNotebook || hasDynamicNodeSizes(projectedNodes);
-  
+  // Free layout: skip relaxation — user positions are authoritative; auto-pushing
+  // nodes apart would fight manual placement and cause drift on selection/zoom.
+  const needsRelaxation = hasExpandedNotebook || (isTreeLayout && hasDynamicNodeSizes(projectedNodes));
+   
   if (needsRelaxation) {
     projectedNodes = relaxProjectedNodes(projectedNodes, {
       zoom: context.zoom,
       iterations: hasExpandedNotebook ? 12 : doc.nodes.length > 300 ? 4 : 8,
       pushStrength: hasExpandedNotebook ? 36 : 32,
       maxMovePerIteration: hasExpandedNotebook ? 72 : 56,
-      settleUntilNoOverlap: hasExpandedNotebook || !isTreeLayout,
+      settleUntilNoOverlap: hasExpandedNotebook,
       maxSettlePasses: hasExpandedNotebook ? 8 : 12,
       overlapPadding: hasExpandedNotebook ? 16 : 14,
     });
