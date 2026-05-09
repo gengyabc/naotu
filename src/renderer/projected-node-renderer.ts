@@ -9,7 +9,7 @@ import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/notebook-size";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
-import { layoutText } from "../core/text-layout";
+import { layoutText, truncateTextForNotebook, layoutDescription } from "../core/text-layout";
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
@@ -21,6 +21,8 @@ const NOTEBOOK_PREVIEW_RIGHT_PADDING = 8;
 const NOTEBOOK_PREVIEW_BOTTOM_PADDING = 20;
 const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
 const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
+const BADGE_FONT_SIZE = 11;
+const BADGE_LINE_HEIGHT_FACTOR = 1.27;
 
 const descriptionCache = new Map<string, string | null>();
 let descriptionCacheVersion = -1;
@@ -54,13 +56,6 @@ function getNotebookDescription(args: {
   const result = typeof description === "string" ? description : null;
   descriptionCache.set(cacheKey, result);
   return result;
-}
-
-function truncateDescription(text: string, maxWidth: number): string {
-  const avgCharWidth = 8;
-  const maxChars = Math.floor((maxWidth - 12) / avgCharWidth);
-  if (text.length <= maxChars) return text;
-  return text.substring(0, maxChars - 1) + "...";
 }
 
 export function screenDragDeltaToWorldDelta(args: { dx: number; dy: number }): { dx: number; dy: number } {
@@ -274,11 +269,12 @@ export function renderProjectedNodes(args: {
           .text(line);
       });
     } else {
+      const truncatedTitle = truncateTextForNotebook(node.title, node.displayWidth - 24, visual.titleFontSize);
       titleText
         .attr("x", 12)
         .attr("y", 26)
         .style("font-size", `${visual.titleFontSize}px`)
-        .text(node.title);
+        .text(truncatedTitle);
     }
 
     titleHitbox
@@ -310,7 +306,21 @@ export function renderProjectedNodes(args: {
           })
         : null;
       if (description) {
-        badgeText.text(truncateDescription(description, node.displayWidth));
+        badgeText.selectAll("*").remove();
+        const badgeLineHeightPx = Math.round(BADGE_FONT_SIZE * BADGE_LINE_HEIGHT_FACTOR);
+        const availableLines = Math.max(1, Math.floor((node.displayHeight - 48) / badgeLineHeightPx));
+        const descLines = layoutDescription({
+          text: description,
+          maxWidth: node.displayWidth - 24,
+          fontSize: BADGE_FONT_SIZE,
+          maxLines: Math.min(3, availableLines),
+        });
+        descLines.forEach((line, index) => {
+          badgeText.append("tspan")
+            .attr("x", 12)
+            .attr("y", 48 + index * badgeLineHeightPx)
+            .text(line);
+        });
       } else {
         badgeText.style("display", "none");
       }

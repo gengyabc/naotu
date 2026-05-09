@@ -96,3 +96,93 @@ export function getTextNodeDisplaySize(args: { title: string; fontSize: number }
     height: result.height,
   };
 }
+
+export function truncateTextForNotebook(text: string, maxWidth: number, fontSize: number): string {
+  if (fontSize <= 0 || maxWidth <= 0) return "";
+  
+  const scaleFactor = fontSize / 14;
+  const ellipsis = "...";
+  const ellipsisWidth = measureTextWidth(ellipsis, fontSize);
+  
+  if (maxWidth <= ellipsisWidth) return "";
+  
+  let currentWidth = 0;
+  let result = "";
+  
+  for (const char of text) {
+    const charWidth = measureCharWidth(char) * scaleFactor;
+    if (currentWidth + charWidth > maxWidth - ellipsisWidth) {
+      return result + ellipsis;
+    }
+    result += char;
+    currentWidth += charWidth;
+  }
+  
+  return result;
+}
+
+export function layoutDescription(args: { text: string; maxWidth: number; fontSize: number; maxLines?: number }): string[] {
+  const { text, maxWidth, fontSize, maxLines = 3 } = args;
+  
+  if (fontSize <= 0 || maxWidth <= 0 || maxLines <= 0) return [];
+  
+  const scaleFactor = fontSize / 14;
+  const lines: string[] = [];
+  let currentLine = "";
+  let currentWidth = 0;
+  
+  for (const char of text) {
+    const charWidth = measureCharWidth(char) * scaleFactor;
+    
+    if (currentWidth + charWidth > maxWidth) {
+      lines.push(currentLine);
+      currentLine = char;
+      currentWidth = charWidth;
+      
+      if (lines.length >= maxLines) {
+        const lastLine = lines[lines.length - 1];
+        const ellipsis = "...";
+        const ellipsisWidth = measureTextWidth(ellipsis, fontSize);
+        
+        let trimmedLine = "";
+        let trimmedWidth = 0;
+        for (const c of lastLine) {
+          const cw = measureCharWidth(c) * scaleFactor;
+          if (trimmedWidth + cw + ellipsisWidth > maxWidth) {
+            break;
+          }
+          trimmedLine += c;
+          trimmedWidth += cw;
+        }
+        
+        if (trimmedLine.length > 0) {
+          lines[lines.length - 1] = trimmedLine + ellipsis;
+        } else if (lines.length > 1) {
+          lines.pop();
+          const prevLine = lines[lines.length - 1];
+          let prevTrimmed = "";
+          let prevTrimmedWidth = 0;
+          for (const c of prevLine) {
+            const cw = measureCharWidth(c) * scaleFactor;
+            if (prevTrimmedWidth + cw + ellipsisWidth > maxWidth) {
+              break;
+            }
+            prevTrimmed += c;
+            prevTrimmedWidth += cw;
+          }
+          lines[lines.length - 1] = prevTrimmed + ellipsis;
+        }
+        return lines;
+      }
+    } else {
+      currentLine += char;
+      currentWidth += charWidth;
+    }
+  }
+  
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  return lines;
+}
