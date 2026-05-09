@@ -9,8 +9,8 @@ import type {
 } from "../types/mindmap";
 import { buildHierarchy, getAncestorPath } from "./hierarchy";
 import { resolveFocusNodeId } from "./focus";
-import { getVisualSpec } from "./detail-level";
-import { computeSemanticDetailLevel } from "./semantic-zoom-policy";
+import { clampDetailLevel, getVisualSpec } from "./detail-level";
+import { applyNotebookFocusPolicy, computeSemanticDetailLevel } from "./semantic-zoom-policy";
 import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
@@ -20,6 +20,8 @@ export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
   connectionSourceId?: string;
   forcedDetailLevels?: ReadonlyMap<string, NodeDetailLevel>;
+  prevFrozenNotebookLevels?: ReadonlyMap<string, NodeDetailLevel>;
+  nextFrozenNotebookLevels?: Map<string, NodeDetailLevel>;
 }
 
 export function createSemanticProjection(
@@ -54,6 +56,8 @@ export function createSemanticProjection(
 
   let projectedNodes: ProjectedNode[] = [];
   const focusNode = focusNodeId ? doc.nodes.find((node) => node.id === focusNodeId) : undefined;
+  const prevFrozenLevels = extra.prevFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
+  const nextFrozenLevels = extra.nextFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
 
   for (const node of doc.nodes) {
     if (!visibleNodeIds.has(node.id)) continue;
@@ -80,8 +84,26 @@ export function createSemanticProjection(
       hasChildren: children.length > 0,
       distanceToFocus: focusNode ? distance(node, focusNode) : 0,
     });
+
+    let afterNotebookPolicy: NodeDetailLevel = applyNotebookFocusPolicy({
+      nodeId: node.id,
+      kind: node.kind,
+      isFocus,
+      focusNodeId,
+      focusOnRoot: !!focusNodeId && focusNodeId === hierarchy.rootId,
+      computedLevel: computedDetail,
+      prevFrozenLevels,
+    });
+
+    if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
+    if (isSelected || isHovered) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
+
+    if (node.kind === "notebook") {
+      nextFrozenLevels.set(node.id, afterNotebookPolicy);
+    }
+
     const forcedDetail = extra.forcedDetailLevels?.get(node.id);
-    const detail: NodeDetailLevel = forcedDetail !== undefined && forcedDetail > computedDetail ? forcedDetail : computedDetail;
+    const detail: NodeDetailLevel = forcedDetail !== undefined && forcedDetail > afterNotebookPolicy ? forcedDetail : afterNotebookPolicy;
 
     const resolvedSize = resolveProjectedDisplaySize({ node, detail });
     const projectedCenter = projectNodeCenter({ node, context });

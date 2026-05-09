@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSemanticProjection } from "../core/semantic-projection";
+import { applyNotebookFocusPolicy } from "../core/semantic-zoom-policy";
 import { createSmallTestDocument } from "./test-fixtures";
 
 function toScreenRect(node: { projectedX: number; projectedY: number; displayWidth: number; displayHeight: number }, zoom: number, viewportX: number, viewportY: number) {
@@ -676,5 +677,331 @@ describe("createSemanticProjection", () => {
     const rootRect = toScreenRect(root!, 1, -1000, -1000);
     const childRect = toScreenRect(child!, 1, -1000, -1000);
     expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
+  });
+});
+
+describe("applyNotebookFocusPolicy", () => {
+  it("allows full level when notebook is the focus node", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const result = applyNotebookFocusPolicy({
+      nodeId: "nb",
+      kind: "notebook",
+      isFocus: true,
+      focusNodeId: "nb",
+      focusOnRoot: false,
+      computedLevel: 5,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(5);
+  });
+
+  it("caps at level 3 when focus is root", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const result = applyNotebookFocusPolicy({
+      nodeId: "nb",
+      kind: "notebook",
+      isFocus: false,
+      focusNodeId: "root",
+      focusOnRoot: true,
+      computedLevel: 5,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(3);
+  });
+
+  it("caps at level 3 when there is no focus", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const result = applyNotebookFocusPolicy({
+      nodeId: "nb",
+      kind: "notebook",
+      isFocus: false,
+      focusNodeId: undefined,
+      focusOnRoot: false,
+      computedLevel: 5,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(3);
+  });
+
+  it("freezes at previous level when focus is on another node", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["nb", 2]]);
+    const result = applyNotebookFocusPolicy({
+      nodeId: "nb",
+      kind: "notebook",
+      isFocus: false,
+      focusNodeId: "other",
+      focusOnRoot: false,
+      computedLevel: 4,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(2);
+  });
+
+  it("defaults to cap 3 for new notebook when focus is on another node and no previous frozen level", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const result = applyNotebookFocusPolicy({
+      nodeId: "nb",
+      kind: "notebook",
+      isFocus: false,
+      focusNodeId: "other",
+      focusOnRoot: false,
+      computedLevel: 5,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(3);
+  });
+
+  it("passes through for text nodes", () => {
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const result = applyNotebookFocusPolicy({
+      nodeId: "t",
+      kind: "text",
+      isFocus: false,
+      focusNodeId: "root",
+      focusOnRoot: true,
+      computedLevel: 2,
+      prevFrozenLevels: prev,
+    });
+    expect(result).toBe(2);
+  });
+});
+
+describe("notebook focus policy in projection", () => {
+  function makeDocWithNotebook() {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+    return doc;
+  }
+
+  it("caps notebook at level 3 when focus is root", () => {
+    const doc = makeDocWithNotebook();
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+    const child = projection.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBe(3);
+    expect(child?.displayWidth).toBe(240);
+    expect(child?.displayHeight).toBe(96);
+  });
+
+  it("allows notebook to reach level 4-5 when it is the focus", () => {
+    const doc = makeDocWithNotebook();
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    });
+    const child = projection.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBe(5);
+  });
+
+  it("freezes notebook level when focus shifts to another non-root node", () => {
+    const doc = makeDocWithNotebook();
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+
+    const nextFrozen = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+
+    const proj1 = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    }, { nextFrozenNotebookLevels: nextFrozen });
+
+    const child1 = proj1.nodes.find((n) => n.id === "child");
+    expect(child1?.detailLevel).toBeGreaterThanOrEqual(3);
+
+    const proj2 = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+    }, { prevFrozenNotebookLevels: nextFrozen, nextFrozenNotebookLevels: new Map() });
+
+    const child2 = proj2.nodes.find((n) => n.id === "child");
+    expect(child2?.detailLevel).toBe(child1?.detailLevel);
+  });
+
+  it("enforces selected floor of 2 even when notebook is frozen below", () => {
+    const doc = makeDocWithNotebook();
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 0]]);
+    const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+      hoveredNodeId: "child",
+    }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
+
+    const child = projection.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBeGreaterThanOrEqual(2);
+    expect(next.get("child")).toBeGreaterThanOrEqual(2);
+  });
+
+  it("enforces hover floor of 2 even when notebook is frozen below", () => {
+    const doc = makeDocWithNotebook();
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 1]]);
+    const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const projection = createSemanticProjection(doc, {
+      zoom: 0.4,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+      hoveredNodeId: "child",
+    }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
+
+    const child = projection.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBeGreaterThanOrEqual(2);
+    expect(next.get("child")).toBeGreaterThanOrEqual(2);
+  });
+
+  it("maintains independent frozen levels for multiple notebooks", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+    doc.nodes.push({
+      id: "nb2",
+      kind: "notebook",
+      title: "NB2",
+      x: 0,
+      y: 600,
+      width: 180,
+      height: 54,
+      treeControl: "auto",
+      notebook: { link: "[[NB2]]", path: "notes/nb2.md", targetType: "file" },
+      link: "[[NB2]]",
+    });
+    doc.edges.push({ id: "edge-nb2", source: "root", target: "nb2", relation: "mindmap", type: "curve" });
+
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 1], ["nb2", 4]]);
+    const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+    }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
+
+    const child = projection.nodes.find((n) => n.id === "child");
+    const nb2 = projection.nodes.find((n) => n.id === "nb2");
+    expect(child?.detailLevel).toBe(1);
+    expect(nb2?.detailLevel).toBe(4);
+  });
+
+  it("resumes cap-3 dynamic behavior when focus returns to root from another node", () => {
+    const doc = makeDocWithNotebook();
+
+    const nextFrozen = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
+
+    createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    }, { nextFrozenNotebookLevels: nextFrozen });
+
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+
+    createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+    }, { prevFrozenNotebookLevels: nextFrozen, nextFrozenNotebookLevels: new Map() });
+
+    const projRoot = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const child = projRoot.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBe(3);
+    expect(child?.displayWidth).toBe(240);
+  });
+
+  it("allows forcedDetailLevels to override notebook focus policy", () => {
+    const doc = makeDocWithNotebook();
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    }, {
+      forcedDetailLevels: new Map([["child", 5]]),
+    });
+
+    const child = projection.nodes.find((n) => n.id === "child");
+    expect(child?.detailLevel).toBe(5);
   });
 });

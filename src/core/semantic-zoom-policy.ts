@@ -51,3 +51,30 @@ export function computeSemanticDetailLevel(input: SemanticZoomPolicyInput): Node
 
   return level;
 }
+
+export interface NotebookFocusPolicyInput {
+  nodeId: string;
+  kind: NodeKind;
+  isFocus: boolean;
+  focusNodeId: string | undefined;
+  focusOnRoot: boolean;
+  computedLevel: NodeDetailLevel;
+  prevFrozenLevels: ReadonlyMap<string, NodeDetailLevel>;
+}
+
+export function applyNotebookFocusPolicy(input: NotebookFocusPolicyInput): NodeDetailLevel {
+  if (input.kind !== "notebook") return input.computedLevel;
+
+  if (input.isFocus) {
+    return input.computedLevel;
+  }
+
+  if (!input.focusNodeId || input.focusOnRoot) {
+    return clampDetailLevel(Math.min(input.computedLevel, 3));
+  }
+
+  if (input.prevFrozenLevels.has(input.nodeId)) {
+    return input.prevFrozenLevels.get(input.nodeId)!;
+  }
+  return clampDetailLevel(Math.min(input.computedLevel, 3));
+}

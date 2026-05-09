@@ -82,6 +82,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected hoveredNodeId: string | undefined;
   protected lastFocusNodeId: string | undefined;
   protected readonly forcedDetailLevel = new Map<string, NodeDetailLevel>();
+  protected frozenNotebookLevels = new Map<string, NodeDetailLevel>();
   protected searchResultIds = new Set<string>();
   protected connectionEnabled = false;
   protected connectionSourceId: string | undefined;
@@ -346,6 +347,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const doc = this.options.getDocument();
     const transformState = d3.zoomTransform(this.svg.node()!);
     const transform = { x: transformState.x, y: transformState.y, k: transformState.k };
+    const nextFrozenNotebookLevels = new Map<string, NodeDetailLevel>();
     const projection = createSemanticProjection(
       doc,
       {
@@ -359,8 +361,11 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
         searchResultIds: this.searchResultIds,
         connectionSourceId: this.connectionEnabled ? this.connectionSourceId : undefined,
         forcedDetailLevels: this.forcedDetailLevel,
+        prevFrozenNotebookLevels: this.frozenNotebookLevels,
+        nextFrozenNotebookLevels,
       },
     );
+    this.frozenNotebookLevels = nextFrozenNotebookLevels;
 
     for (const node of projection.nodes) {
       node.isMissingNotebook = this.missingNotebookNodeIds.has(node.id);
