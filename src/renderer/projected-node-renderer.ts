@@ -407,18 +407,20 @@ export function renderProjectedNodes(args: {
 
     const preview = group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-preview");
     if (node.kind === "notebook" && visual.showPreview && node.notebook?.link) {
+      const previewHeight = node.displayHeight - NOTEBOOK_PREVIEW_Y - NOTEBOOK_PREVIEW_BOTTOM_PADDING;
       preview
         .style("display", "")
         .attr("x", NOTEBOOK_PREVIEW_X)
         .attr("y", NOTEBOOK_PREVIEW_Y)
         .attr("width", node.displayWidth - NOTEBOOK_PREVIEW_X - NOTEBOOK_PREVIEW_RIGHT_PADDING)
-        .attr("height", node.displayHeight - NOTEBOOK_PREVIEW_Y - NOTEBOOK_PREVIEW_BOTTOM_PADDING);
+        .attr("height", previewHeight);
       void renderNotebookPreview({
         app: args.app,
         foreignObject: preview.node(),
         link: node.notebook.link,
         sourcePath: args.sourcePath,
         storedPath: node.notebook.path,
+        previewHeight,
         component: args.component,
       });
     } else {

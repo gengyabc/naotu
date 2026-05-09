@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TFile, Component } from "obsidian";
 
 import { globalPreviewCache } from "../core/preview-cache";
-import { renderNotebookPreview } from "../renderer/notebook-preview-renderer";
+import { getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-preview-renderer";
 
 interface FakeWrapper {
   className: string;
@@ -50,7 +50,17 @@ function createApp(read: ReturnType<typeof vi.fn>) {
   } as never;
 }
 
+function createMarkdownLines(count: number): string {
+  return Array.from({ length: count }, (_value, index) => `Line ${index + 1}`).join("\n");
+}
+
 describe("renderNotebookPreview", () => {
+  it("computes maxLines from each notebook preview height independently", () => {
+    expect(getPreviewMaxLines(120)).toBe(20);
+    expect(getPreviewMaxLines(160)).toBe(24);
+    expect(getPreviewMaxLines(420)).toBe(66);
+  });
+
   it("rerenders mounted previews after the preview cache is cleared", async () => {
     globalPreviewCache.clear();
 
@@ -82,6 +92,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -93,6 +104,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -138,6 +150,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -149,6 +162,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -158,8 +172,9 @@ describe("renderNotebookPreview", () => {
       if (originalDocument) vi.stubGlobal("document", originalDocument);
     }
 
-    expect(wrapper.addEventListener).toHaveBeenCalledTimes(1);
+    expect(wrapper.addEventListener).toHaveBeenCalledTimes(2);
     expect(wrapper.addEventListener).toHaveBeenCalledWith("wheel", expect.any(Function));
+    expect(wrapper.addEventListener).toHaveBeenCalledWith("scroll", expect.any(Function));
   });
 
   it("keeps wheel events inside the preview while it can still scroll", async () => {
@@ -198,6 +213,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -248,6 +264,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -306,6 +323,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -321,6 +339,7 @@ describe("renderNotebookPreview", () => {
         link: "[[Right]]",
         storedPath: "notes/right.md",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -374,6 +393,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[华强集团]]",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -428,6 +448,7 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
@@ -438,11 +459,138 @@ describe("renderNotebookPreview", () => {
         foreignObject: foreignObject as never,
         link: "[[Right]]",
         sourcePath: "maps/source.naotu",
+        previewHeight: 120,
         component,
       });
 
       expect(read).toHaveBeenCalledTimes(1);
       expect(wrapper.renderedMarkdown).toBe("# Note\nRecovered content");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("rerenders more lines when the same notebook preview gets taller", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue(createMarkdownLines(80));
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 120,
+        component,
+      });
+
+      const shortPreview = wrapper.renderedMarkdown ?? "";
+      expect(shortPreview.split("\n")).toHaveLength(getPreviewMaxLines(120));
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 420,
+        component,
+      });
+
+      const tallPreview = wrapper.renderedMarkdown ?? "";
+      expect(tallPreview.split("\n")).toHaveLength(getPreviewMaxLines(420));
+      expect(tallPreview).toContain("Line 66");
+      expect(tallPreview).not.toEqual(shortPreview);
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("loads more lines when scrolling near the bottom of a long notebook preview", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue(createMarkdownLines(120));
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    let scrollListener: EventListener | undefined;
+    wrapper.addEventListener = vi.fn((type: string, listener: EventListener) => {
+      if (type === "scroll") scrollListener = listener;
+    });
+
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 120,
+        component,
+      });
+
+      expect((wrapper.renderedMarkdown ?? "").split("\n")).toHaveLength(getPreviewMaxLines(120));
+
+      wrapper.clientHeight = 100;
+      wrapper.scrollHeight = 360;
+      wrapper.scrollTop = 260;
+      await (scrollListener as (() => Promise<void>) | undefined)?.();
+      await vi.waitFor(() => {
+        expect((wrapper.renderedMarkdown ?? "").split("\n")).toHaveLength(40);
+      });
+
+      wrapper.scrollHeight = 720;
+      wrapper.scrollTop = 620;
+      await (scrollListener as (() => Promise<void>) | undefined)?.();
+      await vi.waitFor(() => {
+        expect((wrapper.renderedMarkdown ?? "").split("\n")).toHaveLength(60);
+      });
+
+      expect(read).toHaveBeenCalledTimes(1);
 
       component.unload();
     } finally {

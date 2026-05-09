@@ -4,7 +4,30 @@ import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor"
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 const wheelBindingByElement = new WeakSet<HTMLDivElement>();
+const scrollBindingByElement = new WeakSet<HTMLDivElement>();
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
+
+interface PreviewRenderState {
+  app: App;
+  foreignObject: SVGForeignObjectElement;
+  link: string;
+  sourcePath: string;
+  storedPath?: string;
+  previewHeight: number;
+  component: Component;
+  sourceKey: string;
+  baseMaxLines: number;
+  requestedLines: number;
+  totalLines: number;
+  loading: boolean;
+}
+
+const previewStateByElement = new WeakMap<SVGForeignObjectElement, PreviewRenderState>();
+
+const PREVIEW_VERTICAL_PADDING = 12;
+const PREVIEW_LINE_HEIGHT = 18;
+const PREVIEW_MIN_LINES = 20;
+const PREVIEW_MAX_LINES = 200;
 
 function shouldKeepWheelWithinPreview(wrapper: HTMLDivElement, deltaY: number): boolean {
   if (wrapper.scrollHeight <= wrapper.clientHeight) return false;
@@ -23,12 +46,17 @@ export async function renderNotebookPreview(args: {
   link: string;
   sourcePath: string;
   storedPath?: string;
+  previewHeight: number;
   component: Component;
 }): Promise<void> {
   if (!args.foreignObject) return;
-  const key = `${globalPreviewCache.getVersion()}::${args.sourcePath}::${args.storedPath ?? args.link}`;
-  if (renderedKeyByElement.get(args.foreignObject) === key) return;
-  renderedKeyByElement.set(args.foreignObject, key);
+  const version = globalPreviewCache.getVersion();
+  const sourceKey = `${version}::${args.sourcePath}::${args.storedPath ?? args.link}`;
+  const baseMaxLines = getPreviewMaxLines(args.previewHeight);
+  const prevState = previewStateByElement.get(args.foreignObject);
+  const requestedLines = prevState?.sourceKey === sourceKey
+    ? Math.max(prevState.requestedLines, baseMaxLines)
+    : baseMaxLines;
 
   let wrapper = args.foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
   if (!wrapper) {
@@ -44,41 +72,114 @@ export async function renderNotebookPreview(args: {
     });
     wheelBindingByElement.add(wrapper);
   }
-
-  const prev = childComponentByElement.get(args.foreignObject);
-  if (prev) {
-    args.component.removeChild(prev);
-    childComponentByElement.delete(args.foreignObject);
+  if (!scrollBindingByElement.has(wrapper)) {
+    wrapper.addEventListener("scroll", async () => {
+      await maybeLoadMore(args.foreignObject!);
+    });
+    scrollBindingByElement.add(wrapper);
   }
 
+  previewStateByElement.set(args.foreignObject, {
+    app: args.app,
+    foreignObject: args.foreignObject,
+    link: args.link,
+    sourcePath: args.sourcePath,
+    storedPath: args.storedPath,
+    previewHeight: args.previewHeight,
+    component: args.component,
+    sourceKey,
+    baseMaxLines,
+    requestedLines,
+    totalLines: prevState?.sourceKey === sourceKey ? prevState.totalLines : 0,
+    loading: false,
+  });
+
+  await renderNotebookPreviewLines(args.foreignObject, requestedLines);
+}
+
+async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement, maxLines: number): Promise<void> {
+  const state = previewStateByElement.get(foreignObject);
+  if (!state) return;
+
+  const key = `${state.sourceKey}::${maxLines}`;
+  if (renderedKeyByElement.get(foreignObject) === key) return;
+  renderedKeyByElement.set(foreignObject, key);
+
+  let wrapper = foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
+  if (!wrapper) {
+    wrapper = document.createElement("div");
+    wrapper.className = "mindmap-preview-wrapper";
+    foreignObject.appendChild(wrapper);
+  }
+
+  const prev = childComponentByElement.get(foreignObject);
+  if (prev) {
+    state.component.removeChild(prev);
+    childComponentByElement.delete(foreignObject);
+  }
+
+  const previousScrollTop = wrapper.scrollTop;
   wrapper.empty();
   try {
     const result = await readNotebookPreviewMarkdown({
-      app: args.app,
-      link: args.link,
-      sourcePath: args.sourcePath,
-      storedPath: args.storedPath,
-      maxLines: 40,
+      app: state.app,
+      link: state.link,
+      sourcePath: state.sourcePath,
+      storedPath: state.storedPath,
+      maxLines,
     });
     if (!result) {
-      renderedKeyByElement.delete(args.foreignObject);
+      renderedKeyByElement.delete(foreignObject);
       wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
       return;
     }
 
     // Use the notebook file's own path so image links resolve relative to it.
     const child = new Component();
-    args.component.addChild(child);
-    childComponentByElement.set(args.foreignObject, child);
+    state.component.addChild(child);
+    childComponentByElement.set(foreignObject, child);
 
-    await MarkdownRenderer.render(args.app, result.markdown, wrapper, result.resolvedPath, child);
+    state.requestedLines = maxLines;
+    state.totalLines = result.totalLines;
+
+    await MarkdownRenderer.render(state.app, result.markdown, wrapper, result.resolvedPath, child);
+    wrapper.scrollTop = previousScrollTop;
   } catch (error) {
-    renderedKeyByElement.delete(args.foreignObject);
-    const child = childComponentByElement.get(args.foreignObject);
+    renderedKeyByElement.delete(foreignObject);
+    const child = childComponentByElement.get(foreignObject);
     if (child) {
-      args.component.removeChild(child);
-      childComponentByElement.delete(args.foreignObject);
+      state.component.removeChild(child);
+      childComponentByElement.delete(foreignObject);
     }
     throw error;
   }
+}
+
+async function maybeLoadMore(foreignObject: SVGForeignObjectElement): Promise<void> {
+  const state = previewStateByElement.get(foreignObject);
+  if (!state || state.loading || state.totalLines <= state.requestedLines) return;
+
+  const wrapper = foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
+  if (!wrapper) return;
+
+  const distanceToBottom = wrapper.scrollHeight - (wrapper.scrollTop + wrapper.clientHeight);
+  if (distanceToBottom > PREVIEW_LINE_HEIGHT * 2) return;
+
+  state.loading = true;
+  try {
+    const nextLines = Math.min(
+      state.totalLines,
+      state.requestedLines + Math.max(state.baseMaxLines, PREVIEW_MIN_LINES),
+    );
+    if (nextLines > state.requestedLines) {
+      await renderNotebookPreviewLines(foreignObject, nextLines);
+    }
+  } finally {
+    state.loading = false;
+  }
+}
+
+export function getPreviewMaxLines(previewHeight: number): number {
+  const visibleLines = Math.floor((Math.max(0, previewHeight) - PREVIEW_VERTICAL_PADDING) / PREVIEW_LINE_HEIGHT);
+  return Math.max(PREVIEW_MIN_LINES, Math.min(PREVIEW_MAX_LINES, visibleLines * 3));
 }

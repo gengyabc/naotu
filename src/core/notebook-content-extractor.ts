@@ -2,15 +2,24 @@ import { App } from "obsidian";
 import { globalPreviewCache } from "./preview-cache";
 import { parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 
+const fullPreviewContentCache = new Map<string, string>();
+let fullPreviewContentCacheVersion = -1;
+
 export async function readNotebookPreviewMarkdown(args: {
   app: App;
   link: string;
   sourcePath: string;
   storedPath?: string;
   maxLines?: number;
-}): Promise<{ markdown: string; resolvedPath: string } | null> {
+}): Promise<{ markdown: string; resolvedPath: string; totalLines: number; hasMore: boolean } | null> {
   const parsed = parseObsidianLink(args.link);
   if (!parsed) return null;
+
+  const version = globalPreviewCache.getVersion();
+  if (fullPreviewContentCacheVersion !== version) {
+    fullPreviewContentCache.clear();
+    fullPreviewContentCacheVersion = version;
+  }
 
   const file = resolveObsidianLinkFile({
     app: args.app,
@@ -20,26 +29,41 @@ export async function readNotebookPreviewMarkdown(args: {
   });
   if (!file) return null;
 
-  const cacheKey = `${file.path}::${parsed.subpath ?? ""}`;
+  const fullContentCacheKey = `${file.path}::${parsed.subpath ?? ""}`;
+  const maxLines = args.maxLines ?? 40;
+  const cacheKey = `${fullContentCacheKey}::${maxLines}`;
   const cached = globalPreviewCache.get(cacheKey);
-  if (cached) return { markdown: cached, resolvedPath: file.path };
-
-  const content = await args.app.vault.read(file);
-
-  let markdown: string;
-  if (!parsed.subpath) {
-    markdown = content;
-  } else if (parsed.targetType === "heading") {
-    markdown = extractHeadingSection(content, parsed.subpath);
-  } else if (parsed.targetType === "block") {
-    markdown = extractBlock(content, parsed.subpath);
-  } else {
-    markdown = content;
+  if (cached !== null) {
+    const totalLines = countLines(fullPreviewContentCache.get(fullContentCacheKey) ?? cached);
+    return { markdown: cached, resolvedPath: file.path, totalLines, hasMore: totalLines > countLines(cached) };
   }
 
-  const result = markdown.split("\n").slice(0, args.maxLines ?? 40).join("\n");
+  let markdown = fullPreviewContentCache.get(fullContentCacheKey);
+  if (markdown === undefined) {
+    const content = await args.app.vault.read(file);
+
+    if (!parsed.subpath) {
+      markdown = content;
+    } else if (parsed.targetType === "heading") {
+      markdown = extractHeadingSection(content, parsed.subpath);
+    } else if (parsed.targetType === "block") {
+      markdown = extractBlock(content, parsed.subpath);
+    } else {
+      markdown = content;
+    }
+
+    fullPreviewContentCache.set(fullContentCacheKey, markdown);
+  }
+
+  const lines = markdown.split("\n");
+  const result = lines.slice(0, maxLines).join("\n");
   globalPreviewCache.set(cacheKey, result);
-  return { markdown: result, resolvedPath: file.path };
+  return { markdown: result, resolvedPath: file.path, totalLines: lines.length, hasMore: lines.length > maxLines };
+}
+
+function countLines(markdown: string): number {
+  if (!markdown) return 0;
+  return markdown.split("\n").length;
 }
 
 export function extractHeadingSection(content: string, heading: string): string {
