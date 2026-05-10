@@ -15,7 +15,9 @@ import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import {
   expandDraggedNodeMoves,
   resolveDraggedNodeIds,
+  getMindmapChildIds,
 } from "../core/tree-editing";
+import { findRootNodeId } from "../core/keyboard-navigation";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
@@ -113,6 +115,7 @@ export class MindmapView extends ItemView {
       redo: () => this.redo(),
       applyTreeControls: (controls) => this.store.applyTreeControls(controls),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
+      onSelectionChange: () => this.updateToolbarButtonStates(),
     });
     this.rendererCoordinator = new MindmapRendererCoordinator({
       app: this.app,
@@ -319,9 +322,18 @@ export class MindmapView extends ItemView {
       onSearchSubmit: () => this.focusFirstSearchResult(),
       onUndo: () => this.undo(),
       onRedo: () => this.redo(),
+      onSelectRoot: () => this.selectRootNode(),
+      onFitRoot: () => this.fitRoot(),
+      onZoomIn: () => this.zoomIn(),
+      onZoomOut: () => this.zoomOut(),
+      onAddChild: () => this.addChildNode(),
+      onAddSibling: () => this.addSiblingNode(),
+      onToggleExpand: () => this.toggleSelectedTree(),
+      onEdit: () => this.editSelectedNode(),
     });
     this.toolbar.setCanUndo(this.editSession.canUndo());
     this.toolbar.setCanRedo(this.editSession.canRedo());
+    this.updateToolbarButtonStates();
 
     this.unsubscribeDirtyState?.();
     this.unsubscribeDirtyState = this.editSession.subscribeDirtyState((state) => {
@@ -497,9 +509,64 @@ export class MindmapView extends ItemView {
     this.clearSelection();
   }
 
+  private selectRootNode(): void {
+    const doc = this.store.getDocument();
+    const rootId = findRootNodeId(doc);
+    if (!rootId) return;
+    
+    this.setSelectionOnly(rootId);
+    this.rendererCoordinator.setLastFocusNodeId(rootId);
+    this.rendererCoordinator.focusNode(rootId);
+    this.rendererCoordinator.render();
+  }
+
+  private fitRoot(): void {
+    this.interactions.clearSubtreeVirtualZoomState();
+    this.rendererCoordinator.fitRoot();
+  }
+
+  private zoomIn(): void {
+    this.interactions.handleZoomInput(1.2);
+  }
+
+  private zoomOut(): void {
+    this.interactions.handleZoomInput(1 / 1.2);
+  }
+
+  private editSelectedNode(): void {
+    const id = this.selection.getIds()[0];
+    if (!id) return;
+    this.rendererCoordinator.startInlineEditByNodeId(id);
+  }
+
+  private updateToolbarButtonStates(): void {
+    const selectedIds = this.selection.getIds();
+    const hasSingleSelection = selectedIds.length === 1;
+    const selectedId = selectedIds[0];
+    
+    const doc = this.store.getDocument();
+    const selectedNode = selectedId ? doc.nodes.find(n => n.id === selectedId) : undefined;
+    const hasChildren = selectedNode ? this.hasNodeChildren(selectedNode.id) : false;
+
+    this.toolbar?.setCanSelectRoot(true);
+    this.toolbar?.setCanFitRoot(true);
+    this.toolbar?.setCanZoomIn(true);
+    this.toolbar?.setCanZoomOut(true);
+    this.toolbar?.setCanAddChild(hasSingleSelection);
+    this.toolbar?.setCanAddSibling(hasSingleSelection);
+    this.toolbar?.setCanToggleExpand(hasSingleSelection && hasChildren);
+    this.toolbar?.setCanEdit(hasSingleSelection);
+  }
+
+  private hasNodeChildren(nodeId: string): boolean {
+    const doc = this.store.getDocument();
+    return getMindmapChildIds(doc, nodeId).length > 0;
+  }
+
   private toggleSelectedTree(): void {
     const id = this.selection.getIds()[0];
     if (!id) return;
+    if (!this.hasNodeChildren(id)) return;
     this.treeActions.toggleSelectedTree(id, this.rendererCoordinator.getLastProjectedNodes());
   }
 

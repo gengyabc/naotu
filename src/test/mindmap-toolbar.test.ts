@@ -51,6 +51,14 @@ describe("createMindmapToolbar", () => {
     const onSearchSubmit = vi.fn();
     const onUndo = vi.fn();
     const onRedo = vi.fn();
+    const onSelectRoot = vi.fn();
+    const onFitRoot = vi.fn();
+    const onZoomIn = vi.fn();
+    const onZoomOut = vi.fn();
+    const onAddChild = vi.fn();
+    const onAddSibling = vi.fn();
+    const onToggleExpand = vi.fn();
+    const onEdit = vi.fn();
 
     const container = new FakeElement("div");
     const toolbar = createMindmapToolbar(container as never, {
@@ -63,6 +71,14 @@ describe("createMindmapToolbar", () => {
       onSearchSubmit,
       onUndo,
       onRedo,
+      onSelectRoot,
+      onFitRoot,
+      onZoomIn,
+      onZoomOut,
+      onAddChild,
+      onAddSibling,
+      onToggleExpand,
+      onEdit,
     });
 
     getButton(container, "右向树").onclick?.();
@@ -91,6 +107,14 @@ describe("createMindmapToolbar", () => {
     toolbar.focusSearchInput();
     toolbar.setCanUndo(true);
     toolbar.setCanRedo(false);
+    toolbar.setCanSelectRoot(true);
+    toolbar.setCanFitRoot(true);
+    toolbar.setCanZoomIn(true);
+    toolbar.setCanZoomOut(false);
+    toolbar.setCanAddChild(true);
+    toolbar.setCanAddSibling(false);
+    toolbar.setCanToggleExpand(true);
+    toolbar.setCanEdit(false);
 
     expect(getButton(container, "右向树").classNames.has("is-active")).toBe(false);
     expect(getButton(container, "自由布局").classNames.has("is-active")).toBe(true);
@@ -99,5 +123,11 @@ describe("createMindmapToolbar", () => {
     expect(input.selected).toBe(true);
     expect(getButton(container, "撤销").disabled).toBe(false);
     expect(getButton(container, "重做").disabled).toBe(true);
+    expect(getButton(container, "缩小").disabled).toBe(true);
+    expect(getButton(container, "放大").disabled).toBe(false);
+    expect(getButton(container, "子节点").disabled).toBe(false);
+    expect(getButton(container, "兄弟节点").disabled).toBe(true);
+    expect(getButton(container, "切换折叠").disabled).toBe(false);
+    expect(getButton(container, "编辑").disabled).toBe(true);
   });
 });

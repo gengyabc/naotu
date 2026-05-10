@@ -35,6 +35,7 @@ type MindmapInteractionOptions = {
   redo(): void;
   applyTreeControls(controls: Map<string, MindmapDocument["nodes"][number]["treeControl"]>): void;
   applyDocumentChange(mutator: () => void, options?: ApplyDocumentChangeOptions): void;
+  onSelectionChange?(): void;
 };
 
 export class MindmapInteractions {
@@ -187,16 +188,19 @@ export class MindmapInteractions {
   setSelectionOnly(id: string): void {
     this.options.selection.setOnly(id);
     this.clearSubtreeVirtualZoomState();
+    this.options.onSelectionChange?.();
   }
 
   toggleSelection(id: string): void {
     this.options.selection.toggle(id);
     this.clearSubtreeVirtualZoomState();
+    this.options.onSelectionChange?.();
   }
 
   addSelection(id: string): void {
     this.options.selection.add(id);
     this.clearSubtreeVirtualZoomState();
+    this.options.onSelectionChange?.();
   }
 
   clearSelection(): void {
@@ -204,12 +208,14 @@ export class MindmapInteractions {
     const rootId = findRootNodeId(this.options.getDocument());
     if (rootId) this.options.setLastFocusNodeId(rootId);
     this.clearSubtreeVirtualZoomState();
+    this.options.onSelectionChange?.();
   }
 
   replaceSelection(ids: Iterable<string>): void {
     this.options.selection.clear();
     for (const id of ids) this.options.selection.add(id);
     this.clearSubtreeVirtualZoomState();
+    this.options.onSelectionChange?.();
   }
 
   clearSubtreeVirtualZoomState(): void {
