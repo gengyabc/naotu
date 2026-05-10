@@ -41,6 +41,7 @@ export class MindmapView extends ItemView {
   private canvasEl: HTMLDivElement | null = null;
   private toolbar: MindmapToolbar | null = null;
   private unsubscribeDirtyState: (() => void) | null = null;
+  private unsubscribeHistory: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
 
@@ -268,6 +269,8 @@ export class MindmapView extends ItemView {
     this.rendererCoordinator.dispose();
     this.unsubscribeDirtyState?.();
     this.unsubscribeDirtyState = null;
+    this.unsubscribeHistory?.();
+    this.unsubscribeHistory = null;
   }
 
   async refreshNotebookLinks(): Promise<void> {
@@ -314,11 +317,21 @@ export class MindmapView extends ItemView {
       onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
       onSearchChange: (query) => this.updateSearch(query),
       onSearchSubmit: () => this.focusFirstSearchResult(),
+      onUndo: () => this.undo(),
+      onRedo: () => this.redo(),
     });
+    this.toolbar.setCanUndo(this.editSession.canUndo());
+    this.toolbar.setCanRedo(this.editSession.canRedo());
 
     this.unsubscribeDirtyState?.();
     this.unsubscribeDirtyState = this.editSession.subscribeDirtyState((state) => {
       this.toolbar?.setSaveStatus(this.getDirtyStateLabel(state));
+    });
+
+    this.unsubscribeHistory?.();
+    this.unsubscribeHistory = this.editSession.subscribeHistory(() => {
+      this.toolbar?.setCanUndo(this.editSession.canUndo());
+      this.toolbar?.setCanRedo(this.editSession.canRedo());
     });
 
     const canvas = this.contentEl.createDiv({ cls: "semantic-mindmap-canvas" });

@@ -124,4 +124,43 @@ describe("MindmapEditSession", () => {
       vi.useRealTimers();
     }
   });
+
+  it("notifies history listeners on history changes", () => {
+    const events: string[] = [];
+    const store = createStore(createSmallTestDocument(), events);
+    const session = new MindmapEditSession(store as never, {
+      relayoutDocument: (doc) => doc,
+      render: () => {},
+      getAutosaveConfig: () => ({ enabled: true, delayMs: 25 }),
+    });
+
+    const historyEvents: string[] = [];
+    const unsubscribe = session.subscribeHistory(() => {
+      historyEvents.push("changed");
+    });
+
+    session.commitHistory();
+    expect(historyEvents).toEqual(["changed"]);
+    expect(session.canUndo()).toBe(true);
+    expect(session.canRedo()).toBe(false);
+
+    session.undo();
+    expect(historyEvents).toEqual(["changed", "changed"]);
+    expect(session.canUndo()).toBe(false);
+    expect(session.canRedo()).toBe(true);
+
+    session.redo();
+    expect(historyEvents).toEqual(["changed", "changed", "changed"]);
+    expect(session.canUndo()).toBe(true);
+    expect(session.canRedo()).toBe(false);
+
+    session.clearHistory();
+    expect(historyEvents).toEqual(["changed", "changed", "changed", "changed"]);
+    expect(session.canUndo()).toBe(false);
+    expect(session.canRedo()).toBe(false);
+
+    unsubscribe();
+    session.commitHistory();
+    expect(historyEvents).toEqual(["changed", "changed", "changed", "changed"]);
+  });
 });

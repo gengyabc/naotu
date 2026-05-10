@@ -49,6 +49,8 @@ describe("createMindmapToolbar", () => {
     const onOpenMindmap = vi.fn();
     const onSearchChange = vi.fn();
     const onSearchSubmit = vi.fn();
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
 
     const container = new FakeElement("div");
     const toolbar = createMindmapToolbar(container as never, {
@@ -59,10 +61,14 @@ describe("createMindmapToolbar", () => {
       onOpenMindmap,
       onSearchChange,
       onSearchSubmit,
+      onUndo,
+      onRedo,
     });
 
     getButton(container, "右向树").onclick?.();
     getButton(container, "打开").onclick?.();
+    getButton(container, "撤销").onclick?.();
+    getButton(container, "重做").onclick?.();
 
     const input = getInput(container);
     input.value = "child";
@@ -72,6 +78,8 @@ describe("createMindmapToolbar", () => {
 
     expect(onChangeLayoutMode).toHaveBeenCalledWith("tree-right");
     expect(onOpenMindmap).toHaveBeenCalledTimes(1);
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onRedo).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith("child");
     expect(onSearchSubmit).toHaveBeenCalledTimes(1);
     expect(enter.defaultPrevented).toBe(true);
@@ -81,11 +89,15 @@ describe("createMindmapToolbar", () => {
     toolbar.setLayoutMode("free");
     toolbar.setSaveStatus("Unsaved");
     toolbar.focusSearchInput();
+    toolbar.setCanUndo(true);
+    toolbar.setCanRedo(false);
 
     expect(getButton(container, "右向树").classNames.has("is-active")).toBe(false);
     expect(getButton(container, "自由布局").classNames.has("is-active")).toBe(true);
     expect(getSaveStatus(container).textContent).toBe("Unsaved");
     expect(input.focused).toBe(true);
     expect(input.selected).toBe(true);
+    expect(getButton(container, "撤销").disabled).toBe(false);
+    expect(getButton(container, "重做").disabled).toBe(true);
   });
 });

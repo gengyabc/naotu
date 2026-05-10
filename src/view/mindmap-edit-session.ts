@@ -33,6 +33,7 @@ export class MindmapEditSession {
   private autosave: DebouncedAutosave;
   private history = new HistoryManager();
   private dirtyState = new DirtyStateManager();
+  private historyListeners = new Set<() => void>();
 
   constructor(
     private store: MindmapSessionDocumentStore,
@@ -62,12 +63,23 @@ export class MindmapEditSession {
     return this.dirtyState.subscribe(listener);
   }
 
+  subscribeHistory(listener: () => void): () => void {
+    this.historyListeners.add(listener);
+    return () => this.historyListeners.delete(listener);
+  }
+
+  private notifyHistoryListeners(): void {
+    for (const listener of this.historyListeners) listener();
+  }
+
   clearHistory(): void {
     this.history.clear();
+    this.notifyHistoryListeners();
   }
 
   commitHistory(): void {
     this.history.push(this.store.getDocument());
+    this.notifyHistoryListeners();
   }
 
   markDirty(): void {
@@ -86,12 +98,22 @@ export class MindmapEditSession {
     const previous = this.history.undo(this.store.getDocument());
     if (!previous) return;
     this.applyReplacedDocument(this.options.relayoutDocument(previous), { commitHistory: false });
+    this.notifyHistoryListeners();
   }
 
   redo(): void {
     const next = this.history.redo(this.store.getDocument());
     if (!next) return;
     this.applyReplacedDocument(this.options.relayoutDocument(next), { commitHistory: false });
+    this.notifyHistoryListeners();
+  }
+
+  canUndo(): boolean {
+    return this.history.canUndo();
+  }
+
+  canRedo(): boolean {
+    return this.history.canRedo();
   }
 
   applyDocumentChange(mutator: () => void, options?: DocumentChangeOptions): void {

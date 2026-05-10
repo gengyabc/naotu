@@ -5,6 +5,7 @@ export class FakeElement {
   tabIndex = 0;
   focused = false;
   selected = false;
+  disabled = false;
   children: FakeElement[] = [];
   parentElement: FakeElement | null = null;
   classNames = new Set<string>();
