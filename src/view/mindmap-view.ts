@@ -100,7 +100,6 @@ export class MindmapView extends ItemView {
       focusNode: (id) => this.rendererCoordinator.focusNode(id),
       setLastFocusNodeId: (id) => this.rendererCoordinator.setLastFocusNodeId(id),
       setSearchResultIds: (ids) => this.rendererCoordinator.setSearchResultIds(ids),
-      setConnectionState: (state) => this.rendererCoordinator.setConnectionState(state),
       focusCanvas: () => this.canvasEl?.focus(),
       focusSearchInput: () => this.toolbar?.focusSearchInput(),
       startInlineEdit: (id) => this.rendererCoordinator.startInlineEditByNodeId(id),
@@ -112,10 +111,6 @@ export class MindmapView extends ItemView {
       deleteSelectedNodes: () => this.deleteSelectedNodes(),
       undo: () => this.undo(),
       redo: () => this.redo(),
-      commitHistory: () => this.editSession.commitHistory(),
-      addReferenceEdge: (sourceId, targetId) => {
-        this.store.addEdge({ source: sourceId, target: targetId, relation: "reference", type: "curve" });
-      },
       applyTreeControls: (controls) => this.store.applyTreeControls(controls),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
     });
@@ -314,7 +309,6 @@ export class MindmapView extends ItemView {
     this.toolbar = createMindmapToolbar(this.contentEl, {
       layoutMode: this.store.getDocument().layoutMode,
       searchQuery: this.interactions.getSearchQuery(),
-      connectionMode: this.interactions.isConnectionMode(),
       saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
       onAddNode: () => this.addTextNode(),
       onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
@@ -327,10 +321,6 @@ export class MindmapView extends ItemView {
       onExportPng: () => void this.exportPng(),
       onSearchChange: (query) => this.updateSearch(query),
       onSearchSubmit: () => this.focusFirstSearchResult(),
-      onToggleConnectionMode: () => {
-        this.toggleConnectionMode();
-        this.toolbar?.setConnectionMode(this.interactions.isConnectionMode());
-      },
     });
 
     this.unsubscribeDirtyState?.();
@@ -347,7 +337,6 @@ export class MindmapView extends ItemView {
     this.rendererCoordinator.mount(canvas);
     this.notebookActions.applyMissingNotebookNodeIds();
     this.rendererCoordinator.setSearchResultIds(this.interactions.getSearchResultIds());
-    this.rendererCoordinator.setConnectionState(this.interactions.getConnectionState());
     this.rendererCoordinator.render();
   }
 
@@ -631,10 +620,6 @@ export class MindmapView extends ItemView {
 
   handleLayoutSettingsChanged(): void {
     this.treeActions.handleLayoutSettingsChanged();
-  }
-
-  private toggleConnectionMode(): void {
-    this.interactions.toggleConnectionMode();
   }
 
   private openEdgeContextMenu(edgeId: string, x: number, y: number): void {

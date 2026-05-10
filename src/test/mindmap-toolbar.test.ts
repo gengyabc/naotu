@@ -95,13 +95,11 @@ describe("createMindmapToolbar", () => {
     const onExportPng = vi.fn();
     const onSearchChange = vi.fn();
     const onSearchSubmit = vi.fn();
-    const onToggleConnectionMode = vi.fn();
 
     const container = new FakeElement("div");
     const toolbar = createMindmapToolbar(container as never, {
       layoutMode: "tree-right",
       searchQuery: "root",
-      connectionMode: true,
       saveStatus: "Saved",
       onAddNode,
       onChangeLayoutMode,
@@ -111,7 +109,6 @@ describe("createMindmapToolbar", () => {
       onExportPng,
       onSearchChange,
       onSearchSubmit,
-      onToggleConnectionMode,
     });
 
     getButton(container, "新增节点").onclick?.();
@@ -120,7 +117,6 @@ describe("createMindmapToolbar", () => {
     getButton(container, "保存").onclick?.();
     getButton(container, "导出 SVG").onclick?.();
     getButton(container, "导出 PNG").onclick?.();
-    getButton(container, "连线").onclick?.();
 
     const input = getInput(container);
     input.value = "child";
@@ -134,24 +130,18 @@ describe("createMindmapToolbar", () => {
     expect(onSaveMindmap).toHaveBeenCalledTimes(1);
     expect(onExportSvg).toHaveBeenCalledTimes(1);
     expect(onExportPng).toHaveBeenCalledTimes(1);
-    expect(onToggleConnectionMode).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith("child");
     expect(onSearchSubmit).toHaveBeenCalledTimes(1);
     expect(enter.defaultPrevented).toBe(true);
 
     expect(getButton(container, "右向树").classNames.has("is-active")).toBe(true);
-    expect(getButton(container, "连线").classNames.has("is-active")).toBe(true);
-    expect(getButton(container, "连线").attributes.get("aria-pressed")).toBe("true");
 
     toolbar.setLayoutMode("free");
-    toolbar.setConnectionMode(false);
     toolbar.setSaveStatus("Unsaved");
     toolbar.focusSearchInput();
 
     expect(getButton(container, "右向树").classNames.has("is-active")).toBe(false);
     expect(getButton(container, "自由布局").classNames.has("is-active")).toBe(true);
-    expect(getButton(container, "连线").classNames.has("is-active")).toBe(false);
-    expect(getButton(container, "连线").attributes.get("aria-pressed")).toBe("false");
     expect(getSaveStatus(container).textContent).toBe("Unsaved");
     expect(input.focused).toBe(true);
     expect(input.selected).toBe(true);

@@ -186,12 +186,6 @@
   stroke-width: 3px;
 }
 
-.mindmap-node.is-connection-source .mindmap-node-bg {
-  stroke: var(--interactive-accent);
-  stroke-width: 3px;
-  stroke-dasharray: 4 3;
-}
-
 .mindmap-node.is-missing-notebook .mindmap-node-bg {
   stroke: var(--text-error);
   stroke-width: 2.5px;

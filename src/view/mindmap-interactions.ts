@@ -22,7 +22,6 @@ type MindmapInteractionOptions = {
   focusNode(nodeId: string): void;
   setLastFocusNodeId(nodeId: string): void;
   setSearchResultIds(ids: Set<string>): void;
-  setConnectionState(state: { enabled: boolean; sourceId?: string }): void;
   focusCanvas(): void;
   focusSearchInput(): void;
   startInlineEdit(nodeId: string): void;
@@ -34,8 +33,6 @@ type MindmapInteractionOptions = {
   deleteSelectedNodes(): void;
   undo(): void;
   redo(): void;
-  commitHistory(): void;
-  addReferenceEdge(sourceId: string, targetId: string): void;
   applyTreeControls(controls: Map<string, MindmapDocument["nodes"][number]["treeControl"]>): void;
   applyDocumentChange(mutator: () => void, options?: ApplyDocumentChangeOptions): void;
 };
@@ -43,8 +40,6 @@ type MindmapInteractionOptions = {
 export class MindmapInteractions {
   private searchQuery = "";
   private searchResultIds = new Set<string>();
-  private connectionMode = false;
-  private connectionSourceId: string | undefined;
   private subtreeVirtualZoomState: { nodeId: string; zoom: number } | null = null;
 
   constructor(private options: MindmapInteractionOptions) {}
@@ -57,23 +52,8 @@ export class MindmapInteractions {
     return this.searchResultIds;
   }
 
-  isConnectionMode(): boolean {
-    return this.connectionMode;
-  }
-
-  getConnectionState(): { enabled: boolean; sourceId?: string } {
-    return { enabled: this.connectionMode, sourceId: this.connectionSourceId };
-  }
-
   getSubtreeVirtualZoomState(): { nodeId: string; zoom: number } | null {
     return this.subtreeVirtualZoomState;
-  }
-
-  toggleConnectionMode(): void {
-    this.connectionMode = !this.connectionMode;
-    this.connectionSourceId = undefined;
-    this.options.setConnectionState(this.getConnectionState());
-    this.options.render();
   }
 
   updateSearch(query: string): void {
@@ -196,7 +176,6 @@ export class MindmapInteractions {
   }
 
   handleNodeSelection(id: string, mode: SelectionMode): void {
-    if (this.handleNodeSelectedForConnection(id)) return;
     if (mode === "replace") this.setSelectionOnly(id);
     if (mode === "toggle") this.toggleSelection(id);
     if (mode === "add") this.addSelection(id);
@@ -304,33 +283,5 @@ export class MindmapInteractions {
     const node = this.options.getDocument().nodes.find((item) => item.id === id);
     if (node?.kind === "notebook" && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)) return;
     this.options.startInlineEdit(id);
-  }
-
-  private handleNodeSelectedForConnection(id: string): boolean {
-    if (!this.connectionMode) return false;
-
-    if (!this.connectionSourceId) {
-      this.connectionSourceId = id;
-      this.options.setConnectionState(this.getConnectionState());
-      this.options.render();
-      return true;
-    }
-
-    if (this.connectionSourceId === id) {
-      this.connectionSourceId = undefined;
-      this.options.setConnectionState(this.getConnectionState());
-      this.options.render();
-      return true;
-    }
-
-    this.options.commitHistory();
-    this.options.applyDocumentChange(() => {
-      this.options.addReferenceEdge(this.connectionSourceId!, id);
-    }, { commitHistory: false });
-
-    this.connectionSourceId = undefined;
-    this.options.setConnectionState(this.getConnectionState());
-    this.options.render();
-    return true;
   }
 }

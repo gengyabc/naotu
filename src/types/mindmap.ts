@@ -102,7 +102,6 @@ export interface ProjectedNode {
   isHovered: boolean;
   isAncestorPath: boolean;
   isSearchMatch?: boolean;
-  isConnectionSource?: boolean;
   hasChildren: boolean;
   childrenExpanded: boolean;
   showOpenNotebookButton: boolean;

@@ -84,8 +84,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected readonly forcedDetailLevel = new Map<string, NodeDetailLevel>();
   protected frozenNotebookLevels = new Map<string, NodeDetailLevel>();
   protected searchResultIds = new Set<string>();
-  protected connectionEnabled = false;
-  protected connectionSourceId: string | undefined;
   protected selecting = false;
   protected selectionStartWorld: { x: number; y: number } | null = null;
   protected dragging = false;
@@ -161,11 +159,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
   setSearchResultIds(ids: Set<string>): void {
     this.searchResultIds = new Set(ids);
-  }
-
-  setConnectionState(state: { enabled: boolean; sourceId?: string }): void {
-    this.connectionEnabled = state.enabled;
-    this.connectionSourceId = state.sourceId;
   }
 
   setMissingNotebookNodeIds(ids: Set<string>): void {
@@ -360,7 +353,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       },
       {
         searchResultIds: this.searchResultIds,
-        connectionSourceId: this.connectionEnabled ? this.connectionSourceId : undefined,
         forcedDetailLevels: this.forcedDetailLevel,
         prevFrozenNotebookLevels: this.frozenNotebookLevels,
         nextFrozenNotebookLevels,

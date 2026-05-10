@@ -19,7 +19,6 @@ import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
-  connectionSourceId?: string;
   forcedDetailLevels?: ReadonlyMap<string, NodeDetailLevel>;
   prevFrozenNotebookLevels?: ReadonlyMap<string, NodeDetailLevel>;
   nextFrozenNotebookLevels?: Map<string, NodeDetailLevel>;
@@ -133,7 +132,6 @@ export function createSemanticProjection(
       isHovered,
       isAncestorPath,
       isSearchMatch: extra.searchResultIds?.has(node.id) ?? false,
-      isConnectionSource: extra.connectionSourceId === node.id,
       hasChildren: children.length > 0,
       childrenExpanded,
       showOpenNotebookButton: node.kind === "notebook" && detail >= 4 && Boolean(node.notebook?.link),

@@ -307,7 +307,6 @@ export function renderProjectedNodes(args: {
     group.classed("is-selected", node.isSelected);
     group.classed("is-ancestor-path", node.isAncestorPath);
     group.classed("is-search-match", Boolean(node.isSearchMatch));
-    group.classed("is-connection-source", Boolean(node.isConnectionSource));
     group.classed("is-missing-notebook", Boolean(node.isMissingNotebook));
 
     group.select<SVGRectElement>("rect.mindmap-node-bg").attr("width", node.displayWidth).attr("height", node.displayHeight);

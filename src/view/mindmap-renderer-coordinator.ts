@@ -53,7 +53,6 @@ export class MindmapRendererCoordinator {
   private minimap: MinimapRenderer | null = null;
   private searchResultIds = new Set<string>();
   private missingNotebookNodeIds = new Set<string>();
-  private connectionState: { enabled: boolean; sourceId?: string } = { enabled: false };
 
   constructor(private options: MindmapRendererCoordinatorOptions) {}
 
@@ -102,7 +101,6 @@ export class MindmapRendererCoordinator {
 
     this.renderer.mount();
     this.renderer.setSearchResultIds(this.searchResultIds);
-    this.renderer.setConnectionState(this.connectionState);
     this.renderer.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
     this.renderer.render();
 
@@ -142,11 +140,6 @@ export class MindmapRendererCoordinator {
   setSearchResultIds(ids: Set<string>): void {
     this.searchResultIds = new Set(ids);
     this.renderer?.setSearchResultIds(this.searchResultIds);
-  }
-
-  setConnectionState(state: { enabled: boolean; sourceId?: string }): void {
-    this.connectionState = { ...state };
-    this.renderer?.setConnectionState(this.connectionState);
   }
 
   setMissingNotebookNodeIds(ids: Set<string>): void {

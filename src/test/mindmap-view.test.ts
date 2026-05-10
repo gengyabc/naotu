@@ -17,7 +17,6 @@ const hoisted = vi.hoisted(() => {
     setLastFocusNodeId = vi.fn();
     forceDetailLevel = vi.fn();
     setSearchResultIds = vi.fn();
-    setConnectionState = vi.fn();
     setMissingNotebookNodeIds = vi.fn();
     startInlineEditByNodeId = vi.fn();
     zoomBy = vi.fn();
@@ -705,20 +704,6 @@ describe("MindmapView", () => {
 
     expect(getDocument(harness.view).edges.find((edge) => edge.id === "edge1")).toBeUndefined();
     expect(getDirtyState(harness.view)).toBe("dirty");
-  });
-
-  it("creates a reference edge through connection mode", async () => {
-    const harness = createHarness();
-    await harness.view.setFile(harness.sourceFile);
-    const renderer = harness.getRenderer();
-
-    (harness.view as any).toggleConnectionMode();
-    renderer.options.onSelectNode("root", "replace");
-    renderer.options.onSelectNode("child", "replace");
-
-    const edge = getDocument(harness.view).edges.find((item) => item.relation === "reference");
-    expect(edge).toMatchObject({ source: "root", target: "child", relation: "reference" });
-    expect(renderer.setConnectionState).toHaveBeenCalledWith({ enabled: true, sourceId: undefined });
   });
 
   it("exports svg and png next to the source file", async () => {

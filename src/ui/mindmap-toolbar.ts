@@ -4,7 +4,6 @@ type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 export interface MindmapToolbar {
   setLayoutMode(mode: LayoutMode): void;
-  setConnectionMode(enabled: boolean): void;
   setSaveStatus(label: string): void;
   focusSearchInput(): void;
 }
@@ -12,7 +11,6 @@ export interface MindmapToolbar {
 export interface MindmapToolbarOptions {
   layoutMode: LayoutMode;
   searchQuery: string;
-  connectionMode: boolean;
   saveStatus: string;
   onAddNode(): void;
   onChangeLayoutMode(mode: LayoutMode): void;
@@ -22,7 +20,6 @@ export interface MindmapToolbarOptions {
   onExportPng(): void;
   onSearchChange(query: string): void;
   onSearchSubmit(): void;
-  onToggleConnectionMode(): void;
 }
 
 export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions): MindmapToolbar {
@@ -70,9 +67,6 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     }
   };
 
-  const connectButton = toolbar.createEl("button", { text: "连线" });
-  connectButton.onclick = () => options.onToggleConnectionMode();
-
   const saveStatusEl = toolbar.createSpan({
     cls: "mindmap-save-status",
     text: options.saveStatus,
@@ -84,17 +78,10 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     freeLayoutButton.toggleClass("is-active", mode === "free");
   };
 
-  const setConnectionMode = (enabled: boolean): void => {
-    connectButton.toggleClass("is-active", enabled);
-    setButtonA11y(connectButton, "连线模式", enabled);
-  };
-
   setLayoutMode(options.layoutMode);
-  setConnectionMode(options.connectionMode);
 
   return {
     setLayoutMode,
-    setConnectionMode,
     setSaveStatus(label): void {
       saveStatusEl.setText(label);
     },

@@ -10,7 +10,6 @@ export interface RendererAdapter {
   forceDetailLevel(nodeId: string, level: number): void;
 
   setSearchResultIds(ids: Set<string>): void;
-  setConnectionState(state: { enabled: boolean; sourceId?: string }): void;
 
   setMissingNotebookNodeIds?(ids: Set<string>): void;
   getLastProjectedNodes?(): ProjectedNode[];
