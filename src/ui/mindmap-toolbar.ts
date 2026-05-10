@@ -1,5 +1,3 @@
-import { setButtonA11y } from "../core/accessibility";
-
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 export interface MindmapToolbar {
@@ -69,39 +67,33 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const openButton = toolbar.createEl("button");
   openButton.append(createToolbarIcon("folder-open"));
   openButton.appendText("打开");
-  setButtonA11y(openButton, "打开脑图");
   openButton.onclick = () => options.onOpenMindmap();
 
   const undoButton = toolbar.createEl("button");
   undoButton.append(createToolbarIcon("undo"));
   undoButton.appendText("撤销");
-  setButtonA11y(undoButton, "撤销");
   undoButton.title = `${modKey}+Z`;
   undoButton.onclick = () => options.onUndo();
 
   const redoButton = toolbar.createEl("button");
   redoButton.append(createToolbarIcon("redo"));
   redoButton.appendText("重做");
-  setButtonA11y(redoButton, "重做");
   redoButton.title = `${modKey}+Shift+Z`;
   redoButton.onclick = () => options.onRedo();
 
   const mirrorLayoutButton = toolbar.createEl("button");
   mirrorLayoutButton.append(createToolbarIcon("layout-mirror"));
   mirrorLayoutButton.appendText("镜像树");
-  setButtonA11y(mirrorLayoutButton, "镜像树布局");
   mirrorLayoutButton.onclick = () => options.onChangeLayoutMode("tree-mirror");
 
   const rightLayoutButton = toolbar.createEl("button");
   rightLayoutButton.append(createToolbarIcon("layout-right"));
   rightLayoutButton.appendText("右向树");
-  setButtonA11y(rightLayoutButton, "右向树布局");
   rightLayoutButton.onclick = () => options.onChangeLayoutMode("tree-right");
 
   const freeLayoutButton = toolbar.createEl("button");
   freeLayoutButton.append(createToolbarIcon("layout-free"));
   freeLayoutButton.appendText("自由布局");
-  setButtonA11y(freeLayoutButton, "自由布局");
   freeLayoutButton.onclick = () => options.onChangeLayoutMode("free");
 
   const searchWrapper = toolbar.createDiv({ cls: "mindmap-search-wrapper" });
@@ -110,6 +102,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     type: "text",
     placeholder: "搜索节点...",
   });
+  searchInput.title = `${modKey}+F`;
   searchInput.value = options.searchQuery;
   searchInput.oninput = () => options.onSearchChange(searchInput.value);
   searchInput.onkeydown = (event) => {
