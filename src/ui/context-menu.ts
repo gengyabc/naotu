@@ -2,6 +2,8 @@ import { Menu } from "obsidian";
 
 import type { NodeKind } from "../types/mindmap";
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
 interface MindmapNodeContextMenuOptions {
   nodeKind: NodeKind;
   onConvertNotebookToText(): void;
@@ -20,6 +22,7 @@ type ContextMenuItem = {
   icon: "unlink" | "plus" | "file" | "search" | "trash" | null;
   onClickCallback: (() => void) | null;
   separator?: boolean;
+  shortcut?: string;
 };
 
 const MENU_ICON_PATHS: Record<NonNullable<ContextMenuItem["icon"]>, string> = {
@@ -68,8 +71,8 @@ class MindmapContextMenu {
     if (event.key === "Escape") this.close();
   };
 
-  addItem(title: string, icon: NonNullable<ContextMenuItem["icon"]>, onClickCallback: () => void): this {
-    this.items.push({ title, icon, onClickCallback });
+  addItem(title: string, icon: NonNullable<ContextMenuItem["icon"]>, onClickCallback: () => void, shortcut?: string): this {
+    this.items.push({ title, icon, onClickCallback, shortcut });
     return this;
   }
 
@@ -109,6 +112,14 @@ class MindmapContextMenu {
       labelEl.textContent = item.title;
 
       buttonEl.append(iconEl, labelEl);
+
+      if (item.shortcut) {
+        const shortcutEl = document.createElement("span");
+        shortcutEl.className = "mindmap-context-menu-shortcut";
+        shortcutEl.textContent = item.shortcut;
+        buttonEl.append(shortcutEl);
+      }
+
       buttonEl.addEventListener("click", () => {
         this.close();
         item.onClickCallback?.();
@@ -174,8 +185,9 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): {
   }
 
   menu.addSeparator();
-  menu.addItem("删除（保留子节点）", "trash", () => options.onDeleteNode("promote"));
-  menu.addItem("删除（含子节点）", "trash", () => options.onDeleteNode("recursive"));
+  const delLabel = isMac ? "⌫" : "Del";
+  menu.addItem("删除（保留子节点）", "trash", () => options.onDeleteNode("promote"), delLabel);
+  menu.addItem("删除（含子节点）", "trash", () => options.onDeleteNode("recursive"), isMac ? "⇧⌫" : "Shift+Del");
   return menu;
 }
 

@@ -524,6 +524,12 @@
   flex: 1;
 }
 
+.mindmap-context-menu-shortcut {
+  margin-left: 16px;
+  color: var(--text-faint);
+  font-size: 0.8em;
+}
+
 .mindmap-context-menu-separator {
   height: 1px;
   margin: 6px 4px;
