@@ -5,6 +5,7 @@ import { migrateDocument } from "./document-migration";
 import { createId } from "./id";
 import { buildHierarchy } from "./hierarchy";
 import { toggleTreeControlFromCurrentState } from "./tree-control";
+import { getSubtreeNodeIds, findParentId } from "./tree-editing";
 
 export class MindmapDocumentStore {
   private file: TFile | null = null;
@@ -140,9 +141,42 @@ export class MindmapDocumentStore {
     this.emit();
   }
 
-  deleteNode(id: string): void {
+  deleteNode(id: string, mode: "promote" | "recursive" = "promote"): void {
+    if (mode === "recursive") {
+      this.deleteNodeRecursive(id);
+      return;
+    }
+
+    const parentId = findParentId(this.doc, id);
+    const childIds = this.doc.edges
+      .filter((edge) => edge.relation === "mindmap" && edge.source === id)
+      .map((edge) => edge.target);
+
     this.doc.nodes = this.doc.nodes.filter((node) => node.id !== id);
     this.doc.edges = this.doc.edges.filter((edge) => edge.source !== id && edge.target !== id);
+
+    if (parentId) {
+      for (const childId of childIds) {
+        this.doc.edges.push({
+          id: createId("edge"),
+          source: parentId,
+          target: childId,
+          relation: "mindmap",
+          type: "curve",
+        });
+      }
+    }
+
+    this.emit();
+  }
+
+  private deleteNodeRecursive(id: string): void {
+    const subtreeIds = getSubtreeNodeIds(this.doc, id);
+    const subtreeSet = new Set(subtreeIds);
+
+    this.doc.nodes = this.doc.nodes.filter((node) => !subtreeSet.has(node.id));
+    this.doc.edges = this.doc.edges.filter((edge) => !subtreeSet.has(edge.source) && !subtreeSet.has(edge.target));
+
     this.emit();
   }
 

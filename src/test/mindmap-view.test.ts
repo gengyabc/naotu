@@ -449,6 +449,77 @@ describe("MindmapView", () => {
     expect(getDocument(harness.view).nodes.length).toBe(nodeCountAfterAdd);
   });
 
+  it("deletes node recursively with Shift+Delete", async () => {
+    const harness = createHarness({
+      document: {
+        version: 1,
+        title: "Test",
+        layoutMode: "free",
+        viewport: { x: 0, y: 0, zoom: 1 },
+        nodes: [
+          { id: "root", kind: "text", title: "Root", x: 0, y: 0, width: 100, height: 50, treeControl: "manual-expanded" },
+          { id: "parent", kind: "text", title: "Parent", x: 100, y: 0, width: 100, height: 50, treeControl: "manual-expanded" },
+          { id: "child", kind: "text", title: "Child", x: 200, y: 0, width: 100, height: 50, treeControl: "auto" },
+        ],
+        edges: [
+          { id: "e1", source: "root", target: "parent", relation: "mindmap", type: "curve" },
+          { id: "e2", source: "parent", target: "child", relation: "mindmap", type: "curve" },
+        ],
+      },
+    });
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).setSelectionOnly("parent");
+    const nodeCountBeforeShiftDelete = getDocument(harness.view).nodes.length;
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "Delete", shiftKey: true, target: harness.view.contentEl as never }));
+    expect(getDocument(harness.view).nodes.length).toBe(nodeCountBeforeShiftDelete - 2);
+    expect(getDocument(harness.view).nodes.map((n) => n.id)).toEqual(["root"]);
+  });
+
+  it("deletes the right-clicked node when it is not currently selected", async () => {
+    const harness = createHarness({
+      document: {
+        version: 1,
+        title: "Test",
+        layoutMode: "free",
+        viewport: { x: 0, y: 0, zoom: 1 },
+        nodes: [
+          { id: "root", kind: "text", title: "Root", x: 0, y: 0, width: 100, height: 50, treeControl: "manual-expanded" },
+          { id: "parent", kind: "text", title: "Parent", x: 100, y: 0, width: 100, height: 50, treeControl: "manual-expanded" },
+          { id: "sibling", kind: "text", title: "Sibling", x: 100, y: 80, width: 100, height: 50, treeControl: "auto" },
+        ],
+        edges: [
+          { id: "e1", source: "root", target: "parent", relation: "mindmap", type: "curve" },
+          { id: "e2", source: "root", target: "sibling", relation: "mindmap", type: "curve" },
+        ],
+      },
+    });
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).setSelectionOnly("parent");
+    (harness.view as any).openContextMenu("sibling", 10, 10);
+
+    expect(getSelection(harness.view)).toEqual(["sibling"]);
+
+    const deleteItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
+      ?.find((item: { title: string }) => item.title === "删除（保留子节点）");
+    deleteItem?.onClickCallback?.();
+
+    expect(getDocument(harness.view).nodes.map((node) => node.id).sort()).toEqual(["root", "parent"].sort());
+  });
+
+  it("closes the custom context menu when the view closes", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).openContextMenu("child", 10, 10);
+    expect((Menu as any).lastShown).not.toBeNull();
+
+    await harness.view.onClose();
+
+    expect((Menu as any).lastShown).toBeNull();
+  });
+
   it("focuses the first search result", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);

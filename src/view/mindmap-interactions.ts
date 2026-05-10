@@ -30,7 +30,7 @@ type MindmapInteractionOptions = {
   addChildNode(): void;
   addSiblingNode(): void;
   toggleSelectedTree(): void;
-  deleteSelectedNodes(): void;
+  deleteSelectedNodes(mode?: "promote" | "recursive"): void;
   undo(): void;
   redo(): void;
   applyTreeControls(controls: Map<string, MindmapDocument["nodes"][number]["treeControl"]>): void;
@@ -165,7 +165,8 @@ export class MindmapInteractions {
 
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
-      this.options.deleteSelectedNodes();
+      const mode = event.shiftKey ? "recursive" : "promote";
+      this.options.deleteSelectedNodes(mode);
       return;
     }
 

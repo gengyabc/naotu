@@ -21,7 +21,7 @@ import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
 import { createMindmapToolbar, type MindmapToolbar } from "../ui/mindmap-toolbar";
-import { createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
+import { closeActiveContextMenu, createEdgeContextMenu, createNodeContextMenu } from "../ui/context-menu";
 import { MindmapEditSession } from "./mindmap-edit-session";
 import { MindmapInteractions } from "./mindmap-interactions";
 import { MindmapNotebookActions } from "./mindmap-notebook-actions";
@@ -107,7 +107,7 @@ export class MindmapView extends ItemView {
       addChildNode: () => this.addChildNode(),
       addSiblingNode: () => this.addSiblingNode(),
       toggleSelectedTree: () => this.toggleSelectedTree(),
-      deleteSelectedNodes: () => this.deleteSelectedNodes(),
+      deleteSelectedNodes: (mode) => this.deleteSelectedNodes(mode),
       undo: () => this.undo(),
       redo: () => this.redo(),
       applyTreeControls: (controls) => this.store.applyTreeControls(controls),
@@ -263,6 +263,7 @@ export class MindmapView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    closeActiveContextMenu();
     await this.editSession.flushAutosave();
     this.rendererCoordinator.dispose();
     this.unsubscribeDirtyState?.();
@@ -428,6 +429,11 @@ export class MindmapView extends ItemView {
     const node = this.store.getDocument().nodes.find((item) => item.id === id);
     if (!node) return;
 
+    if (!this.selection.has(id)) {
+      this.setSelectionOnly(id);
+      this.rendererCoordinator.render();
+    }
+
     createNodeContextMenu({
       nodeKind: node.kind,
       onConvertNotebookToText: () => this.convertNotebookToText(id),
@@ -436,6 +442,7 @@ export class MindmapView extends ItemView {
       },
       onBindExistingNotebook: () => this.notebookActions.bindExistingNotebook(node.id),
       onRebindNotebook: () => this.notebookActions.rebindNotebook(node.id),
+      onDeleteNode: (mode) => this.deleteSelectedNodes(mode),
     }).showAtPosition({ x, y });
   }
 
@@ -466,12 +473,12 @@ export class MindmapView extends ItemView {
     this.editSession.applyReplacedDocument(doc, options);
   }
 
-  private deleteSelectedNodes(): void {
+  private deleteSelectedNodes(mode: "promote" | "recursive" = "promote"): void {
     const ids = this.selection.getIds();
     if (ids.length === 0) return;
 
     this.applyDocumentChange(() => {
-      for (const id of ids) this.store.deleteNode(id);
+      for (const id of ids) this.store.deleteNode(id, mode);
     });
 
     this.clearSelection();

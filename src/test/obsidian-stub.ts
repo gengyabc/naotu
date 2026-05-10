@@ -229,8 +229,8 @@ class MenuItem {
   icon = "";
   onClickCallback: (() => void) | null = null;
 
-  setTitle(title: string): this {
-    this.title = title;
+  setTitle(title: string | { textContent?: string | null }): this {
+    this.title = typeof title === "string" ? title : title.textContent ?? "";
     return this;
   }
 
