@@ -34,16 +34,16 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): M
       item.setTitle("创建 notebook").setIcon("file-plus").onClick(() => options.onCreateNotebook());
     });
     menu.addItem((item) => {
-      item.setTitle("选择已有 notebook...").setIcon("file-text").onClick(() => options.onBindExistingNotebook());
+      item.setTitle("选择已有文件...").setIcon("file-text").onClick(() => options.onBindExistingNotebook());
     });
   }
 
   if (options.nodeKind === "notebook") {
     menu.addItem((item) => {
-      item.setTitle("预览 notebook").setIcon("scan-search").onClick(() => options.onPreviewNotebook());
+      item.setTitle("预览文件").setIcon("scan-search").onClick(() => options.onPreviewNotebook());
     });
     menu.addItem((item) => {
-      item.setTitle("重新选择 notebook...").setIcon("file-search").onClick(() => options.onRebindNotebook());
+      item.setTitle("重新选择文件...").setIcon("file-search").onClick(() => options.onRebindNotebook());
     });
   }
 

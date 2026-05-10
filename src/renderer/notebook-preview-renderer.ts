@@ -1,6 +1,8 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
+import { buildEmbeddedPreviewMarkdown } from "../core/file-node-support";
+import { resolveObsidianLinkFile } from "../core/obsidian-link";
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 const wheelBindingByElement = new WeakSet<HTMLDivElement>();
@@ -13,6 +15,7 @@ interface PreviewRenderState {
   link: string;
   sourcePath: string;
   storedPath?: string;
+  targetKind?: "markdown" | "image" | "excalidraw";
   previewHeight: number;
   component: Component;
   sourceKey: string;
@@ -46,6 +49,7 @@ export async function renderNotebookPreview(args: {
   link: string;
   sourcePath: string;
   storedPath?: string;
+  targetKind?: "markdown" | "image" | "excalidraw";
   previewHeight: number;
   component: Component;
 }): Promise<void> {
@@ -64,6 +68,7 @@ export async function renderNotebookPreview(args: {
     wrapper.className = "mindmap-preview-wrapper";
     args.foreignObject.appendChild(wrapper);
   }
+  wrapper.style.pointerEvents = (args.targetKind ?? "markdown") === "markdown" ? "auto" : "none";
   if (!wheelBindingByElement.has(wrapper)) {
     wrapper.addEventListener("wheel", (event) => {
       if (shouldKeepWheelWithinPreview(wrapper, event.deltaY)) {
@@ -85,6 +90,7 @@ export async function renderNotebookPreview(args: {
     link: args.link,
     sourcePath: args.sourcePath,
     storedPath: args.storedPath,
+    targetKind: args.targetKind,
     previewHeight: args.previewHeight,
     component: args.component,
     sourceKey,
@@ -121,6 +127,36 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
   const previousScrollTop = wrapper.scrollTop;
   wrapper.empty();
   try {
+    if ((state.targetKind ?? "markdown") !== "markdown") {
+      const resolved = resolveObsidianLinkFile({
+        app: state.app,
+        link: state.link,
+        sourcePath: state.sourcePath,
+        storedPath: state.storedPath,
+      });
+      if (!resolved) {
+        renderedKeyByElement.delete(foreignObject);
+        wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+        return;
+      }
+
+      const child = new Component();
+      state.component.addChild(child);
+      childComponentByElement.set(foreignObject, child);
+      state.requestedLines = maxLines;
+      state.totalLines = maxLines;
+
+      await MarkdownRenderer.render(
+        state.app,
+        buildEmbeddedPreviewMarkdown(resolved.path),
+        wrapper,
+        state.sourcePath,
+        child,
+      );
+      wrapper.scrollTop = previousScrollTop;
+      return;
+    }
+
     const result = await readNotebookPreviewMarkdown({
       app: state.app,
       link: state.link,

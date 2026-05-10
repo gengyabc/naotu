@@ -34,7 +34,7 @@ type MindmapRendererCoordinatorOptions = {
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
-  onInlineTitleCommit: (id: string, title: string) => Promise<void>;
+  onInlineTextCommit: (id: string, title: string) => Promise<void>;
   onContextMenu: (id: string, x: number, y: number) => void;
   onEdgeContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
@@ -85,7 +85,7 @@ export class MindmapRendererCoordinator {
       onSelectNode: this.options.onSelectNode,
       onToggleTree: this.options.onToggleTree,
       onOpenNotebook: this.options.onOpenNotebook,
-      onInlineTitleCommit: this.options.onInlineTitleCommit,
+      onInlineTextCommit: this.options.onInlineTextCommit,
       onContextMenu: this.options.onContextMenu,
       onEdgeContextMenu: this.options.onEdgeContextMenu,
       onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,

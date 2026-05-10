@@ -6,6 +6,7 @@ import { getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-
 
 interface FakeWrapper {
   className: string;
+  style: { pointerEvents?: string };
   scrollTop: number;
   clientHeight: number;
   scrollHeight: number;
@@ -25,6 +26,7 @@ interface FakeForeignObject {
 function createWrapper(): FakeWrapper {
   return {
     className: "",
+    style: {},
     scrollTop: 20,
     clientHeight: 100,
     scrollHeight: 300,
@@ -591,6 +593,106 @@ describe("renderNotebookPreview", () => {
       });
 
       expect(read).toHaveBeenCalledTimes(1);
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("renders embedded markdown for image targets using mindmap source path", async () => {
+    globalPreviewCache.clear();
+
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const imageFile = createFile("assets/photo.png", "photo");
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(imageFile),
+          read: vi.fn(),
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi.fn().mockReturnValue(imageFile),
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[photo.png]]",
+        sourcePath: "maps/source.naotu",
+        targetKind: "image",
+        previewHeight: 120,
+        component,
+      });
+
+      expect(wrapper.renderedMarkdown).toBe("![[assets/photo.png]]");
+      expect(wrapper.renderedSourcePath).toBe("maps/source.naotu");
+      expect(wrapper.style.pointerEvents).toBe("none");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("keeps markdown preview wrappers interactive", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nBody");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        targetKind: "markdown",
+        previewHeight: 120,
+        component,
+      });
+
+      expect(wrapper.style.pointerEvents).toBe("auto");
 
       component.unload();
     } finally {

@@ -78,4 +78,72 @@ describe("NotebookService", () => {
     expect(service.resolveNotebookFile(node, "maps/source.naotu")).toBe(storedFile);
     expect(lookup).not.toHaveBeenCalled();
   });
+
+  it("binds image and excalidraw files with filename fallback titles", () => {
+    const service = new NotebookService({ vault: {}, metadataCache: {} } as never);
+    const image = createFile("assets/photo.png", "photo");
+    const excalidraw = createFile("assets/diagram.excalidraw.md", "diagram.excalidraw");
+
+    const imagePatch = service.bindExistingFileNode(image, "image");
+    expect(imagePatch.title).toBe("photo.png");
+    expect(imagePatch.notebook?.link).toBe("[[photo.png]]");
+    expect(imagePatch.notebook?.targetKind).toBe("image");
+
+    const excalidrawPatch = service.bindExistingFileNode(excalidraw, "excalidraw");
+    expect(excalidrawPatch.title).toBe("diagram.excalidraw.md");
+    expect(excalidrawPatch.notebook?.link).toBe("[[diagram.excalidraw.md]]");
+    expect(excalidrawPatch.notebook?.targetKind).toBe("excalidraw");
+  });
+
+  it("binds markdown files as notebook targets without custom fallback filenames", () => {
+    const service = new NotebookService({ vault: {}, metadataCache: {} } as never);
+    const markdown = createFile("notes/topic.md", "topic");
+
+    const patch = service.bindExistingFileNode(markdown, "markdown");
+
+    expect(patch.title).toBe("topic");
+    expect(patch.notebook?.targetKind).toBe("markdown");
+    expect(patch.notebook?.path).toBe("notes/topic.md");
+  });
+
+  it("syncs moved embedded file nodes using the stored filename link", async () => {
+    const movedFile = createFile("archive/photo.png", "photo");
+    const lookup = vi.fn().mockReturnValue(movedFile);
+    const service = new NotebookService({
+      vault: {
+        getAbstractFileByPath: vi.fn().mockReturnValue(null),
+      },
+      metadataCache: {
+        getFirstLinkpathDest: lookup,
+      },
+    } as never);
+
+    const node: MindmapNode = {
+      id: "n1",
+      kind: "notebook",
+      title: "photo.png",
+      x: 0,
+      y: 0,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+      notebook: {
+        link: "[[photo.png]]",
+        path: "assets/photo.png",
+        targetType: "file",
+        targetKind: "image",
+      },
+      link: "[[photo.png]]",
+    };
+
+    await expect(service.syncNotebookPathIfMoved(node, "maps/source.naotu")).resolves.toEqual({
+      notebook: {
+        link: "[[photo.png]]",
+        path: "archive/photo.png",
+        targetType: "file",
+        targetKind: "image",
+      },
+    });
+    expect(lookup).toHaveBeenCalledWith("photo.png", "maps/source.naotu");
+  });
 });

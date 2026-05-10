@@ -8,7 +8,7 @@ import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport
 import type { MindmapDocument, NodeDetailLevel, ProjectedNode, Rect } from "../types/mindmap";
 import type { SemanticMindmapSettings } from "../types/settings";
 import { renderProjectedEdges } from "./projected-edge-renderer";
-import { renderProjectedNodes } from "./projected-node-renderer";
+import { canInlineEditNodeTitle, renderProjectedNodes } from "./projected-node-renderer";
 import type { RendererAdapter } from "./renderer-adapter";
 import { InlineTitleEditor } from "./inline-title-editor";
 
@@ -25,7 +25,7 @@ export type MindmapRendererOptions = {
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
-  onInlineTitleCommit: (id: string, title: string) => Promise<void>;
+  onInlineTextCommit: (id: string, title: string) => Promise<void>;
   onContextMenu: (id: string, x: number, y: number) => void;
   onEdgeContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
@@ -200,6 +200,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   startInlineEditByNodeId(nodeId: string): void {
     const node = this.lastProjectedNodes.find((item) => item.id === nodeId);
     if (!node) return;
+    if (!canInlineEditNodeTitle(node)) return;
 
     const transform = d3.zoomTransform(this.svg.node()!);
     const screenX = node.projectedX * transform.k + transform.x;
@@ -397,8 +398,8 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       y: rect.y,
       width: rect.width,
       value: node.title,
-      onCommit: async (value) => {
-        await this.options.onInlineTitleCommit(node.id, value);
+      onCommitText: async (value) => {
+        await this.options.onInlineTextCommit(node.id, value);
       },
       onCancel: () => {},
     }).open();

@@ -15,6 +15,7 @@ import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
 import { getTextNodeDisplaySize } from "./text-layout";
+import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -257,7 +258,8 @@ function resolveProjectedDisplaySize(args: {
   detail: NodeDetailLevel;
 }): { width: number; height: number; usesCustomSize: boolean } {
   const customSize = args.node.kind === "notebook" ? getCustomNotebookSize(args.node) : null;
-  if (customSize && args.detail >= 4) {
+  const preserveEmbeddedFilePreviewSize = args.node.kind === "notebook" && isEmbeddedFileNodeTargetKind(args.node.notebook?.targetKind);
+  if (customSize && (args.detail >= 4 || preserveEmbeddedFilePreviewSize)) {
     return {
       width: customSize.width,
       height: customSize.height,

@@ -318,3 +318,18 @@
   font-size: 12px;
   font-family: var(--font-interface);
 }
+
+.mindmap-file-binding-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px 0;
+}
+
+.mindmap-file-binding-filter {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}

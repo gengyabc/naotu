@@ -378,6 +378,42 @@ describe("createSemanticProjection", () => {
     expect(child?.usesCustomSize).toBe(true);
   });
 
+  it("keeps embedded file notebooks at preview size after focus moves away", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "![[assets/photo.png]]", path: "assets/photo.png", targetType: "file", targetKind: "image" },
+      link: "![[assets/photo.png]]",
+      customWidth: 360,
+      customHeight: 300,
+    };
+    doc.nodes.push({
+      id: "other",
+      kind: "text",
+      title: "Other",
+      x: 0,
+      y: 300,
+      width: 180,
+      height: 56,
+      treeControl: "auto",
+    });
+    doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["other"],
+      lastFocusNodeId: "other",
+    });
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.detailLevel).toBe(3);
+    expect(child?.displayWidth).toBe(360);
+    expect(child?.displayHeight).toBe(300);
+    expect(child?.usesCustomSize).toBe(true);
+  });
+
   it("scales notebook size by detail level", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {

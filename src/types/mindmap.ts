@@ -6,6 +6,7 @@ export type EdgeType = "line" | "curve";
 export type TreeControl = "auto" | "manual-expanded" | "manual-collapsed";
 export type LayoutMode = "tree-mirror" | "tree-right" | "free";
 export type NodeDetailLevel = 0 | 1 | 2 | 3 | 4 | 5;
+export type NotebookTargetKind = "markdown" | "image" | "excalidraw";
 
 export interface MindmapDocument {
   version: MindmapVersion;
@@ -47,6 +48,7 @@ export interface NotebookBinding {
   link: string;
   path?: string;
   targetType: "file" | "heading" | "block";
+  targetKind?: NotebookTargetKind;
 }
 
 export interface MindmapEdge {

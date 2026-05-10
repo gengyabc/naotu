@@ -6,7 +6,7 @@ export interface InlineTitleEditorOptions {
   y: number;
   width: number;
   value: string;
-  onCommit: (value: string) => Promise<void> | void;
+  onCommitText: (value: string) => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -96,7 +96,7 @@ export class InlineTitleEditor {
       return;
     }
 
-    await this.options.onCommit(value);
+    await this.options.onCommitText(value);
   }
 
   cancel(): void {

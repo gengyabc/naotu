@@ -5,18 +5,9 @@ import {
   getFileNodeTitle,
   getSupportedFileNodeTargetKind,
   isSupportedFileNodeTargetPath,
-  parseFileNodeEmbedInput,
 } from "../core/file-node-support";
 
 describe("file node support helpers", () => {
-  it("detects file embed mode only from the trimmed start of input", () => {
-    expect(parseFileNodeEmbedInput("![[cat")).toEqual({ query: "cat" });
-    expect(parseFileNodeEmbedInput("  ![[cat")).toEqual({ query: "cat" });
-    expect(parseFileNodeEmbedInput("![[")).toEqual({ query: "" });
-    expect(parseFileNodeEmbedInput("hello ![[cat")).toBeNull();
-    expect(parseFileNodeEmbedInput("[[cat")).toBeNull();
-  });
-
   it("recognizes supported image targets by extension", () => {
     expect(getSupportedFileNodeTargetKind("assets/photo.png")).toBe("image");
     expect(getSupportedFileNodeTargetKind("assets/photo.JPEG")).toBe("image");

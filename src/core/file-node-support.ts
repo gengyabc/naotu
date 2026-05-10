@@ -13,12 +13,6 @@ export const SUPPORTED_FILE_NODE_IMAGE_EXTENSIONS = [
 
 const SUPPORTED_IMAGE_EXTENSION_SET = new Set<string>(SUPPORTED_FILE_NODE_IMAGE_EXTENSIONS);
 
-export function parseFileNodeEmbedInput(input: string): { query: string } | null {
-  const trimmedStart = input.trimStart();
-  if (!trimmedStart.startsWith("![[")) return null;
-  return { query: trimmedStart.slice(3).trim() };
-}
-
 export function getSupportedFileNodeTargetKind(path: string): SupportedFileNodeTargetKind | null {
   const normalized = path.trim().toLowerCase();
   if (!normalized) return null;
@@ -32,6 +26,10 @@ export function getSupportedFileNodeTargetKind(path: string): SupportedFileNodeT
   }
 
   return null;
+}
+
+export function isEmbeddedFileNodeTargetKind(targetKind?: string): targetKind is SupportedFileNodeTargetKind {
+  return targetKind === "image" || targetKind === "excalidraw";
 }
 
 export function isSupportedFileNodeTargetPath(path: string): boolean {

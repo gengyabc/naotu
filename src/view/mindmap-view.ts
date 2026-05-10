@@ -10,6 +10,7 @@ import { MindmapDocumentStore } from "../core/document-store";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
 import { createId } from "../core/id";
+import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import {
   expandDraggedNodeMoves,
@@ -143,8 +144,8 @@ export class MindmapView extends ItemView {
       onOpenNotebook: (id) => {
         void this.notebookActions.openNotebook(id);
       },
-      onInlineTitleCommit: async (id, title) => {
-        await this.handleInlineTitleCommit(id, title);
+      onInlineTextCommit: async (id, title) => {
+        await this.handleInlineTextCommit(id, title);
       },
       onContextMenu: (id, x, y) => {
         this.openContextMenu(id, x, y);
@@ -448,7 +449,7 @@ export class MindmapView extends ItemView {
     this.notebookResizeSession = null;
   }
 
-  private async handleInlineTitleCommit(id: string, title: string): Promise<void> {
+  private async handleInlineTextCommit(id: string, title: string): Promise<void> {
     const node = this.store.getDocument().nodes.find((item) => item.id === id);
     if (!node) return;
 
@@ -459,7 +460,13 @@ export class MindmapView extends ItemView {
       return;
     }
 
+    if (isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)) return;
+
     await this.notebookActions.renameNotebookNode(id, title);
+  }
+
+  async handleVaultDelete(file: TFile): Promise<void> {
+    this.notebookActions.handleDeletedBoundFile(file);
   }
 
   private openContextMenu(id: string, x: number, y: number): void {

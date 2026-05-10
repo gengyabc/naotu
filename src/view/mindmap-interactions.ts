@@ -1,4 +1,5 @@
 import { findNearestNodeInDirection, findRootNodeId, type Direction } from "../core/keyboard-navigation";
+import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 import { searchNodes } from "../core/search";
 import { SelectionState } from "../core/selection";
 import { planSubtreeSemanticZoom } from "../core/subtree-semantic-zoom";
@@ -300,6 +301,8 @@ export class MindmapInteractions {
   private startEditingSelectedNode(): void {
     const id = this.options.selection.getIds()[0];
     if (!id) return;
+    const node = this.options.getDocument().nodes.find((item) => item.id === id);
+    if (node?.kind === "notebook" && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)) return;
     this.options.startInlineEdit(id);
   }
 

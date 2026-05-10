@@ -52,15 +52,20 @@ const hoisted = vi.hoisted(() => {
     }
   }
 
-  class FakeMarkdownFileSuggestModal {
-    static lastInstance: FakeMarkdownFileSuggestModal | null = null;
+  class FakeFileBindingSuggestModal {
+    static lastInstance: FakeFileBindingSuggestModal | null = null;
     opened = false;
+    filters = {
+      markdown: true,
+      image: true,
+      excalidraw: true,
+    };
 
     constructor(
       public app: unknown,
-      private onChoose: (file: TFile) => void,
+      private onChoose: (file: TFile, targetKind: "markdown" | "image" | "excalidraw") => void,
     ) {
-      FakeMarkdownFileSuggestModal.lastInstance = this;
+      FakeFileBindingSuggestModal.lastInstance = this;
     }
 
     open(): this {
@@ -68,8 +73,12 @@ const hoisted = vi.hoisted(() => {
       return this;
     }
 
-    choose(file: TFile): void {
-      this.onChoose(file);
+    choose(file: TFile, targetKind: "markdown" | "image" | "excalidraw"): void {
+      this.onChoose(file, targetKind);
+    }
+
+    setFilterEnabled(targetKind: "markdown" | "image" | "excalidraw", enabled: boolean): void {
+      this.filters[targetKind] = enabled;
     }
   }
 
@@ -99,7 +108,7 @@ const hoisted = vi.hoisted(() => {
   return {
     FakeSvgRenderer,
     FakeHybridRenderer,
-    FakeMarkdownFileSuggestModal,
+    FakeFileBindingSuggestModal,
     FakeMinimapRenderer,
     FakePerformanceDebugOverlay,
     renderMindmapToSvgString: vi.fn(() => "<svg />"),
@@ -124,7 +133,7 @@ vi.mock("../ui/performance-debug-overlay", () => ({
 }));
 
 vi.mock("../ui/file-suggest-modal", () => ({
-  MarkdownFileSuggestModal: hoisted.FakeMarkdownFileSuggestModal,
+  FileBindingSuggestModal: hoisted.FakeFileBindingSuggestModal,
 }));
 
 vi.mock("../renderer/export-renderer", () => ({
@@ -136,7 +145,7 @@ type FileRecord = {
   file: TFile;
   content?: string;
   binary?: ArrayBuffer;
-  cache?: { headings?: Array<{ heading?: string }>; blocks?: Record<string, unknown> };
+  cache?: { headings?: Array<{ heading?: string }>; blocks?: Record<string, unknown>; frontmatter?: Record<string, unknown> };
 };
 
 function serializeDocument(doc: MindmapDocument): string {
@@ -332,7 +341,7 @@ describe("MindmapView", () => {
     hoisted.FakeHybridRenderer.instances = [];
     hoisted.FakeMinimapRenderer.instances = [];
     hoisted.FakePerformanceDebugOverlay.instances = [];
-    hoisted.FakeMarkdownFileSuggestModal.lastInstance = null;
+    hoisted.FakeFileBindingSuggestModal.lastInstance = null;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
@@ -537,15 +546,15 @@ describe("MindmapView", () => {
 
     (harness.view as any).openContextMenu("child", 10, 10);
     const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
-      ?.find((item: { title: string }) => item.title === "选择已有 notebook...");
+      ?.find((item: { title: string }) => item.title === "选择已有文件...");
     bindItem?.onClickCallback?.();
-    hoisted.FakeMarkdownFileSuggestModal.lastInstance?.choose(notebookFile);
+    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(notebookFile, "markdown");
 
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
     expect(renderer.forceDetailLevel).toHaveBeenCalledWith("child", 5);
 
-    await (harness.view as any).handleInlineTitleCommit("child", "Renamed Topic");
+    await (harness.view as any).handleInlineTextCommit("child", "Renamed Topic");
     expect(harness.fileManager.renameFile).toHaveBeenCalledWith(notebookFile, "notes/Renamed Topic.md");
     expect(getDocument(harness.view).nodes.find((node) => node.id === "child")?.notebook?.path).toBe("notes/Renamed Topic.md");
 
@@ -560,6 +569,48 @@ describe("MindmapView", () => {
     harness.metadataCache.getFirstLinkpathDest.mockReturnValueOnce(null);
     await harness.view.refreshNotebookLinks();
     expect(renderer.setMissingNotebookNodeIds).toHaveBeenLastCalledWith(new Set(["child"]));
+  });
+
+  it("binds image files through the shared file picker and applies preview sizing", async () => {
+    const harness = createHarness();
+    const imageFile = harness.addMarkdownFile("assets/photo.png", "");
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).openContextMenu("child", 10, 10);
+    const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
+      ?.find((item: { title: string }) => item.title === "选择已有文件...");
+    bindItem?.onClickCallback?.();
+    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(imageFile, "image");
+
+    const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(boundNode?.kind).toBe("notebook");
+    expect(boundNode?.title).toBe("photo.png");
+    expect(boundNode?.notebook?.targetKind).toBe("image");
+    expect(boundNode?.customWidth).toBe(360);
+    expect(boundNode?.customHeight).toBe(300);
+  });
+
+  it("binds excalidraw files through the shared file picker and applies preview sizing", async () => {
+    const harness = createHarness();
+    const excalidrawFile = harness.addMarkdownFile(
+      "whiteboards/diagram.excalidraw.md",
+      "---\nexcalidraw-plugin: true\n---\n",
+      { frontmatter: { "excalidraw-plugin": true } },
+    );
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).openContextMenu("child", 10, 10);
+    const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
+      ?.find((item: { title: string }) => item.title === "选择已有文件...");
+    bindItem?.onClickCallback?.();
+    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(excalidrawFile, "excalidraw");
+
+    const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(boundNode?.kind).toBe("notebook");
+    expect(boundNode?.title).toBe("diagram.excalidraw.md");
+    expect(boundNode?.notebook?.targetKind).toBe("excalidraw");
+    expect(boundNode?.customWidth).toBe(360);
+    expect(boundNode?.customHeight).toBe(300);
   });
 
   it("creates, opens, and disconnects notebook-backed nodes through notebook actions", async () => {
@@ -580,6 +631,53 @@ describe("MindmapView", () => {
     const disconnectedNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(disconnectedNode?.kind).toBe("text");
     expect(disconnectedNode?.notebook).toBeUndefined();
+  });
+
+  it("converts image file nodes back to text when the bound file is deleted", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const imageFile = harness.addMarkdownFile("assets/photo.png", "");
+
+    (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
+    const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(boundNode?.kind).toBe("notebook");
+    expect(boundNode?.title).toBe("photo.png");
+
+    harness.fileRecords.delete("assets/photo.png");
+    await harness.view.handleVaultDelete(imageFile);
+
+    const revertedNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
+    expect(revertedNode?.kind).toBe("text");
+    expect(revertedNode?.title).toBe("photo.png");
+    expect(revertedNode?.notebook).toBeUndefined();
+    expect(revertedNode?.link).toBeUndefined();
+  });
+
+  it("refreshes missing-link warnings when a bound markdown notebook file is deleted", async () => {
+    const harness = createHarness();
+    const notebookFile = harness.addMarkdownFile("notes/Topic.md", "# Topic\n");
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).notebookActions.bindExistingFileNode("child", notebookFile, "markdown");
+    harness.fileRecords.delete("notes/Topic.md");
+    await harness.view.handleVaultDelete(notebookFile);
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "child")?.kind).toBe("notebook");
+    expect(renderer.setMissingNotebookNodeIds).toHaveBeenLastCalledWith(new Set(["child"]));
+  });
+
+  it("does not start inline edit for embedded file nodes from keyboard shortcuts", async () => {
+    const harness = createHarness();
+    const imageFile = harness.addMarkdownFile("assets/photo.png", "");
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
+    (harness.view as any).setSelectionOnly("child");
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "F2", target: harness.view.contentEl as never }));
+
+    expect(renderer.startInlineEditByNodeId).not.toHaveBeenCalled();
   });
 
   it("deletes a node through the extracted node context menu", async () => {

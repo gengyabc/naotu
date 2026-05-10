@@ -2,9 +2,10 @@ import { App, TFile } from "obsidian";
 
 import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { NotebookService } from "../core/notebook-service";
-import type { MindmapDocument, MindmapNode } from "../types/mindmap";
+import type { MindmapDocument, MindmapNode, NotebookTargetKind } from "../types/mindmap";
 import { showErrorNotice } from "../ui/error-notice";
-import { MarkdownFileSuggestModal } from "../ui/file-suggest-modal";
+import { FileBindingSuggestModal } from "../ui/file-suggest-modal";
+import { getFileNodeTitle } from "../core/file-node-support";
 
 type NotebookChangeOptions = {
   commitHistory?: boolean;
@@ -126,9 +127,9 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "text") return;
 
-    new MarkdownFileSuggestModal(this.options.app, (file) => {
+    new FileBindingSuggestModal(this.options.app, (file, targetKind) => {
       this.options.applyDocumentChange(() => {
-        this.options.store.patchNode(node.id, this.options.notebookService.bindExistingFileAsNotebook(file));
+        this.options.store.patchNode(node.id, this.buildBindExistingFilePatch(file, targetKind));
       });
       this.refreshMissingNotebookLinks();
       this.focusNotebookNode(node.id);
@@ -139,8 +140,8 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "notebook") return;
 
-    new MarkdownFileSuggestModal(this.options.app, (file) => {
-      const patch = this.options.notebookService.bindExistingFileAsNotebook(file);
+    new FileBindingSuggestModal(this.options.app, (file, targetKind) => {
+      const patch = this.buildBindExistingFilePatch(file, targetKind);
       this.options.applyDocumentChange(() => {
         this.options.store.patchNode(node.id, patch);
       });
@@ -156,9 +157,55 @@ export class MindmapNotebookActions {
     if (!confirmed) return;
 
     this.options.applyDocumentChange(() => {
-      this.options.store.patchNode(id, this.options.notebookService.disconnectNotebook(node));
+      this.options.store.patchNode(id, this.options.notebookService.disconnectFileNode(node));
     });
     this.refreshMissingNotebookLinks();
+  }
+
+  bindExistingFileNode(id: string, file: TFile, targetKind: NotebookTargetKind): void {
+    const node = this.findNode(id);
+    if (!node || node.kind !== "text") return;
+
+    this.options.commitHistory();
+    const freshFile = this.options.app.vault.getAbstractFileByPath(file.path);
+    if (!(freshFile instanceof TFile)) throw new Error("找不到文件，无法绑定");
+
+    const patch = this.options.notebookService.bindExistingFileNode(freshFile, targetKind);
+    this.options.applyDocumentChange(() => {
+      this.options.store.patchNode(id, this.applyFileNodeSizing(patch, targetKind));
+    }, { commitHistory: false });
+    this.refreshMissingNotebookLinks();
+    this.focusNotebookNode(id);
+  }
+
+  handleDeletedBoundFile(file: TFile): boolean {
+    const affectedNodes = this.options.store.getDocument().nodes.filter((node) => {
+      if (node.kind !== "notebook" || !node.notebook) return false;
+      const resolved = this.options.notebookService.resolveNotebookFile(node, this.options.getSourcePath());
+      return resolved?.path === file.path || node.notebook.path === file.path;
+    });
+    if (affectedNodes.length === 0) return false;
+
+    const embeddedTargets = affectedNodes.filter((node) => (node.notebook?.targetKind ?? "markdown") !== "markdown");
+    if (embeddedTargets.length > 0) {
+      this.options.commitHistory();
+      this.options.applyDocumentChange(() => {
+        for (const node of embeddedTargets) {
+          this.options.store.patchNode(node.id, {
+            kind: "text",
+            title: node.title || getFileNodeTitle(file.path),
+            notebook: undefined,
+            link: undefined,
+            customWidth: undefined,
+            customHeight: undefined,
+          });
+        }
+      }, { commitHistory: false });
+    }
+
+    this.refreshMissingNotebookLinks();
+    this.options.render();
+    return true;
   }
 
   async syncNotebookPaths(): Promise<void> {
@@ -188,5 +235,16 @@ export class MindmapNotebookActions {
     this.options.forceDetailLevel(id, 5);
     this.options.focusNode(id);
     this.options.render();
+  }
+
+  private buildBindExistingFilePatch(file: TFile, targetKind: NotebookTargetKind): Partial<MindmapNode> {
+    return this.applyFileNodeSizing(this.options.notebookService.bindExistingFileNode(file, targetKind), targetKind);
+  }
+
+  private applyFileNodeSizing(patch: Partial<MindmapNode>, targetKind: NotebookTargetKind): Partial<MindmapNode> {
+    if (targetKind === "markdown") {
+      return { ...patch, customWidth: undefined, customHeight: undefined };
+    }
+    return { ...patch, customWidth: 360, customHeight: 300 };
   }
 }

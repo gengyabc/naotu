@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  canInlineEditNodeTitle,
   canDragNodes,
   clampNotebookResizeSize,
+  getNotebookPreviewFrame,
   screenDragDeltaToWorldDelta,
+  shouldOpenEmbeddedFileOnDoubleClick,
+  shouldRenderEmbeddedFilePreview,
   shouldStartInlineTitleEdit,
   shouldStartNodeDrag,
 } from "../renderer/projected-node-renderer";
@@ -57,5 +61,63 @@ describe("projected node dragging", () => {
     expect(canDragNodes("free")).toBe(true);
     expect(canDragNodes("tree-mirror")).toBe(false);
     expect(canDragNodes("tree-right")).toBe(false);
+  });
+
+  it("treats image and excalidraw notebooks as embedded previews", () => {
+    expect(shouldRenderEmbeddedFilePreview({ kind: "notebook", targetKind: "image", showPreview: true })).toBe(true);
+    expect(shouldRenderEmbeddedFilePreview({ kind: "notebook", targetKind: "excalidraw", showPreview: true })).toBe(true);
+    expect(shouldRenderEmbeddedFilePreview({ kind: "notebook", targetKind: "markdown", showPreview: true })).toBe(false);
+    expect(shouldRenderEmbeddedFilePreview({ kind: "notebook", targetKind: "image", showPreview: false })).toBe(true);
+  });
+
+  it("opens embedded file nodes on double click instead of editing titles", () => {
+    expect(
+      shouldOpenEmbeddedFileOnDoubleClick({
+        kind: "notebook",
+        notebook: { link: "![[assets/photo.png]]", path: "assets/photo.png", targetType: "file", targetKind: "image" },
+      }),
+    ).toBe(true);
+    expect(
+      shouldOpenEmbeddedFileOnDoubleClick({
+        kind: "notebook",
+        notebook: { link: "[[notes/doc.md]]", path: "notes/doc.md", targetType: "file", targetKind: "markdown" },
+      }),
+    ).toBe(false);
+    expect(
+      shouldOpenEmbeddedFileOnDoubleClick({
+        kind: "text",
+      }),
+    ).toBe(false);
+  });
+
+  it("disables inline title editing for embedded file nodes", () => {
+    expect(
+      canInlineEditNodeTitle({
+        kind: "notebook",
+        notebook: { link: "[[assets/photo.png]]", path: "assets/photo.png", targetType: "file", targetKind: "image" },
+      }),
+    ).toBe(false);
+    expect(
+      canInlineEditNodeTitle({
+        kind: "notebook",
+        notebook: { link: "[[notes/doc.md]]", path: "notes/doc.md", targetType: "file", targetKind: "markdown" },
+      }),
+    ).toBe(true);
+    expect(canInlineEditNodeTitle({ kind: "text" })).toBe(true);
+  });
+
+  it("uses a full-height preview frame for embedded file nodes", () => {
+    expect(getNotebookPreviewFrame({ displayWidth: 360, displayHeight: 300, embeddedFilePreview: false })).toEqual({
+      x: 8,
+      y: 62,
+      width: 344,
+      height: 218,
+    });
+    expect(getNotebookPreviewFrame({ displayWidth: 360, displayHeight: 300, embeddedFilePreview: true })).toEqual({
+      x: 8,
+      y: 8,
+      width: 344,
+      height: 284,
+    });
   });
 });

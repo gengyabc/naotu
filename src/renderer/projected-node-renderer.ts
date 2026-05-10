@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import { App, Component } from "obsidian";
 import type { ProjectedNode } from "../types/mindmap";
 import type { LayoutMode } from "../types/mindmap";
+import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec } from "../core/detail-level";
@@ -10,6 +11,7 @@ import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/n
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
 import { layoutText, truncateTextForNotebook, layoutDescription } from "../core/text-layout";
+import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
@@ -19,6 +21,8 @@ const NOTEBOOK_PREVIEW_X = 8;
 const NOTEBOOK_PREVIEW_Y = 62;
 const NOTEBOOK_PREVIEW_RIGHT_PADDING = 8;
 const NOTEBOOK_PREVIEW_BOTTOM_PADDING = 20;
+const EMBEDDED_FILE_PREVIEW_Y = 8;
+const EMBEDDED_FILE_PREVIEW_BOTTOM_PADDING = 8;
 const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
 const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
 const BADGE_FONT_SIZE = 11;
@@ -87,8 +91,41 @@ export function shouldStartInlineTitleEdit(target: EventTarget | null): boolean 
   return Boolean(elementTarget.closest(".mindmap-node-title, .mindmap-node-title-hitbox"));
 }
 
+export function canInlineEditNodeTitle(node: Pick<ProjectedNode, "kind" | "notebook">): boolean {
+  return node.kind !== "notebook" || !isEmbeddedFileNodeTargetKind(node.notebook?.targetKind);
+}
+
 export function canDragNodes(layoutMode: LayoutMode): boolean {
   return layoutMode === "free";
+}
+
+export function shouldRenderEmbeddedFilePreview(args: {
+  kind: ProjectedNode["kind"];
+  targetKind?: NotebookTargetKind;
+  showPreview: boolean;
+}): boolean {
+  return args.kind === "notebook" && isEmbeddedFileNodeTargetKind(args.targetKind);
+}
+
+export function shouldOpenEmbeddedFileOnDoubleClick(node: Pick<ProjectedNode, "kind" | "notebook">): boolean {
+  return node.kind === "notebook" && Boolean(node.notebook?.link) && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind);
+}
+
+export function getNotebookPreviewFrame(args: {
+  displayWidth: number;
+  displayHeight: number;
+  embeddedFilePreview: boolean;
+}): { x: number; y: number; width: number; height: number } {
+  const y = args.embeddedFilePreview ? EMBEDDED_FILE_PREVIEW_Y : NOTEBOOK_PREVIEW_Y;
+  const bottomPadding = args.embeddedFilePreview
+    ? EMBEDDED_FILE_PREVIEW_BOTTOM_PADDING
+    : NOTEBOOK_PREVIEW_BOTTOM_PADDING;
+  return {
+    x: NOTEBOOK_PREVIEW_X,
+    y,
+    width: args.displayWidth - NOTEBOOK_PREVIEW_X - NOTEBOOK_PREVIEW_RIGHT_PADDING,
+    height: args.displayHeight - y - bottomPadding,
+  };
 }
 
 export function renderProjectedNodes(args: {
@@ -198,7 +235,7 @@ export function renderProjectedNodes(args: {
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
-      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target)) {
+      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target) && canInlineEditNodeTitle(node)) {
         event.preventDefault();
         const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
         args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
@@ -209,7 +246,14 @@ export function renderProjectedNodes(args: {
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
       else args.onSelectNode(node.id, "replace");
     })
-    .on("dblclick", (event) => {
+    .on("dblclick", (event, node) => {
+      if (shouldOpenEmbeddedFileOnDoubleClick(node)) {
+        event.preventDefault();
+        event.stopPropagation();
+        args.onOpenNotebook(node.id);
+        return;
+      }
+      if (!canInlineEditNodeTitle(node)) return;
       if (!shouldStartInlineTitleEdit(event.target)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -228,6 +272,13 @@ export function renderProjectedNodes(args: {
     const group = d3.select(this);
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
     const visual = getVisualSpec(node.kind, node.detailLevel);
+    const targetKind = node.notebook?.targetKind ?? "markdown";
+    const showEmbeddedFilePreview = shouldRenderEmbeddedFilePreview({
+      kind: node.kind,
+      targetKind,
+      showPreview: visual.showPreview,
+    });
+    const hideNotebookTextForPreview = showEmbeddedFilePreview;
     const titleHitbox = group.select<SVGRectElement>("rect.mindmap-node-title-hitbox");
     let titleHitboxHeight = TITLE_HITBOX_MIN_HEIGHT;
 
@@ -268,7 +319,7 @@ export function renderProjectedNodes(args: {
           .attr("y", startY + index * lineHeight)
           .text(line);
       });
-    } else {
+    } else if (!hideNotebookTextForPreview) {
       const truncatedTitle = truncateTextForNotebook(node.title, node.displayWidth - 24, visual.titleFontSize);
       titleText
         .attr("x", 12)
@@ -286,8 +337,8 @@ export function renderProjectedNodes(args: {
       .attr("ry", 8)
       .attr("fill", "currentColor")
       .attr("fill-opacity", 0.001)
-      .style("pointer-events", "all")
-      .style("cursor", "text")
+      .style("pointer-events", hideNotebookTextForPreview ? "none" : "all")
+      .style("cursor", hideNotebookTextForPreview ? "default" : "text")
       .on("pointerdown.title-hitbox", (event) => {
         event.stopPropagation();
       });
@@ -295,7 +346,7 @@ export function renderProjectedNodes(args: {
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
     badgeText.attr("x", 12).attr("y", 48);
 
-    if (node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4) {
+    if (node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4 && !isEmbeddedFileNodeTargetKind(targetKind)) {
       badgeText.style("display", "");
       const description = node.notebook?.link
         ? getNotebookDescription({
@@ -330,7 +381,7 @@ export function renderProjectedNodes(args: {
 
     group
       .select<SVGGElement>("g.mindmap-node-open-notebook")
-      .style("display", node.showOpenNotebookButton ? "" : "none")
+      .style("display", node.showOpenNotebookButton && !showEmbeddedFilePreview ? "" : "none")
       .style("cursor", "pointer")
       .on("pointerdown", (event) => {
         event.stopPropagation();
@@ -351,7 +402,7 @@ export function renderProjectedNodes(args: {
           .select<SVGTextElement>("text.mindmap-node-open-notebook-text")
           .attr("x", 24)
           .attr("y", 48)
-          .text("Open md");
+          .text(isEmbeddedFileNodeTargetKind(targetKind) ? "Open file" : "Open md");
       });
 
     const treeToggleGroup = group
@@ -416,21 +467,26 @@ export function renderProjectedNodes(args: {
       });
 
     const preview = group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-preview");
-    if (node.kind === "notebook" && visual.showPreview && node.notebook?.link) {
-      const previewHeight = node.displayHeight - NOTEBOOK_PREVIEW_Y - NOTEBOOK_PREVIEW_BOTTOM_PADDING;
+    if (node.kind === "notebook" && node.notebook?.link && (visual.showPreview || showEmbeddedFilePreview)) {
+      const previewFrame = getNotebookPreviewFrame({
+        displayWidth: node.displayWidth,
+        displayHeight: node.displayHeight,
+        embeddedFilePreview: showEmbeddedFilePreview,
+      });
       preview
         .style("display", "")
-        .attr("x", NOTEBOOK_PREVIEW_X)
-        .attr("y", NOTEBOOK_PREVIEW_Y)
-        .attr("width", node.displayWidth - NOTEBOOK_PREVIEW_X - NOTEBOOK_PREVIEW_RIGHT_PADDING)
-        .attr("height", previewHeight);
+        .attr("x", previewFrame.x)
+        .attr("y", previewFrame.y)
+        .attr("width", previewFrame.width)
+        .attr("height", previewFrame.height);
       void renderNotebookPreview({
         app: args.app,
         foreignObject: preview.node(),
         link: node.notebook.link,
         sourcePath: args.sourcePath,
         storedPath: node.notebook.path,
-        previewHeight,
+        targetKind,
+        previewHeight: previewFrame.height,
         component: args.component,
       });
     } else {

@@ -3,6 +3,7 @@ import type { MindmapNode } from "../types/mindmap";
 import { DEFAULT_NOTEBOOK_FOLDER, UNTITLED_NODE_TITLE } from "../constants";
 import { parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 import { sanitizeFilename } from "./sanitize-filename";
+import { getFileNodeTitle } from "./file-node-support";
 
 export class NotebookService {
   constructor(
@@ -25,7 +26,7 @@ export class NotebookService {
         patch: {
           kind: "notebook",
           title: existing.basename,
-          notebook: { link: `[[${existing.basename}]]`, path: existing.path, targetType: "file" },
+          notebook: { link: `[[${existing.basename}]]`, path: existing.path, targetType: "file", targetKind: "markdown" },
           link: `[[${existing.basename}]]`,
         },
       };
@@ -39,7 +40,7 @@ export class NotebookService {
       patch: {
         kind: "notebook",
         title: file.basename,
-        notebook: { link: `[[${file.basename}]]`, path: file.path, targetType: "file" },
+        notebook: { link: `[[${file.basename}]]`, path: file.path, targetType: "file", targetKind: "markdown" },
         link: `[[${file.basename}]]`,
       },
     };
@@ -80,25 +81,39 @@ export class NotebookService {
 
     return {
       title: cleanTitle,
-      notebook: { link: `[[${cleanTitle}]]`, path: nextPath, targetType: "file" },
+      notebook: { link: `[[${cleanTitle}]]`, path: nextPath, targetType: "file", targetKind: "markdown" },
       link: `[[${cleanTitle}]]`,
     };
   }
 
-  disconnectNotebook(node: MindmapNode): Partial<MindmapNode> {
-    return { kind: "text", title: node.title, notebook: undefined, link: undefined };
-  }
-
-  bindExistingFileAsNotebook(file: TFile): Partial<MindmapNode> {
+  bindExistingFileNode(
+    file: TFile,
+    targetKind: "markdown" | "image" | "excalidraw",
+  ): Partial<MindmapNode> {
+    const linkTarget = targetKind === "markdown" ? file.basename : getFileNodeTitle(file.path);
+    const title = targetKind === "markdown" ? file.basename : getFileNodeTitle(file.path);
     return {
       kind: "notebook",
-      title: file.basename,
+      title,
       notebook: {
-        link: `[[${file.basename}]]`,
+        link: `[[${linkTarget}]]`,
         path: file.path,
         targetType: "file",
+        targetKind,
       },
-      link: `[[${file.basename}]]`,
+      link: `[[${linkTarget}]]`,
+    };
+  }
+
+  disconnectFileNode(node: MindmapNode): Partial<MindmapNode> {
+    if (node.kind !== "notebook") return { kind: "text", title: node.title };
+    return {
+      kind: "text",
+      title: node.title,
+      notebook: undefined,
+      link: undefined,
+      customWidth: undefined,
+      customHeight: undefined,
     };
   }
 
@@ -113,7 +128,7 @@ export class NotebookService {
 
     return {
       notebook: {
-        ...(node.notebook ?? { link: `[[${file.basename}]]`, targetType: "file" }),
+        ...(node.notebook ?? { link: `[[${file.basename}]]`, targetType: "file", targetKind: "markdown" }),
         path: file.path,
       },
     };
