@@ -38,6 +38,19 @@ export function clampDetailLevel(value: number): NodeDetailLevel {
   return 5;
 }
 
+export function sizeToDetailLevel(width: number, height: number): NodeDetailLevel {
+  const spec1 = getNotebookSpec(1);
+  const spec2 = getNotebookSpec(2);
+  const spec3 = getNotebookSpec(3);
+  const spec4 = getNotebookSpec(4);
+  
+  if (width <= spec1.width && height <= spec1.height) return 1;
+  if (width <= spec2.width && height <= spec2.height) return 2;
+  if (width <= spec3.width && height <= spec3.height) return 3;
+  if (width <= spec4.width && height <= spec4.height) return 4;
+  return 5;
+}
+
 export function getVisualSpec(kind: NodeKind, level: NodeDetailLevel): DetailVisualSpec {
   if (kind === "text") return getTextSpec(level);
   return getNotebookSpec(level);

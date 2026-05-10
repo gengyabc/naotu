@@ -5,7 +5,7 @@ import type { LayoutMode } from "../types/mindmap";
 import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
-import { getVisualSpec } from "../core/detail-level";
+import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import {
   NOTEBOOK_MIN_CUSTOM_HEIGHT,
@@ -289,8 +289,27 @@ export function renderProjectedNodes(args: {
   merged.each(function (node) {
     const group = d3.select(this);
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-    const visual = getVisualSpec(node.kind, node.detailLevel);
+    const baseVisual = getVisualSpec(node.kind, node.detailLevel);
     const targetKind = node.notebook?.targetKind ?? "markdown";
+    
+    let visual: DetailVisualSpec;
+    if (node.usesCustomSize && node.kind === "notebook") {
+      const showPreview = node.displayHeight > 150;
+      const showSummary = node.displayHeight > 66 && !showPreview;
+      const showLink = node.displayHeight > 200;
+      visual = {
+        width: node.displayWidth,
+        height: node.displayHeight,
+        titleFontSize: baseVisual.titleFontSize,
+        fontSize: baseVisual.fontSize,
+        showSummary,
+        showLink,
+        showPreview,
+      };
+    } else {
+      visual = baseVisual;
+    }
+    
     const showEmbeddedFilePreview = shouldRenderEmbeddedFilePreview({
       kind: node.kind,
       targetKind,
@@ -361,9 +380,9 @@ export function renderProjectedNodes(args: {
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
-    badgeText.attr("x", 12).attr("y", 48);
+    badgeText.attr("x", 12).attr("y", 72);
 
-    if (node.kind === "notebook" && node.detailLevel >= 2 && node.detailLevel < 4 && !isEmbeddedFileNodeTargetKind(targetKind)) {
+    if (node.kind === "notebook" && visual.showSummary && !visual.showPreview && !isEmbeddedFileNodeTargetKind(targetKind)) {
       badgeText.style("display", "");
       const description = node.notebook?.link
         ? getNotebookDescription({
@@ -376,7 +395,7 @@ export function renderProjectedNodes(args: {
       if (description) {
         badgeText.selectAll("*").remove();
         const badgeLineHeightPx = Math.round(BADGE_FONT_SIZE * BADGE_LINE_HEIGHT_FACTOR);
-        const availableLines = Math.max(1, Math.floor((node.displayHeight - 48) / badgeLineHeightPx));
+        const availableLines = Math.max(1, Math.floor((node.displayHeight - 72) / badgeLineHeightPx));
         const descLines = layoutDescription({
           text: description,
           maxWidth: node.displayWidth - 24,
@@ -386,7 +405,7 @@ export function renderProjectedNodes(args: {
         descLines.forEach((line, index) => {
           badgeText.append("tspan")
             .attr("x", 12)
-            .attr("y", 48 + index * badgeLineHeightPx)
+            .attr("y", 72 + index * badgeLineHeightPx)
             .text(line);
         });
       } else {

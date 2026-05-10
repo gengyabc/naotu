@@ -9,7 +9,7 @@ import type {
 } from "../types/mindmap";
 import { buildHierarchy, getAncestorPath } from "./hierarchy";
 import { resolveFocusNodeId } from "./focus";
-import { clampDetailLevel, getVisualSpec } from "./detail-level";
+import { clampDetailLevel, getVisualSpec, sizeToDetailLevel } from "./detail-level";
 import { applyNotebookFocusPolicy, computeSemanticDetailLevel } from "./semantic-zoom-policy";
 import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
@@ -81,43 +81,100 @@ export function createSemanticProjection(
     const isAncestorPath = focusPathSet.has(node.id) && !isFocus;
     const children = hierarchy.childrenById.get(node.id) ?? [];
 
-    const computedDetail: NodeDetailLevel = computeSemanticDetailLevel({
-      zoom: context.zoom,
-      kind: node.kind,
-      isRoot,
-      isFocus,
-      isSelected,
-      isHovered,
-      isAncestorPath,
-      hasNotebook: Boolean(node.notebook),
-      hasChildren: children.length > 0,
-      distanceToFocus: focusNode ? distance(node, focusNode) : 0,
-    });
+    const customSize = node.kind === "notebook" ? getCustomNotebookSize(node) : null;
+    const isEmbeddedFile = node.kind === "notebook" && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind);
+    
+    let finalSize: { width: number; height: number };
+    let finalDetail: NodeDetailLevel;
+    
+    if (customSize && isEmbeddedFile) {
+      finalSize = { width: customSize.width, height: customSize.height };
+      
+      const computedDetail: NodeDetailLevel = computeSemanticDetailLevel({
+        zoom: context.zoom,
+        kind: node.kind,
+        isRoot,
+        isFocus,
+        isSelected,
+        isHovered,
+        isAncestorPath,
+        hasNotebook: Boolean(node.notebook),
+        hasChildren: children.length > 0,
+        distanceToFocus: focusNode ? distance(node, focusNode) : 0,
+      });
 
-    let afterNotebookPolicy: NodeDetailLevel = applyNotebookFocusPolicy({
-      nodeId: node.id,
-      kind: node.kind,
-      isFocus,
-      focusNodeId,
-      focusOnRoot: !!focusNodeId && focusNodeId === hierarchy.rootId,
-      computedLevel: computedDetail,
-      prevFrozenLevels,
-    });
+      let afterNotebookPolicy: NodeDetailLevel = applyNotebookFocusPolicy({
+        nodeId: node.id,
+        kind: node.kind,
+        isFocus,
+        focusNodeId,
+        focusOnRoot: !!focusNodeId && focusNodeId === hierarchy.rootId,
+        computedLevel: computedDetail,
+        prevFrozenLevels,
+      });
 
-    if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
-    if (isHovered && node.kind !== "notebook") afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
+      if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
+      if (node.kind === "notebook") {
+        nextFrozenLevels.set(node.id, afterNotebookPolicy);
+      }
 
-    if (node.kind === "notebook") {
-      nextFrozenLevels.set(node.id, afterNotebookPolicy);
+      const forcedDetail = extra.forcedDetailLevels?.get(node.id);
+      finalDetail = forcedDetail !== undefined && forcedDetail > afterNotebookPolicy ? forcedDetail : afterNotebookPolicy;
+    } else if (customSize) {
+      finalSize = { width: customSize.width, height: customSize.height };
+      const sizeBasedDetail = sizeToDetailLevel(customSize.width, customSize.height);
+      const forcedDetail = extra.forcedDetailLevels?.get(node.id);
+      finalDetail = forcedDetail !== undefined ? forcedDetail : sizeBasedDetail;
+    } else {
+      const computedDetail: NodeDetailLevel = computeSemanticDetailLevel({
+        zoom: context.zoom,
+        kind: node.kind,
+        isRoot,
+        isFocus,
+        isSelected,
+        isHovered,
+        isAncestorPath,
+        hasNotebook: Boolean(node.notebook),
+        hasChildren: children.length > 0,
+        distanceToFocus: focusNode ? distance(node, focusNode) : 0,
+      });
+
+      let afterNotebookPolicy: NodeDetailLevel = applyNotebookFocusPolicy({
+        nodeId: node.id,
+        kind: node.kind,
+        isFocus,
+        focusNodeId,
+        focusOnRoot: !!focusNodeId && focusNodeId === hierarchy.rootId,
+        computedLevel: computedDetail,
+        prevFrozenLevels,
+      });
+
+      if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
+      if (isHovered && node.kind !== "notebook") afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
+
+      if (node.kind === "notebook") {
+        nextFrozenLevels.set(node.id, afterNotebookPolicy);
+      }
+
+      const forcedDetail = extra.forcedDetailLevels?.get(node.id);
+      finalDetail = forcedDetail !== undefined && forcedDetail > afterNotebookPolicy ? forcedDetail : afterNotebookPolicy;
+
+      const visual = getVisualSpec(node.kind, finalDetail);
+      
+      if (node.kind === "text") {
+        const dynamicSize = getTextNodeDisplaySize({
+          title: node.title,
+          fontSize: visual.titleFontSize,
+        });
+        finalSize = { width: dynamicSize.width, height: dynamicSize.height };
+      } else {
+        finalSize = { width: visual.width, height: visual.height };
+      }
     }
 
-    const forcedDetail = extra.forcedDetailLevels?.get(node.id);
-    const detail: NodeDetailLevel = forcedDetail !== undefined && forcedDetail > afterNotebookPolicy ? forcedDetail : afterNotebookPolicy;
-
-    const resolvedSize = resolveProjectedDisplaySize({ node, detail });
     const projectedCenter = projectNodeCenter({ node, context });
     const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
-    const embeddedFileNotebook = node.kind === "notebook" && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind);
+    const usesCustomSize = Boolean(customSize);
 
     projectedNodes.push({
       id: node.id,
@@ -127,12 +184,12 @@ export function createSemanticProjection(
       notebook: node.notebook,
       worldX: node.x,
       worldY: node.y,
-      projectedX: projectedCenter.x - resolvedSize.width / (2 * context.zoom),
-      projectedY: projectedCenter.y - resolvedSize.height / (2 * context.zoom),
-      displayWidth: resolvedSize.width,
-      displayHeight: resolvedSize.height,
+      projectedX: projectedCenter.x - finalSize.width / (2 * context.zoom),
+      projectedY: projectedCenter.y - finalSize.height / (2 * context.zoom),
+      displayWidth: finalSize.width,
+      displayHeight: finalSize.height,
       aspectRatio: node.aspectRatio,
-      detailLevel: detail,
+      detailLevel: finalDetail,
       isRoot,
       isFocus,
       isSelected,
@@ -141,9 +198,9 @@ export function createSemanticProjection(
       isSearchMatch: extra.searchResultIds?.has(node.id) ?? false,
       hasChildren: children.length > 0,
       childrenExpanded,
-      showOpenNotebookButton: node.kind === "notebook" && detail >= 4 && Boolean(node.notebook?.link),
-      showResizeHandle: node.kind === "notebook" && (detail >= 4 || (embeddedFileNotebook && resolvedSize.usesCustomSize)),
-      usesCustomSize: resolvedSize.usesCustomSize,
+      showOpenNotebookButton: node.kind === "notebook" && finalDetail >= 4 && Boolean(node.notebook?.link),
+      showResizeHandle: node.kind === "notebook" && (finalDetail >= 4 || usesCustomSize),
+      usesCustomSize,
     });
   }
 
@@ -260,41 +317,6 @@ function distance(a: { x: number; y: number }, b: { x: number; y: number }): num
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
-}
-
-function resolveProjectedDisplaySize(args: {
-  node: MindmapNode;
-  detail: NodeDetailLevel;
-}): { width: number; height: number; usesCustomSize: boolean } {
-  const customSize = args.node.kind === "notebook" ? getCustomNotebookSize(args.node) : null;
-  const preserveEmbeddedFilePreviewSize = args.node.kind === "notebook" && isEmbeddedFileNodeTargetKind(args.node.notebook?.targetKind);
-  if (customSize && (args.detail >= 4 || preserveEmbeddedFilePreviewSize)) {
-    return {
-      width: customSize.width,
-      height: customSize.height,
-      usesCustomSize: true,
-    };
-  }
-
-  const visual = getVisualSpec(args.node.kind, args.detail);
-  
-  if (args.node.kind === "text") {
-    const dynamicSize = getTextNodeDisplaySize({
-      title: args.node.title,
-      fontSize: visual.titleFontSize,
-    });
-    return {
-      width: dynamicSize.width,
-      height: dynamicSize.height,
-      usesCustomSize: false,
-    };
-  }
-
-  return {
-    width: visual.width,
-    height: visual.height,
-    usesCustomSize: false,
-  };
 }
 
 function hasDynamicNodeSizes(nodes: ProjectedNode[]): boolean {
