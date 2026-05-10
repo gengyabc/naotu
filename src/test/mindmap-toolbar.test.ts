@@ -89,7 +89,6 @@ describe("createMindmapToolbar", () => {
   it("wires toolbar actions and sync APIs", () => {
     const onChangeLayoutMode = vi.fn();
     const onOpenMindmap = vi.fn();
-    const onSaveMindmap = vi.fn();
     const onSearchChange = vi.fn();
     const onSearchSubmit = vi.fn();
 
@@ -100,14 +99,12 @@ describe("createMindmapToolbar", () => {
       saveStatus: "Saved",
       onChangeLayoutMode,
       onOpenMindmap,
-      onSaveMindmap,
       onSearchChange,
       onSearchSubmit,
     });
 
     getButton(container, "右向树").onclick?.();
     getButton(container, "打开").onclick?.();
-    getButton(container, "保存").onclick?.();
 
     const input = getInput(container);
     input.value = "child";
@@ -117,7 +114,6 @@ describe("createMindmapToolbar", () => {
 
     expect(onChangeLayoutMode).toHaveBeenCalledWith("tree-right");
     expect(onOpenMindmap).toHaveBeenCalledTimes(1);
-    expect(onSaveMindmap).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith("child");
     expect(onSearchSubmit).toHaveBeenCalledTimes(1);
     expect(enter.defaultPrevented).toBe(true);

@@ -14,7 +14,6 @@ export interface MindmapToolbarOptions {
   saveStatus: string;
   onChangeLayoutMode(mode: LayoutMode): void;
   onOpenMindmap(): void;
-  onSaveMindmap(): void;
   onSearchChange(query: string): void;
   onSearchSubmit(): void;
 }
@@ -37,10 +36,6 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const openButton = toolbar.createEl("button", { text: "打开" });
   setButtonA11y(openButton, "打开脑图");
   openButton.onclick = () => options.onOpenMindmap();
-
-  const saveButton = toolbar.createEl("button", { text: "保存" });
-  setButtonA11y(saveButton, "保存脑图");
-  saveButton.onclick = () => options.onSaveMindmap();
 
   const searchInput = toolbar.createEl("input", {
     type: "text",

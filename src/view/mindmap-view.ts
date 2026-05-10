@@ -311,10 +311,6 @@ export class MindmapView extends ItemView {
       saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
       onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
       onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
-      onSaveMindmap: () => {
-        this.markDirty();
-        void this.editSession.flushAutosave();
-      },
       onSearchChange: (query) => this.updateSearch(query),
       onSearchSubmit: () => this.focusFirstSearchResult(),
     });
