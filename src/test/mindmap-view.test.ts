@@ -110,8 +110,6 @@ const hoisted = vi.hoisted(() => {
     FakeFileBindingSuggestModal,
     FakeMinimapRenderer,
     FakePerformanceDebugOverlay,
-    renderMindmapToSvgString: vi.fn(() => "<svg />"),
-    renderSvgStringToPngArrayBuffer: vi.fn(async () => new ArrayBuffer(16)),
   };
 });
 
@@ -133,11 +131,6 @@ vi.mock("../ui/performance-debug-overlay", () => ({
 
 vi.mock("../ui/file-suggest-modal", () => ({
   FileBindingSuggestModal: hoisted.FakeFileBindingSuggestModal,
-}));
-
-vi.mock("../renderer/export-renderer", () => ({
-  renderMindmapToSvgString: hoisted.renderMindmapToSvgString,
-  renderSvgStringToPngArrayBuffer: hoisted.renderSvgStringToPngArrayBuffer,
 }));
 
 type FileRecord = {
@@ -704,18 +697,6 @@ describe("MindmapView", () => {
 
     expect(getDocument(harness.view).edges.find((edge) => edge.id === "edge1")).toBeUndefined();
     expect(getDirtyState(harness.view)).toBe("dirty");
-  });
-
-  it("exports svg and png next to the source file", async () => {
-    const harness = createHarness();
-    await harness.view.setFile(harness.sourceFile);
-
-    await (harness.view as any).exportSvg();
-    await (harness.view as any).exportPng();
-
-    expect(hoisted.renderMindmapToSvgString).toHaveBeenCalled();
-    expect(harness.vault.create).toHaveBeenCalledWith("maps/source.export.svg", "<svg />");
-    expect(harness.vault.createBinary).toHaveBeenCalledWith("maps/source.export.png", expect.any(ArrayBuffer));
   });
 
   it("chooses the hybrid renderer when hybrid mode is enabled", async () => {

@@ -91,8 +91,6 @@ describe("createMindmapToolbar", () => {
     const onChangeLayoutMode = vi.fn();
     const onOpenMindmap = vi.fn();
     const onSaveMindmap = vi.fn();
-    const onExportSvg = vi.fn();
-    const onExportPng = vi.fn();
     const onSearchChange = vi.fn();
     const onSearchSubmit = vi.fn();
 
@@ -105,8 +103,6 @@ describe("createMindmapToolbar", () => {
       onChangeLayoutMode,
       onOpenMindmap,
       onSaveMindmap,
-      onExportSvg,
-      onExportPng,
       onSearchChange,
       onSearchSubmit,
     });
@@ -115,8 +111,6 @@ describe("createMindmapToolbar", () => {
     getButton(container, "右向树").onclick?.();
     getButton(container, "打开").onclick?.();
     getButton(container, "保存").onclick?.();
-    getButton(container, "导出 SVG").onclick?.();
-    getButton(container, "导出 PNG").onclick?.();
 
     const input = getInput(container);
     input.value = "child";
@@ -128,8 +122,6 @@ describe("createMindmapToolbar", () => {
     expect(onChangeLayoutMode).toHaveBeenCalledWith("tree-right");
     expect(onOpenMindmap).toHaveBeenCalledTimes(1);
     expect(onSaveMindmap).toHaveBeenCalledTimes(1);
-    expect(onExportSvg).toHaveBeenCalledTimes(1);
-    expect(onExportPng).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith("child");
     expect(onSearchSubmit).toHaveBeenCalledTimes(1);
     expect(enter.defaultPrevented).toBe(true);

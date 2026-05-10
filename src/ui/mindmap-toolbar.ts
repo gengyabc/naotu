@@ -16,8 +16,6 @@ export interface MindmapToolbarOptions {
   onChangeLayoutMode(mode: LayoutMode): void;
   onOpenMindmap(): void;
   onSaveMindmap(): void;
-  onExportSvg(): void;
-  onExportPng(): void;
   onSearchChange(query: string): void;
   onSearchSubmit(): void;
 }
@@ -47,12 +45,6 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const saveButton = toolbar.createEl("button", { text: "保存" });
   setButtonA11y(saveButton, "保存脑图");
   saveButton.onclick = () => options.onSaveMindmap();
-
-  const exportSvgButton = toolbar.createEl("button", { text: "导出 SVG" });
-  exportSvgButton.onclick = () => options.onExportSvg();
-
-  const exportPngButton = toolbar.createEl("button", { text: "导出 PNG" });
-  exportPngButton.onclick = () => options.onExportPng();
 
   const searchInput = toolbar.createEl("input", {
     type: "text",

@@ -17,7 +17,6 @@ import {
   resolveDraggedNodeIds,
 } from "../core/tree-editing";
 import { nodeWorldRect, rectIntersects } from "../core/geometry";
-import { renderMindmapToSvgString, renderSvgStringToPngArrayBuffer } from "../renderer/export-renderer";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
@@ -317,8 +316,6 @@ export class MindmapView extends ItemView {
         this.markDirty();
         void this.editSession.flushAutosave();
       },
-      onExportSvg: () => void this.exportSvg(),
-      onExportPng: () => void this.exportPng(),
       onSearchChange: (query) => this.updateSearch(query),
       onSearchSubmit: () => this.focusFirstSearchResult(),
     });
@@ -559,31 +556,6 @@ export class MindmapView extends ItemView {
         : state === "saving"
           ? "Saving..."
           : "Save error";
-  }
-
-  private async exportSvg(): Promise<void> {
-    if (!this.sourceFile) return;
-    const svg = renderMindmapToSvgString(this.store.getDocument());
-    const path = this.sourceFile.parent?.path
-      ? `${this.sourceFile.parent.path}/${this.sourceFile.basename}.export.svg`
-      : `${this.sourceFile.basename}.export.svg`;
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) await this.app.vault.modify(existing, svg);
-    else await this.app.vault.create(path, svg);
-    new Notice(`已导出 SVG: ${path}`);
-  }
-
-  private async exportPng(): Promise<void> {
-    if (!this.sourceFile) return;
-    const svg = renderMindmapToSvgString(this.store.getDocument());
-    const png = await renderSvgStringToPngArrayBuffer(svg);
-    const path = this.sourceFile.parent?.path
-      ? `${this.sourceFile.parent.path}/${this.sourceFile.basename}.export.png`
-      : `${this.sourceFile.basename}.export.png`;
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) await this.app.vault.modifyBinary(existing, png);
-    else await this.app.vault.createBinary(path, png);
-    new Notice(`已导出 PNG: ${path}`);
   }
 
   private handleCanvasKeydown(event: KeyboardEvent): void {
