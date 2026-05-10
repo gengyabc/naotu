@@ -52,8 +52,8 @@ function resolveOverlaps(
 
       const aExpandedNotebook = isExpandedNotebook(a);
       const bExpandedNotebook = isExpandedNotebook(b);
-      const aFixed = a.isFocus || a.isSelected;
-      const bFixed = b.isFocus || b.isSelected;
+      const aFixed = a.isFocus;
+      const bFixed = b.isFocus;
       if (!aExpandedNotebook && !bExpandedNotebook && aFixed && bFixed) continue;
 
       const direction = overlapVector(aRect, bRect);
@@ -125,7 +125,7 @@ function resolveOverlaps(
 }
 
 function isExpandedNotebook(node: ProjectedNode): boolean {
-  return node.kind === "notebook" && node.detailLevel === 5;
+  return node.kind === "notebook" && node.detailLevel >= 4;
 }
 
 function hasAnyOverlap(nodes: ProjectedNode[], zoom: number, padding: number): boolean {

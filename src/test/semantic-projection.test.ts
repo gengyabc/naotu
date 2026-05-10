@@ -277,7 +277,7 @@ describe("createSemanticProjection", () => {
     expect(projection.visibleNodeIds.has("grandchild")).toBe(false);
   });
 
-  it("uses the selected node as focus in tree layout", () => {
+  it("always uses root as focus in tree layout regardless of selection", () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-mirror";
 
@@ -287,7 +287,7 @@ describe("createSemanticProjection", () => {
       selectedNodeIds: ["child"],
     });
 
-    expect(projection.focusNodeId).toBe("child");
+    expect(projection.focusNodeId).toBe("root");
   });
 
   it("applies forced detail during projection sizing", () => {
@@ -714,6 +714,143 @@ describe("createSemanticProjection", () => {
     const childRect = toScreenRect(child!, 1, -1000, -1000);
     expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
   });
+
+  it("settles regular expanded notebook overlaps in tree layout at level 4", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "text",
+      x: 50,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1.5,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4]]),
+      },
+    );
+
+    const root = projection.nodes.find((node) => node.id === "root");
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(root).toBeDefined();
+    expect(child).toBeDefined();
+
+    const rootRect = toScreenRect(root!, 1.5, -1000, -1000);
+    const childRect = toScreenRect(child!, 1.5, -1000, -1000);
+    expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
+  });
+
+  it("does not change relaxed tree layout positions when selecting a notebook", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[0] = {
+      ...doc.nodes[0]!,
+      kind: "notebook",
+      notebook: { link: "[[Root]]", path: "notes/root.md", targetType: "file" },
+      customWidth: 400,
+      customHeight: 280,
+      x: 0,
+      y: 0,
+    };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      customWidth: 320,
+      customHeight: 220,
+      x: 50,
+      y: 0,
+    };
+
+    const projectionWithoutNotebookSelection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4], ["child", 4]]),
+      },
+    );
+
+    const projectionWithNotebookSelection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["child"],
+        lastFocusNodeId: "child",
+      },
+      {
+        forcedDetailLevels: new Map([["root", 4], ["child", 4]]),
+      },
+    );
+
+    const rootBase = projectionWithoutNotebookSelection.nodes.find((node) => node.id === "root");
+    const childBase = projectionWithoutNotebookSelection.nodes.find((node) => node.id === "child");
+    const rootSelected = projectionWithNotebookSelection.nodes.find((node) => node.id === "root");
+    const childSelected = projectionWithNotebookSelection.nodes.find((node) => node.id === "child");
+
+    expect(rootBase).toBeDefined();
+    expect(childBase).toBeDefined();
+    expect(rootSelected).toBeDefined();
+    expect(childSelected).toBeDefined();
+
+    expect(rootSelected!.projectedX).toBeCloseTo(rootBase!.projectedX, 1);
+    expect(rootSelected!.projectedY).toBeCloseTo(rootBase!.projectedY, 1);
+    expect(childSelected!.projectedX).toBeCloseTo(childBase!.projectedX, 1);
+    expect(childSelected!.projectedY).toBeCloseTo(childBase!.projectedY, 1);
+  });
+
+  it("still scales notebook size with zoom in tree layout", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const lowZoom = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const highZoom = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const lowChild = lowZoom.nodes.find((node) => node.id === "child");
+    const highChild = highZoom.nodes.find((node) => node.id === "child");
+
+    expect(lowChild).toBeDefined();
+    expect(highChild).toBeDefined();
+    expect(lowChild!.displayWidth).toBeLessThan(highChild!.displayWidth);
+    expect(lowChild!.displayHeight).toBeLessThan(highChild!.displayHeight);
+  });
 });
 
 describe("applyNotebookFocusPolicy", () => {
@@ -731,7 +868,7 @@ describe("applyNotebookFocusPolicy", () => {
     expect(result).toBe(5);
   });
 
-  it("caps at level 3 when focus is root", () => {
+  it("keeps zoom-driven level when focus is root", () => {
     const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
     const result = applyNotebookFocusPolicy({
       nodeId: "nb",
@@ -742,7 +879,7 @@ describe("applyNotebookFocusPolicy", () => {
       computedLevel: 5,
       prevFrozenLevels: prev,
     });
-    expect(result).toBe(3);
+    expect(result).toBe(5);
   });
 
   it("caps at level 3 when there is no focus", () => {
@@ -814,7 +951,7 @@ describe("notebook focus policy in projection", () => {
     return doc;
   }
 
-  it("caps notebook at level 3 when focus is root", () => {
+  it("allows notebook to scale to full detail when focus is root", () => {
     const doc = makeDocWithNotebook();
     const projection = createSemanticProjection(doc, {
       zoom: 2,
@@ -823,9 +960,36 @@ describe("notebook focus policy in projection", () => {
       lastFocusNodeId: "root",
     });
     const child = projection.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBe(3);
-    expect(child?.displayWidth).toBe(240);
-    expect(child?.displayHeight).toBe(96);
+    expect(child?.detailLevel).toBe(5);
+    expect(child?.displayWidth).toBe(360);
+    expect(child?.displayHeight).toBe(300);
+  });
+
+  it("does not increase notebook detail when selected in tree layout", () => {
+    const doc = makeDocWithNotebook();
+    doc.layoutMode = "tree-mirror";
+
+    const unselected = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const selected = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    });
+
+    const childUnselected = unselected.nodes.find((n) => n.id === "child");
+    const childSelected = selected.nodes.find((n) => n.id === "child");
+
+    expect(childUnselected?.detailLevel).toBe(0);
+    expect(childSelected?.detailLevel).toBe(0);
+    expect(childSelected?.displayWidth).toBe(childUnselected?.displayWidth);
+    expect(childSelected?.displayHeight).toBe(childUnselected?.displayHeight);
   });
 
   it("allows notebook to reach level 4-5 when it is the focus", () => {
@@ -877,7 +1041,7 @@ describe("notebook focus policy in projection", () => {
     expect(child2?.detailLevel).toBe(child1?.detailLevel);
   });
 
-  it("enforces selected floor of 2 even when notebook is frozen below", () => {
+  it("does not increase notebook detail on hover when frozen below", () => {
     const doc = makeDocWithNotebook();
     doc.nodes.push({
       id: "other",
@@ -902,11 +1066,11 @@ describe("notebook focus policy in projection", () => {
     }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
 
     const child = projection.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBeGreaterThanOrEqual(2);
-    expect(next.get("child")).toBeGreaterThanOrEqual(2);
+    expect(child?.detailLevel).toBe(0);
+    expect(next.get("child")).toBe(0);
   });
 
-  it("enforces hover floor of 2 even when notebook is frozen below", () => {
+  it("keeps notebook frozen detail on hover", () => {
     const doc = makeDocWithNotebook();
     doc.nodes.push({
       id: "other",
@@ -931,8 +1095,8 @@ describe("notebook focus policy in projection", () => {
     }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
 
     const child = projection.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBeGreaterThanOrEqual(2);
-    expect(next.get("child")).toBeGreaterThanOrEqual(2);
+    expect(child?.detailLevel).toBe(1);
+    expect(next.get("child")).toBe(1);
   });
 
   it("maintains independent frozen levels for multiple notebooks", () => {
@@ -983,7 +1147,7 @@ describe("notebook focus policy in projection", () => {
     expect(nb2?.detailLevel).toBe(4);
   });
 
-  it("resumes cap-3 dynamic behavior when focus returns to root from another node", () => {
+  it("resumes zoom-driven notebook detail when focus returns to root", () => {
     const doc = makeDocWithNotebook();
 
     const nextFrozen = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
@@ -1022,8 +1186,8 @@ describe("notebook focus policy in projection", () => {
     });
 
     const child = projRoot.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBe(3);
-    expect(child?.displayWidth).toBe(240);
+    expect(child?.detailLevel).toBe(5);
+    expect(child?.displayWidth).toBe(360);
   });
 
   it("allows forcedDetailLevels to override notebook focus policy", () => {

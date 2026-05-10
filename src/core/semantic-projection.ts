@@ -32,13 +32,15 @@ export function createSemanticProjection(
 ): SemanticProjection {
   const hierarchy = buildHierarchy(doc);
   const isTreeLayout = doc.layoutMode === "tree-mirror" || doc.layoutMode === "tree-right";
-  const focusNodeId = resolveFocusNodeId({
-    doc,
-    hierarchy,
-    selectedNodeIds: context.selectedNodeIds,
-    lastFocusNodeId: context.lastFocusNodeId,
-    viewportWorldRect: context.viewportWorldRect,
-  });
+  const focusNodeId = isTreeLayout
+    ? hierarchy.rootId
+    : resolveFocusNodeId({
+        doc,
+        hierarchy,
+        selectedNodeIds: context.selectedNodeIds,
+        lastFocusNodeId: context.lastFocusNodeId,
+        viewportWorldRect: context.viewportWorldRect,
+      });
 
   const focusPath = focusNodeId ? getAncestorPath(focusNodeId, hierarchy) : [];
   const focusPathSet = new Set(focusPath);
@@ -97,7 +99,7 @@ export function createSemanticProjection(
     });
 
     if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
-    if (isSelected || isHovered) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
+    if (isHovered && node.kind !== "notebook") afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
 
     if (node.kind === "notebook") {
       nextFrozenLevels.set(node.id, afterNotebookPolicy);
@@ -138,7 +140,7 @@ export function createSemanticProjection(
     });
   }
 
-  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel === 5);
+  const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel >= 4);
 
   // Free layout: skip relaxation — user positions are authoritative; auto-pushing
   // nodes apart would fight manual placement and cause drift on selection/zoom.
