@@ -672,20 +672,6 @@ describe("MindmapView", () => {
     expect(renderer.startInlineEditByNodeId).not.toHaveBeenCalled();
   });
 
-  it("deletes a node through the extracted node context menu", async () => {
-    const harness = createHarness();
-    await harness.view.setFile(harness.sourceFile);
-
-    (harness.view as any).openContextMenu("child", 10, 10);
-    const deleteItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
-      ?.find((item: { title: string }) => item.title === "删除节点");
-    deleteItem?.onClickCallback?.();
-
-    expect(getDocument(harness.view).nodes.find((node) => node.id === "child")).toBeUndefined();
-    expect(getDocument(harness.view).edges.find((edge) => edge.id === "edge1")).toBeUndefined();
-    expect(getDirtyState(harness.view)).toBe("dirty");
-  });
-
   it("deletes an edge through the extracted edge context menu", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);

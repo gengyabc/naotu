@@ -436,11 +436,6 @@ export class MindmapView extends ItemView {
       },
       onBindExistingNotebook: () => this.notebookActions.bindExistingNotebook(node.id),
       onRebindNotebook: () => this.notebookActions.rebindNotebook(node.id),
-      onDeleteNode: () => {
-        this.applyDocumentChange(() => {
-          this.store.deleteNode(id);
-        });
-      },
     }).showAtPosition({ x, y });
   }
 

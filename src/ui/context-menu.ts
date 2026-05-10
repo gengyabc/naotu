@@ -8,7 +8,6 @@ interface MindmapNodeContextMenuOptions {
   onCreateNotebook(): void;
   onBindExistingNotebook(): void;
   onRebindNotebook(): void;
-  onDeleteNode(): void;
 }
 
 interface MindmapEdgeContextMenuOptions {
@@ -38,11 +37,6 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): M
       item.setTitle("重新选择文件...").setIcon("file-search").onClick(() => options.onRebindNotebook());
     });
   }
-
-  menu.addSeparator();
-  menu.addItem((item) => {
-    item.setTitle("删除节点").setIcon("trash").onClick(() => options.onDeleteNode());
-  });
 
   return menu;
 }
