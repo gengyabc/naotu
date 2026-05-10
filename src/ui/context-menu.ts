@@ -7,12 +7,7 @@ interface MindmapNodeContextMenuOptions {
   onConvertNotebookToText(): void;
   onCreateNotebook(): void;
   onBindExistingNotebook(): void;
-  onPreviewNotebook(): void;
   onRebindNotebook(): void;
-  onExpandSubtree(): void;
-  onCollapseSubtree(): void;
-  onExpandAll(): void;
-  onRestoreAutoExpand(): void;
   onDeleteNode(): void;
 }
 
@@ -40,27 +35,11 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): M
 
   if (options.nodeKind === "notebook") {
     menu.addItem((item) => {
-      item.setTitle("预览文件").setIcon("scan-search").onClick(() => options.onPreviewNotebook());
-    });
-    menu.addItem((item) => {
       item.setTitle("重新选择文件...").setIcon("file-search").onClick(() => options.onRebindNotebook());
     });
   }
 
   menu.addSeparator();
-  menu.addItem((item) => {
-    item.setTitle("展开此子树").setIcon("chevrons-down").onClick(() => options.onExpandSubtree());
-  });
-  menu.addItem((item) => {
-    item.setTitle("收起此子树").setIcon("chevrons-up").onClick(() => options.onCollapseSubtree());
-  });
-  menu.addSeparator();
-  menu.addItem((item) => {
-    item.setTitle("展开全部").setIcon("list-tree").onClick(() => options.onExpandAll());
-  });
-  menu.addItem((item) => {
-    item.setTitle("恢复自动展开").setIcon("refresh-cw").onClick(() => options.onRestoreAutoExpand());
-  });
   menu.addItem((item) => {
     item.setTitle("删除节点").setIcon("trash").onClick(() => options.onDeleteNode());
   });

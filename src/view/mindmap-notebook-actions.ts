@@ -125,12 +125,6 @@ export class MindmapNotebookActions {
     }
   }
 
-  focusNotebookPreview(id: string): void {
-    const node = this.findNode(id);
-    if (!node || node.kind !== "notebook") return;
-    this.focusNotebookNode(id);
-  }
-
   async openNotebook(id: string): Promise<void> {
     const node = this.findNode(id);
     if (!node || node.kind !== "notebook" || !node.notebook?.link) return;

@@ -380,10 +380,6 @@ export class MindmapView extends ItemView {
     await this.notebookActions.createNotebookForTextNode(id);
   }
 
-  private focusNotebookPreview(id: string): void {
-    this.notebookActions.focusNotebookPreview(id);
-  }
-
   private async handleOpenNotebook(id: string): Promise<void> {
     await this.notebookActions.openNotebook(id);
   }
@@ -439,32 +435,7 @@ export class MindmapView extends ItemView {
         void this.createNotebookForTextNode(id);
       },
       onBindExistingNotebook: () => this.notebookActions.bindExistingNotebook(node.id),
-      onPreviewNotebook: () => this.focusNotebookPreview(id),
       onRebindNotebook: () => this.notebookActions.rebindNotebook(node.id),
-      onExpandSubtree: () => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControlForSubtree(id, "manual-expanded");
-        }, { relayout: false });
-        this.clearSubtreeVirtualZoomState();
-      },
-      onCollapseSubtree: () => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControlForSubtree(id, "manual-collapsed");
-        }, { relayout: false });
-        this.clearSubtreeVirtualZoomState();
-      },
-      onExpandAll: () => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControlForAll("manual-expanded");
-        }, { relayout: false });
-        this.clearSubtreeVirtualZoomState();
-      },
-      onRestoreAutoExpand: () => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControlForAll("auto");
-        }, { relayout: false });
-        this.clearSubtreeVirtualZoomState();
-      },
       onDeleteNode: () => {
         this.applyDocumentChange(() => {
           this.store.deleteNode(id);
