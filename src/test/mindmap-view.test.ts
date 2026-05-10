@@ -63,7 +63,7 @@ const hoisted = vi.hoisted(() => {
 
     constructor(
       public app: unknown,
-      private onChoose: (file: TFile, targetKind: "markdown" | "image" | "excalidraw") => void,
+      private onChoose: (file: TFile, targetKind: "markdown" | "image" | "excalidraw") => void | Promise<void>,
     ) {
       FakeFileBindingSuggestModal.lastInstance = this;
     }
@@ -73,8 +73,8 @@ const hoisted = vi.hoisted(() => {
       return this;
     }
 
-    choose(file: TFile, targetKind: "markdown" | "image" | "excalidraw"): void {
-      this.onChoose(file, targetKind);
+    async choose(file: TFile, targetKind: "markdown" | "image" | "excalidraw"): Promise<void> {
+      await this.onChoose(file, targetKind);
     }
 
     setFilterEnabled(targetKind: "markdown" | "image" | "excalidraw", enabled: boolean): void {
@@ -548,7 +548,7 @@ describe("MindmapView", () => {
     const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
       ?.find((item: { title: string }) => item.title === "选择已有文件...");
     bindItem?.onClickCallback?.();
-    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(notebookFile, "markdown");
+    await hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(notebookFile, "markdown");
 
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
@@ -580,7 +580,7 @@ describe("MindmapView", () => {
     const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
       ?.find((item: { title: string }) => item.title === "选择已有文件...");
     bindItem?.onClickCallback?.();
-    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(imageFile, "image");
+    await hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(imageFile, "image");
 
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
@@ -603,7 +603,7 @@ describe("MindmapView", () => {
     const bindItem = ((Menu as any).lastShown?.items as Array<{ title: string; onClickCallback?: () => void }> | undefined)
       ?.find((item: { title: string }) => item.title === "选择已有文件...");
     bindItem?.onClickCallback?.();
-    hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(excalidrawFile, "excalidraw");
+    await hoisted.FakeFileBindingSuggestModal.lastInstance?.choose(excalidrawFile, "excalidraw");
 
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
@@ -638,7 +638,7 @@ describe("MindmapView", () => {
     await harness.view.setFile(harness.sourceFile);
     const imageFile = harness.addMarkdownFile("assets/photo.png", "");
 
-    (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
+    await (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
     expect(boundNode?.title).toBe("photo.png");
@@ -659,7 +659,7 @@ describe("MindmapView", () => {
     await harness.view.setFile(harness.sourceFile);
     const renderer = harness.getRenderer();
 
-    (harness.view as any).notebookActions.bindExistingFileNode("child", notebookFile, "markdown");
+    await (harness.view as any).notebookActions.bindExistingFileNode("child", notebookFile, "markdown");
     harness.fileRecords.delete("notes/Topic.md");
     await harness.view.handleVaultDelete(notebookFile);
 
@@ -673,7 +673,7 @@ describe("MindmapView", () => {
     await harness.view.setFile(harness.sourceFile);
     const renderer = harness.getRenderer();
 
-    (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
+    await (harness.view as any).notebookActions.bindExistingFileNode("child", imageFile, "image");
     (harness.view as any).setSelectionOnly("child");
     (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "F2", target: harness.view.contentEl as never }));
 

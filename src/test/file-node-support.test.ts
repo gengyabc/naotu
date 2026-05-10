@@ -34,5 +34,7 @@ describe("file node support helpers", () => {
 
   it("builds embedded preview markdown using the vault path", () => {
     expect(buildEmbeddedPreviewMarkdown("assets/photo.png")).toBe("![[assets/photo.png]]");
+    expect(buildEmbeddedPreviewMarkdown("assets/photo.png", 320)).toBe("![[assets/photo.png|320]]");
+    expect(buildEmbeddedPreviewMarkdown("assets/photo.png", 320, 180)).toBe("![[assets/photo.png|320x180]]");
   });
 });

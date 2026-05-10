@@ -111,6 +111,7 @@ export function createSemanticProjection(
     const resolvedSize = resolveProjectedDisplaySize({ node, detail });
     const projectedCenter = projectNodeCenter({ node, context });
     const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
+    const embeddedFileNotebook = node.kind === "notebook" && isEmbeddedFileNodeTargetKind(node.notebook?.targetKind);
 
     projectedNodes.push({
       id: node.id,
@@ -124,6 +125,7 @@ export function createSemanticProjection(
       projectedY: projectedCenter.y - resolvedSize.height / (2 * context.zoom),
       displayWidth: resolvedSize.width,
       displayHeight: resolvedSize.height,
+      aspectRatio: node.aspectRatio,
       detailLevel: detail,
       isRoot,
       isFocus,
@@ -135,7 +137,7 @@ export function createSemanticProjection(
       hasChildren: children.length > 0,
       childrenExpanded,
       showOpenNotebookButton: node.kind === "notebook" && detail >= 4 && Boolean(node.notebook?.link),
-      showResizeHandle: node.kind === "notebook" && detail >= 4,
+      showResizeHandle: node.kind === "notebook" && (detail >= 4 || (embeddedFileNotebook && resolvedSize.usesCustomSize)),
       usesCustomSize: resolvedSize.usesCustomSize,
     });
   }

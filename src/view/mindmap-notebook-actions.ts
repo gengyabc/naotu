@@ -6,6 +6,7 @@ import type { MindmapDocument, MindmapNode, NotebookTargetKind } from "../types/
 import { showErrorNotice } from "../ui/error-notice";
 import { FileBindingSuggestModal } from "../ui/file-suggest-modal";
 import { getFileNodeTitle } from "../core/file-node-support";
+import { getFileDimensions, calculateAspectRatioSize, getDefaultEmbeddedSize } from "../core/file-dimensions";
 
 type NotebookChangeOptions = {
   commitHistory?: boolean;
@@ -60,8 +61,44 @@ export class MindmapNotebookActions {
 
   async refreshNotebookLinks(): Promise<void> {
     await this.syncNotebookPaths();
+    await this.syncEmbeddedFileSizing();
     this.refreshMissingNotebookLinks();
     this.options.render();
+  }
+
+  async syncEmbeddedFileSizing(): Promise<void> {
+    const defaultSize = getDefaultEmbeddedSize();
+    let changed = false;
+
+    for (const node of this.options.store.getDocument().nodes) {
+      if (node.kind !== "notebook") continue;
+      const targetKind = node.notebook?.targetKind;
+      if (targetKind !== "image" && targetKind !== "excalidraw") continue;
+
+      const file = this.options.notebookService.resolveNotebookFile(node, this.options.getSourcePath());
+      if (!(file instanceof TFile)) continue;
+
+      const dimensions = await getFileDimensions(this.options.app, file, targetKind);
+      if (!dimensions) continue;
+
+      const sized = calculateAspectRatioSize(dimensions.width, dimensions.height);
+      const usesLegacyDefaultSize = node.customWidth === defaultSize.width && node.customHeight === defaultSize.height;
+      const needsAspectRatio = typeof node.aspectRatio !== "number" || node.aspectRatio <= 0;
+      const needsSizeUpgrade = usesLegacyDefaultSize || (typeof node.customWidth !== "number" && typeof node.customHeight !== "number");
+
+      if (!needsAspectRatio && !needsSizeUpgrade) continue;
+
+      this.options.store.patchNode(node.id, {
+        aspectRatio: sized.aspectRatio,
+        ...(needsSizeUpgrade ? { customWidth: sized.width, customHeight: sized.height } : {}),
+      });
+      changed = true;
+    }
+
+    if (!changed) return;
+
+    this.options.markDirty();
+    this.options.scheduleAutosave();
   }
 
   usesNotebookFile(file: TFile): boolean {
@@ -127,9 +164,10 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "text") return;
 
-    new FileBindingSuggestModal(this.options.app, (file, targetKind) => {
+    new FileBindingSuggestModal(this.options.app, async (file, targetKind) => {
+      const patch = await this.buildBindExistingFilePatch(file, targetKind);
       this.options.applyDocumentChange(() => {
-        this.options.store.patchNode(node.id, this.buildBindExistingFilePatch(file, targetKind));
+        this.options.store.patchNode(node.id, patch);
       });
       this.refreshMissingNotebookLinks();
       this.focusNotebookNode(node.id);
@@ -140,8 +178,8 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "notebook") return;
 
-    new FileBindingSuggestModal(this.options.app, (file, targetKind) => {
-      const patch = this.buildBindExistingFilePatch(file, targetKind);
+    new FileBindingSuggestModal(this.options.app, async (file, targetKind) => {
+      const patch = await this.buildBindExistingFilePatch(file, targetKind);
       this.options.applyDocumentChange(() => {
         this.options.store.patchNode(node.id, patch);
       });
@@ -162,7 +200,7 @@ export class MindmapNotebookActions {
     this.refreshMissingNotebookLinks();
   }
 
-  bindExistingFileNode(id: string, file: TFile, targetKind: NotebookTargetKind): void {
+  async bindExistingFileNode(id: string, file: TFile, targetKind: NotebookTargetKind): Promise<void> {
     const node = this.findNode(id);
     if (!node || node.kind !== "text") return;
 
@@ -170,9 +208,10 @@ export class MindmapNotebookActions {
     const freshFile = this.options.app.vault.getAbstractFileByPath(file.path);
     if (!(freshFile instanceof TFile)) throw new Error("找不到文件，无法绑定");
 
-    const patch = this.options.notebookService.bindExistingFileNode(freshFile, targetKind);
+    const basePatch = this.options.notebookService.bindExistingFileNode(freshFile, targetKind);
+    const patch = await this.applyFileNodeSizing(basePatch, freshFile, targetKind);
     this.options.applyDocumentChange(() => {
-      this.options.store.patchNode(id, this.applyFileNodeSizing(patch, targetKind));
+      this.options.store.patchNode(id, patch);
     }, { commitHistory: false });
     this.refreshMissingNotebookLinks();
     this.focusNotebookNode(id);
@@ -198,6 +237,7 @@ export class MindmapNotebookActions {
             link: undefined,
             customWidth: undefined,
             customHeight: undefined,
+            aspectRatio: undefined,
           });
         }
       }, { commitHistory: false });
@@ -237,14 +277,27 @@ export class MindmapNotebookActions {
     this.options.render();
   }
 
-  private buildBindExistingFilePatch(file: TFile, targetKind: NotebookTargetKind): Partial<MindmapNode> {
-    return this.applyFileNodeSizing(this.options.notebookService.bindExistingFileNode(file, targetKind), targetKind);
+  private async buildBindExistingFilePatch(file: TFile, targetKind: NotebookTargetKind): Promise<Partial<MindmapNode>> {
+    const basePatch = this.options.notebookService.bindExistingFileNode(file, targetKind);
+    return await this.applyFileNodeSizing(basePatch, file, targetKind);
   }
 
-  private applyFileNodeSizing(patch: Partial<MindmapNode>, targetKind: NotebookTargetKind): Partial<MindmapNode> {
+  private async applyFileNodeSizing(
+    patch: Partial<MindmapNode>,
+    file: TFile,
+    targetKind: NotebookTargetKind,
+  ): Promise<Partial<MindmapNode>> {
     if (targetKind === "markdown") {
-      return { ...patch, customWidth: undefined, customHeight: undefined };
+      return { ...patch, customWidth: undefined, customHeight: undefined, aspectRatio: undefined };
     }
-    return { ...patch, customWidth: 360, customHeight: 300 };
+
+    const dimensions = await getFileDimensions(this.options.app, file, targetKind);
+    if (!dimensions) {
+      const defaultSize = getDefaultEmbeddedSize();
+      return { ...patch, customWidth: defaultSize.width, customHeight: defaultSize.height, aspectRatio: undefined };
+    }
+
+    const sized = calculateAspectRatioSize(dimensions.width, dimensions.height);
+    return { ...patch, customWidth: sized.width, customHeight: sized.height, aspectRatio: sized.aspectRatio };
   }
 }

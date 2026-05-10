@@ -6,6 +6,8 @@ import { getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-
 
 interface FakeWrapper {
   className: string;
+  classList: { toggle: (token: string, force?: boolean) => void };
+  dataset: Record<string, string>;
   style: { pointerEvents?: string };
   scrollTop: number;
   clientHeight: number;
@@ -15,6 +17,7 @@ interface FakeWrapper {
   empty: () => void;
   createDiv: (args: { cls: string; text: string }) => void;
   addEventListener: (type: string, listener: EventListener) => void;
+  querySelectorAll: () => HTMLElement[];
 }
 
 interface FakeForeignObject {
@@ -24,8 +27,18 @@ interface FakeForeignObject {
 }
 
 function createWrapper(): FakeWrapper {
-  return {
+  const wrapper: FakeWrapper = {
     className: "",
+    classList: {
+      toggle(token: string, force?: boolean) {
+        const classNames = new Set(wrapper.className.split(/\s+/).filter(Boolean));
+        const shouldAdd = force !== undefined ? force : !classNames.has(token);
+        if (shouldAdd) classNames.add(token);
+        else classNames.delete(token);
+        wrapper.className = Array.from(classNames).join(" ");
+      },
+    },
+    dataset: {},
     style: {},
     scrollTop: 20,
     clientHeight: 100,
@@ -33,7 +46,9 @@ function createWrapper(): FakeWrapper {
     empty: vi.fn(),
     createDiv: vi.fn(),
     addEventListener: vi.fn(),
+    querySelectorAll: () => [],
   };
+  return wrapper;
 }
 
 function createFile(path: string, basename: string): TFile {
@@ -641,11 +656,12 @@ describe("renderNotebookPreview", () => {
         link: "[[photo.png]]",
         sourcePath: "maps/source.naotu",
         targetKind: "image",
+        previewWidth: 200,
         previewHeight: 120,
         component,
       });
 
-      expect(wrapper.renderedMarkdown).toBe("![[assets/photo.png]]");
+      expect(wrapper.renderedMarkdown).toBe("![[assets/photo.png|200x120]]");
       expect(wrapper.renderedSourcePath).toBe("maps/source.naotu");
       expect(wrapper.style.pointerEvents).toBe("none");
 

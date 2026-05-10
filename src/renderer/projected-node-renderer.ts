@@ -7,7 +7,11 @@ import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
-import { NOTEBOOK_MIN_CUSTOM_HEIGHT, NOTEBOOK_MIN_CUSTOM_WIDTH } from "../core/notebook-size";
+import {
+  NOTEBOOK_MIN_CUSTOM_HEIGHT,
+  NOTEBOOK_MIN_CUSTOM_WIDTH,
+  clampNotebookAspectRatioSize,
+} from "../core/notebook-size";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
 import { layoutText, truncateTextForNotebook, layoutDescription } from "../core/text-layout";
@@ -66,7 +70,15 @@ export function screenDragDeltaToWorldDelta(args: { dx: number; dy: number }): {
   return { dx: args.dx, dy: args.dy };
 }
 
-export function clampNotebookResizeSize(width: number, height: number): { width: number; height: number } {
+export function clampNotebookResizeSize(
+  width: number,
+  height: number,
+  aspectRatio?: number,
+  axis: "width" | "height" = "width",
+): { width: number; height: number } {
+  if (aspectRatio && aspectRatio > 0) {
+    return clampNotebookAspectRatioSize(width, height, aspectRatio, axis);
+  }
   return {
     width: Math.max(NOTEBOOK_MIN_CUSTOM_WIDTH, Math.round(width)),
     height: Math.max(NOTEBOOK_MIN_CUSTOM_HEIGHT, Math.round(height)),
@@ -222,12 +234,18 @@ export function renderProjectedNodes(args: {
     args.onNotebookResizeStart(node.id);
   }).on("drag", (event, node) => {
     const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
-    const next = clampNotebookResizeSize(currentDraft.width + event.dx, currentDraft.height + event.dy);
+    const axis = node.aspectRatio && Math.abs(event.dy * node.aspectRatio) > Math.abs(event.dx) ? "height" : "width";
+    const next = clampNotebookResizeSize(
+      currentDraft.width + event.dx,
+      currentDraft.height + event.dy,
+      node.aspectRatio,
+      axis,
+    );
     resizeDrafts.set(node.id, next);
     args.onNotebookResize({ id: node.id, width: next.width, height: next.height });
-  }).on("end", (event, node) => {
+  }).on("end", (_event, node) => {
     const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
-    const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height);
+    const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height, node.aspectRatio);
     resizeDrafts.delete(node.id);
     args.onNotebookResizeEnd({ id: node.id, width: next.width, height: next.height });
   });
@@ -475,6 +493,7 @@ export function renderProjectedNodes(args: {
       });
       preview
         .style("display", "")
+        .style("pointer-events", showEmbeddedFilePreview ? "none" : "auto")
         .attr("x", previewFrame.x)
         .attr("y", previewFrame.y)
         .attr("width", previewFrame.width)
@@ -486,11 +505,17 @@ export function renderProjectedNodes(args: {
         sourcePath: args.sourcePath,
         storedPath: node.notebook.path,
         targetKind,
+        previewWidth: previewFrame.width,
         previewHeight: previewFrame.height,
         component: args.component,
       });
     } else {
       preview.style("display", "none");
     }
+
+    // Keep controls above foreignObject previews so embedded files do not block clicks/drags.
+    treeToggleGroup.raise();
+    resizeHandleGroup.raise();
+    group.select<SVGGElement>("g.mindmap-node-open-notebook").raise();
   });
 }

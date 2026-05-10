@@ -33,6 +33,7 @@ export interface MindmapNode {
   height: number;
   customWidth?: number;
   customHeight?: number;
+  aspectRatio?: number;
   treeControl: TreeControl;
   notebook?: NotebookBinding;
   link?: string;
@@ -93,6 +94,7 @@ export interface ProjectedNode {
   projectedY: number;
   displayWidth: number;
   displayHeight: number;
+  aspectRatio?: number;
   detailLevel: NodeDetailLevel;
   isRoot: boolean;
   isFocus: boolean;

@@ -114,6 +114,7 @@ export class NotebookService {
       link: undefined,
       customWidth: undefined,
       customHeight: undefined,
+      aspectRatio: undefined,
     };
   }
 

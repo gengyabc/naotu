@@ -42,7 +42,15 @@ export function getFileNodeTitle(path: string): string {
   return segments[segments.length - 1] ?? normalized;
 }
 
-export function buildEmbeddedPreviewMarkdown(path: string): string {
+export function buildEmbeddedPreviewMarkdown(path: string, width?: number, height?: number): string {
+  const roundedWidth = typeof width === "number" ? Math.max(1, Math.round(width)) : 0;
+  const roundedHeight = typeof height === "number" ? Math.max(1, Math.round(height)) : 0;
+  if (roundedWidth > 0 && roundedHeight > 0) {
+    return `![[${path}|${roundedWidth}x${roundedHeight}]]`;
+  }
+  if (roundedWidth > 0) {
+    return `![[${path}|${roundedWidth}]]`;
+  }
   return `![[${path}]]`;
 }
 

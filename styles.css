@@ -222,6 +222,74 @@
   scrollbar-color: var(--scrollbar-thumb-bg) transparent;
 }
 
+.mindmap-preview-wrapper.is-embedded-file {
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.mindmap-preview-wrapper.is-embedded-file > * {
+  margin: 0 !important;
+}
+
+.mindmap-preview-wrapper.is-embedded-file .internal-embed,
+.mindmap-preview-wrapper.is-embedded-file .markdown-embed,
+.mindmap-preview-wrapper.is-embedded-file .media-embed,
+.mindmap-preview-wrapper.is-embedded-file .image-embed {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  max-width: none;
+}
+
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .internal-embed,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .markdown-embed,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .media-embed,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .image-embed,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] [class^="excalidraw-svg"],
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] [class*=" excalidraw-svg"] {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.mindmap-preview-wrapper.is-embedded-file img,
+.mindmap-preview-wrapper.is-embedded-file svg,
+.mindmap-preview-wrapper.is-embedded-file canvas {
+  display: block;
+  margin: 0 !important;
+}
+
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="image"] img,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="image"] svg,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="image"] canvas,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] img,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] svg,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .excalidraw-svg,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] svg.excalidraw-svg,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] img.excalidraw-svg,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] [class^="excalidraw-svg"] img,
+.mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] [class*=" excalidraw-svg"] img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block;
+  flex: 0 1 auto;
+}
+
 .mindmap-preview-wrapper::-webkit-scrollbar {
   width: 6px;
   height: 6px;

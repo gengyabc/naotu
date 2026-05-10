@@ -8,6 +8,7 @@ const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 const wheelBindingByElement = new WeakSet<HTMLDivElement>();
 const scrollBindingByElement = new WeakSet<HTMLDivElement>();
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
+const embeddedObserverByElement = new WeakMap<HTMLDivElement, MutationObserver>();
 
 interface PreviewRenderState {
   app: App;
@@ -16,6 +17,7 @@ interface PreviewRenderState {
   sourcePath: string;
   storedPath?: string;
   targetKind?: "markdown" | "image" | "excalidraw";
+  previewWidth: number;
   previewHeight: number;
   component: Component;
   sourceKey: string;
@@ -32,6 +34,17 @@ const PREVIEW_LINE_HEIGHT = 18;
 const PREVIEW_MIN_LINES = 20;
 const PREVIEW_MAX_LINES = 200;
 
+function setEmbeddedWrapperState(
+  wrapper: HTMLDivElement,
+  embedded: boolean,
+  targetKind?: "markdown" | "image" | "excalidraw",
+): void {
+  wrapper.classList.toggle("is-embedded-file", embedded);
+
+  if (embedded) wrapper.dataset.targetKind = targetKind ?? "markdown";
+  else delete wrapper.dataset.targetKind;
+}
+
 function shouldKeepWheelWithinPreview(wrapper: HTMLDivElement, deltaY: number): boolean {
   if (wrapper.scrollHeight <= wrapper.clientHeight) return false;
 
@@ -43,6 +56,72 @@ function shouldKeepWheelWithinPreview(wrapper: HTMLDivElement, deltaY: number): 
   return true;
 }
 
+function normalizeEmbeddedPreviewOutput(
+  wrapper: HTMLDivElement,
+  targetKind: "markdown" | "image" | "excalidraw",
+): void {
+  if (targetKind === "markdown") return;
+
+  const baseSelectors = [
+    ".internal-embed",
+    ".markdown-embed",
+    ".media-embed",
+    ".image-embed",
+  ];
+  wrapper.querySelectorAll<HTMLElement>(baseSelectors.join(", ")).forEach((element) => {
+    element.style.setProperty("width", "100%", "important");
+    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("max-width", "none", "important");
+    element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("margin", "0", "important");
+    element.style.setProperty("padding", "0", "important");
+  });
+
+  if (targetKind !== "excalidraw") return;
+
+  wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
+    element.style.setProperty("width", "100%", "important");
+    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("max-width", "none", "important");
+    element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("margin", "0", "important");
+    element.style.setProperty("padding", "0", "important");
+  });
+
+  wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
+    element.style.setProperty("width", "100%", "important");
+    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("max-width", "none", "important");
+    element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("display", "block", "important");
+    if (element instanceof SVGElement) {
+      element.removeAttribute("width");
+      element.removeAttribute("height");
+    }
+  });
+}
+
+function bindEmbeddedPreviewObserver(
+  wrapper: HTMLDivElement,
+  targetKind: "markdown" | "image" | "excalidraw",
+): void {
+  embeddedObserverByElement.get(wrapper)?.disconnect();
+  embeddedObserverByElement.delete(wrapper);
+
+  normalizeEmbeddedPreviewOutput(wrapper, targetKind);
+  if (targetKind === "markdown" || typeof MutationObserver === "undefined") return;
+
+  const observer = new MutationObserver(() => {
+    normalizeEmbeddedPreviewOutput(wrapper, targetKind);
+  });
+  observer.observe(wrapper, { childList: true, subtree: true, attributes: true });
+  embeddedObserverByElement.set(wrapper, observer);
+
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => normalizeEmbeddedPreviewOutput(wrapper, targetKind));
+  }
+}
+
 export async function renderNotebookPreview(args: {
   app: App;
   foreignObject: SVGForeignObjectElement | null;
@@ -50,6 +129,7 @@ export async function renderNotebookPreview(args: {
   sourcePath: string;
   storedPath?: string;
   targetKind?: "markdown" | "image" | "excalidraw";
+  previewWidth?: number;
   previewHeight: number;
   component: Component;
 }): Promise<void> {
@@ -68,6 +148,8 @@ export async function renderNotebookPreview(args: {
     wrapper.className = "mindmap-preview-wrapper";
     args.foreignObject.appendChild(wrapper);
   }
+  setEmbeddedWrapperState(wrapper, (args.targetKind ?? "markdown") !== "markdown", args.targetKind);
+  bindEmbeddedPreviewObserver(wrapper, args.targetKind ?? "markdown");
   wrapper.style.pointerEvents = (args.targetKind ?? "markdown") === "markdown" ? "auto" : "none";
   if (!wheelBindingByElement.has(wrapper)) {
     wrapper.addEventListener("wheel", (event) => {
@@ -91,6 +173,7 @@ export async function renderNotebookPreview(args: {
     sourcePath: args.sourcePath,
     storedPath: args.storedPath,
     targetKind: args.targetKind,
+    previewWidth: args.previewWidth ?? 0,
     previewHeight: args.previewHeight,
     component: args.component,
     sourceKey,
@@ -107,7 +190,7 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
   const state = previewStateByElement.get(foreignObject);
   if (!state) return;
 
-  const key = `${state.sourceKey}::${maxLines}`;
+  const key = `${state.sourceKey}::${state.previewWidth}::${state.previewHeight}::${maxLines}`;
   if (renderedKeyByElement.get(foreignObject) === key) return;
   renderedKeyByElement.set(foreignObject, key);
 
@@ -117,6 +200,8 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
     wrapper.className = "mindmap-preview-wrapper";
     foreignObject.appendChild(wrapper);
   }
+  setEmbeddedWrapperState(wrapper, (state.targetKind ?? "markdown") !== "markdown", state.targetKind);
+  bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
 
   const prev = childComponentByElement.get(foreignObject);
   if (prev) {
@@ -148,11 +233,12 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
 
       await MarkdownRenderer.render(
         state.app,
-        buildEmbeddedPreviewMarkdown(resolved.path),
+        buildEmbeddedPreviewMarkdown(resolved.path, state.previewWidth, state.previewHeight),
         wrapper,
         state.sourcePath,
         child,
       );
+      bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
       wrapper.scrollTop = previousScrollTop;
       return;
     }

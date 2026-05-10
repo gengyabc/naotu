@@ -32,6 +32,21 @@ describe("projected node dragging", () => {
     expect(clampNotebookResizeSize(420.7, 260.2)).toEqual({ width: 421, height: 260 });
   });
 
+  it("preserves aspect ratio when resizing embedded file nodes", () => {
+    expect(clampNotebookResizeSize(300, 200, 1.5)).toEqual({ width: 300, height: 200 });
+    expect(clampNotebookResizeSize(600, 400, 2)).toEqual({ width: 600, height: 300 });
+    expect(clampNotebookResizeSize(400, 300, 1.33)).toEqual({ width: 400, height: 301 });
+  });
+
+  it("can derive aspect-ratio resize from vertical drag intent", () => {
+    expect(clampNotebookResizeSize(300, 260, 2, "height")).toEqual({ width: 520, height: 260 });
+    expect(clampNotebookResizeSize(300, 100, 2, "height")).toEqual({ width: 300, height: 150 });
+  });
+
+  it("enforces minimum width when preserving aspect ratio", () => {
+    expect(clampNotebookResizeSize(50, 100, 0.5)).toEqual({ width: 200, height: 400 });
+  });
+
   it("does not start node dragging from notebook controls", () => {
     expect(
       shouldStartNodeDrag({ closest: (selector: string) => (selector.includes("mindmap-node-resize-handle") ? {} : null) } as unknown as EventTarget),

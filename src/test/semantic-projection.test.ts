@@ -411,6 +411,7 @@ describe("createSemanticProjection", () => {
     expect(child?.detailLevel).toBe(3);
     expect(child?.displayWidth).toBe(360);
     expect(child?.displayHeight).toBe(300);
+    expect(child?.showResizeHandle).toBe(true);
     expect(child?.usesCustomSize).toBe(true);
   });
 
