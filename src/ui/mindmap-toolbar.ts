@@ -21,6 +21,10 @@ export interface MindmapToolbarOptions {
 export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions): MindmapToolbar {
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });
 
+  const openButton = toolbar.createEl("button", { text: "打开" });
+  setButtonA11y(openButton, "打开脑图");
+  openButton.onclick = () => options.onOpenMindmap();
+
   const mirrorLayoutButton = toolbar.createEl("button", { text: "镜像树" });
   setButtonA11y(mirrorLayoutButton, "镜像树布局");
   mirrorLayoutButton.onclick = () => options.onChangeLayoutMode("tree-mirror");
@@ -32,10 +36,6 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const freeLayoutButton = toolbar.createEl("button", { text: "自由布局" });
   setButtonA11y(freeLayoutButton, "自由布局");
   freeLayoutButton.onclick = () => options.onChangeLayoutMode("free");
-
-  const openButton = toolbar.createEl("button", { text: "打开" });
-  setButtonA11y(openButton, "打开脑图");
-  openButton.onclick = () => options.onOpenMindmap();
 
   const searchInput = toolbar.createEl("input", {
     type: "text",
