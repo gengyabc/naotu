@@ -87,7 +87,6 @@ function getSaveStatus(container: FakeElement): FakeElement {
 
 describe("createMindmapToolbar", () => {
   it("wires toolbar actions and sync APIs", () => {
-    const onAddNode = vi.fn();
     const onChangeLayoutMode = vi.fn();
     const onOpenMindmap = vi.fn();
     const onSaveMindmap = vi.fn();
@@ -99,7 +98,6 @@ describe("createMindmapToolbar", () => {
       layoutMode: "tree-right",
       searchQuery: "root",
       saveStatus: "Saved",
-      onAddNode,
       onChangeLayoutMode,
       onOpenMindmap,
       onSaveMindmap,
@@ -107,7 +105,6 @@ describe("createMindmapToolbar", () => {
       onSearchSubmit,
     });
 
-    getButton(container, "新增节点").onclick?.();
     getButton(container, "右向树").onclick?.();
     getButton(container, "打开").onclick?.();
     getButton(container, "保存").onclick?.();
@@ -118,7 +115,6 @@ describe("createMindmapToolbar", () => {
     const enter = new FakeEvent("Enter");
     input.onkeydown?.(enter);
 
-    expect(onAddNode).toHaveBeenCalledTimes(1);
     expect(onChangeLayoutMode).toHaveBeenCalledWith("tree-right");
     expect(onOpenMindmap).toHaveBeenCalledTimes(1);
     expect(onSaveMindmap).toHaveBeenCalledTimes(1);

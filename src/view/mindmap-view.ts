@@ -309,7 +309,6 @@ export class MindmapView extends ItemView {
       layoutMode: this.store.getDocument().layoutMode,
       searchQuery: this.interactions.getSearchQuery(),
       saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
-      onAddNode: () => this.addTextNode(),
       onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
       onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
       onSaveMindmap: () => {
@@ -343,28 +342,6 @@ export class MindmapView extends ItemView {
 
   private redo(): void {
     this.editSession.redo();
-  }
-
-  private addTextNode(): void {
-    const node: MindmapNode = {
-      id: createId("node"),
-      kind: "text",
-      title: DEFAULT_TEXT_NODE_TITLE,
-      x: 120,
-      y: 120,
-      width: DEFAULT_NODE_WIDTH,
-      height: DEFAULT_NODE_HEIGHT,
-      treeControl: "manual-expanded",
-    };
-
-    this.applyDocumentChange(() => {
-      this.store.addNode(node);
-    });
-    this.setSelectionOnly(node.id);
-    this.rendererCoordinator.setLastFocusNodeId(node.id);
-    this.rendererCoordinator.render();
-    this.rendererCoordinator.focusNode(node.id);
-    requestAnimationFrame(() => this.canvasEl?.focus());
   }
 
   private updateSearch(query: string): void {

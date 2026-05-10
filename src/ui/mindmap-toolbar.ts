@@ -12,7 +12,6 @@ export interface MindmapToolbarOptions {
   layoutMode: LayoutMode;
   searchQuery: string;
   saveStatus: string;
-  onAddNode(): void;
   onChangeLayoutMode(mode: LayoutMode): void;
   onOpenMindmap(): void;
   onSaveMindmap(): void;
@@ -22,9 +21,6 @@ export interface MindmapToolbarOptions {
 
 export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions): MindmapToolbar {
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });
-  const addButton = toolbar.createEl("button", { text: "新增节点" });
-  setButtonA11y(addButton, "新增节点");
-  addButton.onclick = () => options.onAddNode();
 
   const mirrorLayoutButton = toolbar.createEl("button", { text: "镜像树" });
   setButtonA11y(mirrorLayoutButton, "镜像树布局");
