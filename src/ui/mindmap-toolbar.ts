@@ -25,13 +25,13 @@ export interface MindmapToolbarOptions {
 type ToolbarIconId = "folder-open" | "layout-mirror" | "layout-right" | "layout-free" | "search" | "undo" | "redo";
 
 const TOOLBAR_ICON_PATHS: Record<ToolbarIconId, string> = {
-  "folder-open": `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>`,
-  "layout-mirror": `<path d="M12 3v18"/><path d="M3 9h6"/><path d="M3 15h6"/><path d="M15 9h6"/><path d="M15 15h6"/>`,
-  "layout-right": `<path d="M3 3v18"/><path d="M7 7h12"/><path d="M7 12h12"/><path d="M7 17h12"/>`,
-  "layout-free": `<circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>`,
+  "folder-open": `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
+  "layout-mirror": `<path d="M12 3v18" stroke-width="1.5"/><path d="M12 6h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4" stroke-width="1.5"/><path d="M12 13h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4" stroke-width="1.5"/><path d="M12 6H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4" stroke-width="1.5"/><path d="M12 13H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4" stroke-width="1.5"/><circle cx="12" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="16" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="16" r="1.5" fill="currentColor" stroke="none"/>`,
+  "layout-right": `<path d="M5 3v18" stroke-width="1.5"/><path d="M5 7h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><path d="M5 12h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><path d="M5 17h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><circle cx="5" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="10" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.5" fill="currentColor" stroke="none"/>`,
+  "layout-free": `<circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="12" cy="17" r="3"/><path d="M9 9l1 6" stroke-width="1.5"/><path d="M15 9l-1 6" stroke-width="1.5"/>`,
   search: `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
-  undo: `<path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.5-6.5L3 7"/>`,
-  redo: `<path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-2.5-6.5L21 7"/>`,
+  undo: `<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>`,
+  redo: `<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>`,
 };
 
 function createToolbarIcon(iconId: ToolbarIconId): SVGSVGElement {
