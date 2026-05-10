@@ -243,6 +243,10 @@ export class MindmapInteractions {
       return true;
     }
 
+    if (factor < 1 && plan.controls.size === 0 && plan.previousVisibleDepth === 0 && plan.nextVisibleDepth === 0) {
+      return true;
+    }
+
     this.subtreeVirtualZoomState = { nodeId: selectedId, zoom: plan.nextVirtualZoom };
     if (plan.controls.size === 0) {
       this.options.zoomBy(factor);

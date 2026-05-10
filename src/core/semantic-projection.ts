@@ -42,13 +42,20 @@ export function createSemanticProjection(
       });
 
   const focusPath = focusNodeId ? getAncestorPath(focusNodeId, hierarchy) : [];
+  const selectedNodeId = context.selectedNodeIds.find((id) => hierarchy.nodes.has(id));
+  const selectedPath = selectedNodeId ? getAncestorPath(selectedNodeId, hierarchy) : [];
   const focusPathSet = new Set(focusPath);
-  const forcedExpandedNodeIds = new Set(focusPath.filter((id) => id !== focusNodeId));
+  const forcedExpandedNodeIds = new Set([
+    ...focusPath.filter((id) => id !== focusNodeId),
+    ...selectedPath.filter((id) => id !== selectedNodeId),
+  ]);
   const visibleNodeIds = new Set<string>();
 
   if (hierarchy.rootId) visibleNodeIds.add(hierarchy.rootId);
   if (focusNodeId) visibleNodeIds.add(focusNodeId);
   for (const id of focusPath) visibleNodeIds.add(id);
+  if (selectedNodeId) visibleNodeIds.add(selectedNodeId);
+  for (const id of selectedPath) visibleNodeIds.add(id);
 
   if (hierarchy.rootId) {
     collectVisibleTree({ nodeId: hierarchy.rootId, hierarchy, visibleNodeIds, forcedExpandedNodeIds, zoom: context.zoom });
