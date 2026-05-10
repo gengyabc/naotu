@@ -26,6 +26,40 @@
   color: var(--text-on-accent);
 }
 
+.semantic-mindmap-toolbar button svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.mindmap-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+}
+
+.mindmap-search-wrapper svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mindmap-search-wrapper input[type="text"] {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-width: 140px !important;
+}
+
+.mindmap-search-wrapper input[type="text"]:focus {
+  outline: none;
+}
+
 .semantic-mindmap-canvas {
   position: relative;
   flex: 1;

@@ -14,16 +14,44 @@ export class FakeElement {
   oninput: (() => void) | null = null;
   onkeydown: ((event: KeyboardEvent) => void) | null = null;
   private listeners = new Map<string, Set<(event: Event) => void>>();
+  protected namespaceUriValue: string | null;
 
   constructor(
     tagName = "div",
     options: { text?: string; cls?: string; type?: string; placeholder?: string } = {},
+    namespaceUri: string | null = null,
   ) {
     this.tagName = tagName.toUpperCase();
+    this.namespaceUriValue = namespaceUri;
     if (options.text) this.textContent = options.text;
     if (options.cls) this.classNames.add(options.cls);
     if (options.type) this.attributes.set("type", options.type);
     if (options.placeholder) this.attributes.set("placeholder", options.placeholder);
+  }
+
+  get innerHTML(): string {
+    return this.textContent;
+  }
+
+  set innerHTML(value: string) {
+    this.textContent = value;
+  }
+
+  get namespaceURI(): string | null {
+    return this.namespaceUriValue;
+  }
+
+  append(...nodes: (FakeElement | Node)[]): void {
+    for (const node of nodes) {
+      if (node instanceof FakeElement) {
+        node.parentElement = this;
+        this.children.push(node);
+      }
+    }
+  }
+
+  appendText(text: string): void {
+    this.textContent += text;
   }
 
   createDiv(options: { cls?: string } = {}): FakeElement {
@@ -46,6 +74,13 @@ export class FakeElement {
     this.textContent = "";
   }
 
+  remove(): void {
+    if (this.parentElement) {
+      const index = this.parentElement.children.indexOf(this);
+      if (index >= 0) this.parentElement.children.splice(index, 1);
+    }
+  }
+
   addClass(name: string): void {
     this.classNames.add(name);
   }
@@ -65,6 +100,14 @@ export class FakeElement {
 
   setAttr(name: string, value: string): void {
     this.attributes.set(name, value);
+  }
+
+  setAttribute(name: string, value: string): void {
+    this.attributes.set(name, value);
+  }
+
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
   }
 
   getAttr(name: string): string | null {
@@ -346,4 +389,22 @@ function setFolderPath(folder: TFolder, path: string): void {
   folder.name = segments[segments.length - 1] ?? folder.path;
   const parentPath = segments.slice(0, -1).join("/");
   folder.parent = parentPath ? new TFolder(parentPath) : null;
+}
+
+export class FakeSVGElement extends FakeElement {
+  constructor(tagName: string) {
+    super(tagName, {}, "http://www.w3.org/2000/svg");
+  }
+}
+
+export const fakeDocument = {
+  createElement: (tagName: string): FakeElement => new FakeElement(tagName),
+  createElementNS: (_ns: string, tagName: string): FakeSVGElement => new FakeSVGElement(tagName),
+  body: new FakeElement("body"),
+  addEventListener: (_type: string, _listener: (event: Event) => void, _capture?: boolean): void => {},
+  removeEventListener: (_type: string, _listener: (event: Event) => void, _capture?: boolean): void => {},
+};
+
+if (typeof globalThis.document === "undefined") {
+  (globalThis as unknown as { document: typeof fakeDocument }).document = fakeDocument;
 }
