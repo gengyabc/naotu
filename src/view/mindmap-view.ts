@@ -269,6 +269,7 @@ export class MindmapView extends ItemView {
 
   async onClose(): Promise<void> {
     closeActiveContextMenu();
+    this.toolbar?.destroy();
     await this.editSession.flushAutosave();
     this.rendererCoordinator.dispose();
     this.unsubscribeDirtyState?.();

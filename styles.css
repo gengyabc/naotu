@@ -85,6 +85,10 @@
   overflow: hidden;
 }
 
+.semantic-mindmap-toolbar.is-compact {
+  overflow: visible;
+}
+
 .semantic-mindmap-toolbar button {
   display: inline-flex;
   align-items: center;
@@ -141,6 +145,33 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.semantic-mindmap-tooltip {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  position: fixed;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  pointer-events: none;
+  white-space: nowrap;
+  gap: 2px;
+}
+
+.semantic-mindmap-tooltip-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.semantic-mindmap-tooltip-shortcut {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .semantic-mindmap-toolbar.is-compact .toolbar-button-text {

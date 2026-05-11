@@ -63,6 +63,12 @@ export class FakeElement {
     }
   }
 
+  appendChild(child: FakeElement): FakeElement {
+    child.parentElement = this;
+    this.children.push(child);
+    return child;
+  }
+
   appendText(text: string): void {
     this.children.push(new FakeElement("#text", { text }));
   }
