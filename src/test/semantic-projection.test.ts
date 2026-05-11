@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { applyNotebookFocusPolicy } from "../core/semantic-zoom-policy";
 import { createSmallTestDocument } from "./test-fixtures";
+import { getLayoutNodeSize } from "../core/tree-layout";
 
 function toScreenRect(node: { projectedX: number; projectedY: number; displayWidth: number; displayHeight: number }, zoom: number, viewportX: number, viewportY: number) {
   return {
@@ -406,6 +407,53 @@ describe("createSemanticProjection", () => {
     expect(child?.usesCustomSize).toBe(true);
   });
 
+  it("shows resize handle for selected notebooks before they reach expanded detail", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    });
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.detailLevel).toBe(3);
+    expect(child!.usesCustomSize).toBe(false);
+    expect(child!.showResizeHandle).toBe(true);
+  });
+
+  it("does not show resize handle for selected notebooks below detail level 2", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 0.3,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: ["child"],
+      lastFocusNodeId: "child",
+    });
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.detailLevel).toBeLessThan(2);
+    expect(child!.showResizeHandle).toBe(false);
+  });
+
   it("keeps embedded file notebooks at preview size after focus moves away", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {
@@ -782,6 +830,109 @@ describe("createSemanticProjection", () => {
     const rootRect = toScreenRect(root!, 1.5, -1000, -1000);
     const childRect = toScreenRect(child!, 1.5, -1000, -1000);
     expect(childRect.left >= rootRect.right || rootRect.left >= childRect.right || childRect.top >= rootRect.bottom || rootRect.top >= childRect.bottom).toBe(true);
+  });
+
+  it("expands right-side tree notebooks away from the root edge corridor", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[0] = { ...doc.nodes[0]!, x: 0, y: 0 };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      width: 180,
+      height: 54,
+      x: 300,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["child", 4]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.displayWidth).toBe(360);
+    const layoutWidth = getLayoutNodeSize(doc.nodes[1]!).width;
+    const expectedLeftEdge = 300 - layoutWidth / 2;
+    expect(child!.projectedX).toBe(expectedLeftEdge);
+  });
+
+  it("expands left-side tree notebooks away from the root edge corridor", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-mirror";
+    doc.nodes[0] = { ...doc.nodes[0]!, x: 0, y: 0 };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      width: 180,
+      height: 54,
+      x: -300,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["child", 4]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.displayWidth).toBe(360);
+    const layoutWidth = getLayoutNodeSize(doc.nodes[1]!).width;
+    const expectedRightEdge = -300 + layoutWidth / 2;
+    expect(child!.projectedX + child!.displayWidth).toBe(expectedRightEdge);
+  });
+
+  it("falls back to centered projection when node.x equals rootNode.x in tree layout", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[0] = { ...doc.nodes[0]!, x: 0, y: 0 };
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      width: 180,
+      height: 54,
+      x: 0,
+      y: 0,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        lastFocusNodeId: "root",
+      },
+      {
+        forcedDetailLevels: new Map([["child", 4]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.displayWidth).toBe(360);
+    expect(child!.projectedX).toBe(0 - child!.displayWidth / 2);
   });
 
   it("does not change relaxed tree layout positions when selecting a notebook", () => {

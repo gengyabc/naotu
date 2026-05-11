@@ -7,14 +7,24 @@ function extractPathNumbers(path: string): number[] {
   return path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
 }
 
-function extractCubicBezierEndpoint(path: string): { x: number; y: number } {
-  const nums = extractPathNumbers(path);
-  return { x: nums[4], y: nums[5] };
-}
+// SVG cubic bezier: M x0 y0 C x1 y1, x2 y2, x3 y3
+// nums indices: [0,1]=start [2,3]=control1 [4,5]=control2 [6,7]=end
+// SVG quadratic bezier: M x0 y0 Q x1 y1, x2 y2
+// nums indices: [0,1]=start [2,3]=control [4,5]=end
 
 function extractCubicBezierStartPoint(path: string): { x: number; y: number } {
   const nums = extractPathNumbers(path);
   return { x: nums[0], y: nums[1] };
+}
+
+function extractCubicBezierEndPoint(path: string): { x: number; y: number } {
+  const nums = extractPathNumbers(path);
+  return { x: nums[6], y: nums[7] };
+}
+
+function extractQuadraticBezierEndPoint(path: string): { x: number; y: number } {
+  const nums = extractPathNumbers(path);
+  return { x: nums[4], y: nums[5] };
 }
 
 function toScreenNode(node: ProjectedNode, transform: { x: number; y: number; k: number }): ProjectedNode {
@@ -102,20 +112,35 @@ describe("projected edge rendering", () => {
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "mindmap", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractCubicBezierEndPoint(route);
 
     expect(endY).toBe(child.projectedY + child.displayHeight);
   });
 
-  it("does not force bottom anchor for underline nodes when parent is above", () => {
+  it("does not force bottom anchor for underline nodes on reference edges when parent is above", () => {
     const parent = createBaseNode({ id: "parent", sourceNodeId: "parent", title: "Parent", projectedX: 80, projectedY: -80, depth: 0, isRoot: true, hasChildren: true, childrenExpanded: true });
     const child = createBaseNode({ id: "child", sourceNodeId: "child", title: "Child", projectedX: 80, projectedY: 20, depth: 2 });
+    const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "reference", type: "curve" };
+
+    const route = routeEdge({ edge, source: parent, target: child }).d;
+    const { y: endY } = extractQuadraticBezierEndPoint(route);
+
+    expect(endY).toBe(child.projectedY);
+  });
+
+  it("keeps mindmap edges on horizontal anchors when vertical distance dominates", () => {
+    const parent = createBaseNode({ id: "parent", sourceNodeId: "parent", title: "Parent", projectedX: 10, projectedY: 1000, depth: 0, isRoot: true, hasChildren: true, childrenExpanded: true });
+    const child = createBaseNode({ id: "child", sourceNodeId: "child", title: "Child", projectedX: 260, projectedY: -1000, depth: 1 });
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "mindmap", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { x: startX, y: startY } = extractCubicBezierStartPoint(route);
+    const { x: endX, y: endY } = extractCubicBezierEndPoint(route);
 
-    expect(endY).toBe(child.projectedY);
+    expect(startX).toBe(parent.projectedX + parent.displayWidth);
+    expect(startY).toBe(parent.projectedY + parent.displayHeight / 2);
+    expect(endX).toBe(child.projectedX);
+    expect(endY).toBe(child.projectedY + child.displayHeight / 2);
   });
 
   it("does not anchor non-underline nodes to bottom edge", () => {
@@ -124,7 +149,7 @@ describe("projected edge rendering", () => {
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "mindmap", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractCubicBezierEndPoint(route);
 
     expect(endY).toBe(child.projectedY + child.displayHeight / 2);
   });
@@ -136,7 +161,7 @@ describe("projected edge rendering", () => {
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
     const { y: startY } = extractCubicBezierStartPoint(route);
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractCubicBezierEndPoint(route);
 
     expect(startY).toBe(parent.projectedY + parent.displayHeight);
     expect(endY).toBe(child.projectedY + child.displayHeight);
@@ -148,7 +173,7 @@ describe("projected edge rendering", () => {
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "reference", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractQuadraticBezierEndPoint(route);
 
     expect(endY).toBe(child.projectedY + child.displayHeight);
   });
@@ -159,18 +184,18 @@ describe("projected edge rendering", () => {
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "mindmap", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractCubicBezierEndPoint(route);
 
     expect(endY).toBe(child.projectedY + child.displayHeight);
   });
 
-  it("anchors underline node to bottom edge when toward-node is directly below", () => {
+  it("anchors underline node to bottom edge on mindmap edges even when toward-node is directly below", () => {
     const parent = createBaseNode({ id: "parent", sourceNodeId: "parent", title: "Parent", projectedX: 80, projectedY: 100, depth: 0, isRoot: true, hasChildren: true, childrenExpanded: true });
     const child = createBaseNode({ id: "child", sourceNodeId: "child", title: "Child", projectedX: 80, projectedY: -100, depth: 2 });
     const edge: ProjectedEdge = { id: "edge", source: "parent", target: "child", relation: "mindmap", type: "curve" };
 
     const route = routeEdge({ edge, source: parent, target: child }).d;
-    const { y: endY } = extractCubicBezierEndpoint(route);
+    const { y: endY } = extractCubicBezierEndPoint(route);
 
     expect(endY).toBe(child.projectedY + child.displayHeight);
   });

@@ -197,7 +197,7 @@ function isCollapsedForLayout(node: MindmapNode): boolean {
   return node.treeControl === "manual-collapsed";
 }
 
-function getLayoutNodeSize(node: MindmapNode): { width: number; height: number } {
+export function getLayoutNodeSize(node: MindmapNode): { width: number; height: number } {
   if (node.kind === "text") {
     return getTextNodeDisplaySize({ title: node.title, fontSize: 14 });
   }

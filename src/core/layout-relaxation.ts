@@ -140,6 +140,10 @@ function hasAnyOverlap(nodes: ProjectedNode[], zoom: number, padding: number): b
   return false;
 }
 
+// projectedX/Y are in viewport-centered world coordinates (see projectNodeCenter
+// in semantic-projection.ts). Multiplying by zoom gives screen-space coordinates
+// relative to the viewport center, which is sufficient for overlap detection since
+// the viewport offset (transform.x/y) cancels out in pairwise rect comparisons.
 function projectedNodeScreenRect(node: ProjectedNode, zoom: number) {
   return projectedNodeRect({
     ...node,

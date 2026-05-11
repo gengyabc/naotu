@@ -14,9 +14,13 @@ import { applyNotebookFocusPolicy, computeSemanticDetailLevel } from "./semantic
 import { relaxProjectedNodes } from "./layout-relaxation";
 import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
+import { getLayoutNodeSize } from "./tree-layout";
 import { getTextNodeDisplaySize } from "./text-layout";
 import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 import { computeBranchMeta } from "./branch-color";
+
+const TREE_SIDE_LEFT = -1;
+const TREE_SIDE_RIGHT = 1;
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -62,12 +66,15 @@ export function createSemanticProjection(
     collectVisibleTree({ nodeId: hierarchy.rootId, hierarchy, visibleNodeIds, forcedExpandedNodeIds, zoom: context.zoom });
   }
 
-  includeReferenceNeighbors({ doc, hierarchy, visibleNodeIds, viewportWorldRect: context.viewportWorldRect });
+  const docNodeMap = new Map(doc.nodes.map((n) => [n.id, n]));
+  includeReferenceNeighbors({ hierarchy, visibleNodeIds, viewportWorldRect: context.viewportWorldRect, docNodeMap });
 
   let projectedNodes: ProjectedNode[] = [];
-  const focusNode = focusNodeId ? doc.nodes.find((node) => node.id === focusNodeId) : undefined;
+  const focusNode = focusNodeId ? docNodeMap.get(focusNodeId) : undefined;
+  const rootNode = hierarchy.rootId ? docNodeMap.get(hierarchy.rootId) : undefined;
   const prevFrozenLevels = extra.prevFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
   const nextFrozenLevels = extra.nextFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
+  const layoutSizeCache = isTreeLayout ? new Map(doc.nodes.map((n) => [n.id, getLayoutNodeSize(n)])) : undefined;
 
   for (const node of doc.nodes) {
     if (!visibleNodeIds.has(node.id)) continue;
@@ -174,6 +181,16 @@ export function createSemanticProjection(
     }
 
     const projectedCenter = projectNodeCenter({ node, context });
+    const projectedPosition = projectNodeTopLeft({
+      node,
+      projectedCenter,
+      finalSize,
+      context,
+      isTreeLayout,
+      isRoot,
+      rootNode,
+      layoutSizeCache,
+    });
     const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
     const usesCustomSize = Boolean(customSize);
 
@@ -185,8 +202,8 @@ export function createSemanticProjection(
       notebook: node.notebook,
       worldX: node.x,
       worldY: node.y,
-      projectedX: projectedCenter.x - finalSize.width / (2 * context.zoom),
-      projectedY: projectedCenter.y - finalSize.height / (2 * context.zoom),
+      projectedX: projectedPosition.x,
+      projectedY: projectedPosition.y,
       displayWidth: finalSize.width,
       displayHeight: finalSize.height,
       aspectRatio: node.aspectRatio,
@@ -201,7 +218,7 @@ export function createSemanticProjection(
       hasChildren: children.length > 0,
       childrenExpanded,
       showOpenNotebookButton: node.kind === "notebook" && finalDetail >= 4 && Boolean(node.notebook?.link),
-      showResizeHandle: node.kind === "notebook" && (finalDetail >= 4 || usesCustomSize),
+      showResizeHandle: node.kind === "notebook" && (finalDetail >= 4 || usesCustomSize || (isSelected && finalDetail >= 2)),
       usesCustomSize,
     });
   }
@@ -300,25 +317,55 @@ function projectNodeCenter(args: {
   };
 }
 
+function projectNodeTopLeft(args: {
+  node: MindmapNode;
+  projectedCenter: { x: number; y: number };
+  finalSize: { width: number; height: number };
+  context: ProjectionContext;
+  isTreeLayout: boolean;
+  isRoot: boolean;
+  rootNode?: MindmapNode;
+  layoutSizeCache?: Map<string, { width: number; height: number }>;
+}): { x: number; y: number } {
+  const centeredX = args.projectedCenter.x - args.finalSize.width / (2 * args.context.zoom);
+  const centeredY = args.projectedCenter.y - args.finalSize.height / (2 * args.context.zoom);
+
+  if (!args.isTreeLayout || args.isRoot || !args.rootNode) {
+    return { x: centeredX, y: centeredY };
+  }
+
+  if (args.node.x === args.rootNode.x) {
+    return { x: centeredX, y: centeredY };
+  }
+
+  const layoutSize = args.layoutSizeCache?.get(args.node.id) ?? getLayoutNodeSize(args.node);
+  const side = args.node.x < args.rootNode.x ? TREE_SIDE_LEFT : TREE_SIDE_RIGHT;
+  const x = side === TREE_SIDE_RIGHT
+    ? args.projectedCenter.x - layoutSize.width / (2 * args.context.zoom)
+    : args.projectedCenter.x + layoutSize.width / (2 * args.context.zoom) - args.finalSize.width / args.context.zoom;
+
+  // Y remains centered: vertical expansion is left to the relaxation pass,
+  // which already resolves overlaps from height changes.
+  return { x, y: centeredY };
+}
+
 function includeReferenceNeighbors(args: {
-  doc: MindmapDocument;
   hierarchy: ReturnType<typeof buildHierarchy>;
   visibleNodeIds: Set<string>;
   viewportWorldRect: { x: number; y: number; width: number; height: number };
+  docNodeMap: Map<string, MindmapNode>;
 }): void {
-  const nodeMap = new Map(args.doc.nodes.map((node) => [node.id, node]));
-
   for (const edge of args.hierarchy.referenceEdges) {
     const sVisible = args.visibleNodeIds.has(edge.source);
     const tVisible = args.visibleNodeIds.has(edge.target);
 
     if (sVisible && !tVisible) {
-      const node = nodeMap.get(edge.target);
+      const node = args.docNodeMap.get(edge.target);
       if (node && isNearViewport(node, args.viewportWorldRect)) args.visibleNodeIds.add(edge.target);
     }
 
     if (tVisible && !sVisible) {
-      const node = nodeMap.get(edge.source);
+      const node = args.docNodeMap.get(edge.source);
       if (node && isNearViewport(node, args.viewportWorldRect)) args.visibleNodeIds.add(edge.source);
     }
   }
