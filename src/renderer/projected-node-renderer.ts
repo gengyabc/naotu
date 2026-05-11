@@ -166,7 +166,7 @@ export function renderProjectedNodes(args: {
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
   onDragStateChange?: (dragging: boolean) => void;
 }): void {
-  const resizeDrafts = new Map<string, { width: number; height: number }>();
+  const resizeDrafts = new Map<string, { width: number; height: number; axis: "width" | "height" }>();
   const dragDrafts = new Map<string, { x: number; y: number }>();
   let activeDragNodeIds: string[] = [];
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
@@ -232,21 +232,20 @@ export function renderProjectedNodes(args: {
 
   const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event, node) => {
     event.sourceEvent?.stopPropagation();
-    resizeDrafts.set(node.id, { width: node.displayWidth, height: node.displayHeight });
+    resizeDrafts.set(node.id, { width: node.displayWidth, height: node.displayHeight, axis: "width" });
     args.onNotebookResizeStart(node.id);
   }).on("drag", (event, node) => {
-    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
-    const axis = node.aspectRatio && Math.abs(event.dy * node.aspectRatio) > Math.abs(event.dx) ? "height" : "width";
+    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight, axis: "width" as const };
     const next = clampNotebookResizeSize(
       currentDraft.width + event.dx,
       currentDraft.height + event.dy,
       node.aspectRatio,
-      axis,
+      currentDraft.axis,
     );
-    resizeDrafts.set(node.id, next);
+    resizeDrafts.set(node.id, { ...next, axis: currentDraft.axis });
     args.onNotebookResize({ id: node.id, width: next.width, height: next.height });
   }).on("end", (_event, node) => {
-    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight };
+    const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight, axis: "width" as const };
     const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height, node.aspectRatio);
     resizeDrafts.delete(node.id);
     args.onNotebookResizeEnd({ id: node.id, width: next.width, height: next.height });
