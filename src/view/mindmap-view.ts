@@ -261,6 +261,7 @@ export class MindmapView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.toolbar?.destroy();
     this.contentEl.empty();
     this.contentEl.addClass("semantic-mindmap-view");
     this.renderView();
@@ -311,6 +312,7 @@ export class MindmapView extends ItemView {
   }
 
   private renderView(): void {
+    this.toolbar?.destroy();
     this.contentEl.empty();
     this.toolbar = createMindmapToolbar(this.contentEl, {
       layoutMode: this.store.getDocument().layoutMode,

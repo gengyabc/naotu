@@ -1,6 +1,6 @@
 export class FakeElement {
   tagName: string;
-  textContent = "";
+  private _textContent = "";
   value = "";
   tabIndex = 0;
   focused = false;
@@ -24,10 +24,22 @@ export class FakeElement {
   ) {
     this.tagName = tagName.toUpperCase();
     this.namespaceUriValue = namespaceUri;
-    if (options.text) this.textContent = options.text;
+    if (options.text) this._textContent = options.text;
     if (options.cls) this.classNames.add(options.cls);
     if (options.type) this.attributes.set("type", options.type);
     if (options.placeholder) this.attributes.set("placeholder", options.placeholder);
+  }
+
+  get textContent(): string {
+    if (this.children.length > 0) {
+      return this.children.map((c) => c.textContent).join("");
+    }
+    return this._textContent;
+  }
+
+  set textContent(value: string) {
+    this._textContent = value;
+    this.children = [];
   }
 
   get innerHTML(): string {
@@ -52,7 +64,7 @@ export class FakeElement {
   }
 
   appendText(text: string): void {
-    this.textContent += text;
+    this.children.push(new FakeElement("#text", { text }));
   }
 
   createDiv(options: { cls?: string } = {}): FakeElement {
@@ -72,7 +84,7 @@ export class FakeElement {
 
   empty(): void {
     this.children = [];
-    this.textContent = "";
+    this._textContent = "";
   }
 
   remove(): void {
@@ -80,6 +92,22 @@ export class FakeElement {
       const index = this.parentElement.children.indexOf(this);
       if (index >= 0) this.parentElement.children.splice(index, 1);
     }
+  }
+
+  cloneNode(deep: boolean): FakeElement {
+    const copy = new FakeElement(this.tagName, {}, this.namespaceUriValue);
+    copy._textContent = this._textContent;
+    for (const cls of this.classNames) copy.classNames.add(cls);
+    for (const [k, v] of this.attributes) copy.attributes.set(k, v);
+    Object.assign(copy.style, this.style);
+    if (deep) {
+      for (const child of this.children) {
+        const childCopy = child.cloneNode(true);
+        childCopy.parentElement = copy;
+        copy.children.push(childCopy);
+      }
+    }
+    return copy;
   }
 
   get classList() {
@@ -419,6 +447,16 @@ export const fakeDocument = {
   removeEventListener: (_type: string, _listener: (event: Event) => void, _capture?: boolean): void => {},
 };
 
+class FakeResizeObserver {
+  observe(_target: Element): void {}
+  unobserve(_target: Element): void {}
+  disconnect(): void {}
+}
+
 if (typeof globalThis.document === "undefined") {
   (globalThis as unknown as { document: typeof fakeDocument }).document = fakeDocument;
+}
+
+if (typeof globalThis.ResizeObserver === "undefined") {
+  (globalThis as unknown as { ResizeObserver: typeof FakeResizeObserver }).ResizeObserver = FakeResizeObserver;
 }

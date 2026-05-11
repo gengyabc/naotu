@@ -1,6 +1,7 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 export interface MindmapToolbar {
+  destroy(): void;
   setLayoutMode(mode: LayoutMode): void;
   setSaveStatus(label: string): void;
   focusSearchInput(): void;
@@ -85,6 +86,19 @@ function createToolbarIcon(iconId: ToolbarIconId): SVGSVGElement {
   return svg;
 }
 
+function createToolbarButton(
+  toolbar: HTMLElement,
+  iconId: ToolbarIconId,
+  label: string,
+  title?: string
+): HTMLButtonElement {
+  const button = toolbar.createEl("button");
+  button.append(createToolbarIcon(iconId));
+  button.createSpan({ cls: "toolbar-button-text", text: label });
+  if (title) button.title = title;
+  return button;
+}
+
 function isMacOS(): boolean {
   if ("userAgentData" in navigator) {
     const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
@@ -103,84 +117,46 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });
   const modKey = getModifierKey();
 
-  const openButton = toolbar.createEl("button");
-  openButton.append(createToolbarIcon("folder-open"));
-  openButton.appendText("打开");
+  const openButton = createToolbarButton(toolbar, "folder-open", "打开");
   openButton.onclick = () => options.onOpenMindmap();
 
-  const undoButton = toolbar.createEl("button");
-  undoButton.append(createToolbarIcon("undo"));
-  undoButton.appendText("撤销");
-  undoButton.title = `${modKey} Z`;
+  const undoButton = createToolbarButton(toolbar, "undo", "撤销", `${modKey} Z`);
   undoButton.onclick = () => options.onUndo();
 
-  const redoButton = toolbar.createEl("button");
-  redoButton.append(createToolbarIcon("redo"));
-  redoButton.appendText("重做");
-  redoButton.title = `${modKey} Shift Z`;
+  const redoButton = createToolbarButton(toolbar, "redo", "重做", `${modKey} Shift Z`);
   redoButton.onclick = () => options.onRedo();
 
-  const selectRootButton = toolbar.createEl("button");
-  selectRootButton.append(createToolbarIcon("home"));
-  selectRootButton.appendText("根节点");
-  selectRootButton.title = "Home";
+  const selectRootButton = createToolbarButton(toolbar, "home", "根节点", "Home");
   selectRootButton.onclick = () => options.onSelectRoot();
 
-  const fitRootButton = toolbar.createEl("button");
-  fitRootButton.append(createToolbarIcon("target"));
-  fitRootButton.appendText("适应");
-  fitRootButton.title = `${modKey} 0`;
+  const fitRootButton = createToolbarButton(toolbar, "target", "适应", `${modKey} 0`);
   fitRootButton.onclick = () => options.onFitRoot();
 
-  const zoomOutButton = toolbar.createEl("button");
-  zoomOutButton.append(createToolbarIcon("zoom-out"));
-  zoomOutButton.appendText("缩小");
-  zoomOutButton.title = `${modKey} -`;
+  const zoomOutButton = createToolbarButton(toolbar, "zoom-out", "缩小", `${modKey} -`);
   zoomOutButton.onclick = () => options.onZoomOut();
 
-  const zoomInButton = toolbar.createEl("button");
-  zoomInButton.append(createToolbarIcon("zoom-in"));
-  zoomInButton.appendText("放大");
-  zoomInButton.title = `${modKey} =`;
+  const zoomInButton = createToolbarButton(toolbar, "zoom-in", "放大", `${modKey} =`);
   zoomInButton.onclick = () => options.onZoomIn();
 
-  const addChildButton = toolbar.createEl("button");
-  addChildButton.append(createToolbarIcon("plus"));
-  addChildButton.appendText("子节点");
-  addChildButton.title = "Tab";
+  const addChildButton = createToolbarButton(toolbar, "plus", "子节点", "Tab");
   addChildButton.onclick = () => options.onAddChild();
 
-  const addSiblingButton = toolbar.createEl("button");
-  addSiblingButton.append(createToolbarIcon("git-branch"));
-  addSiblingButton.appendText("兄弟节点");
-  addSiblingButton.title = "Enter";
+  const addSiblingButton = createToolbarButton(toolbar, "git-branch", "兄弟节点", "Enter");
   addSiblingButton.onclick = () => options.onAddSibling();
 
-  const toggleExpandButton = toolbar.createEl("button");
-  toggleExpandButton.append(createToolbarIcon("chevrons-up-down"));
-  toggleExpandButton.appendText("切换折叠");
-  toggleExpandButton.title = "Space";
+  const toggleExpandButton = createToolbarButton(toolbar, "chevrons-up-down", "切换折叠", "Space");
   toggleExpandButton.onclick = () => options.onToggleExpand();
 
-  const editButton = toolbar.createEl("button");
-  editButton.append(createToolbarIcon("pencil"));
-  editButton.appendText("编辑");
-  editButton.title = "F2";
+  const editButton = createToolbarButton(toolbar, "pencil", "编辑", "F2");
   editButton.onclick = () => options.onEdit();
 
-  const mirrorLayoutButton = toolbar.createEl("button");
-  mirrorLayoutButton.append(createToolbarIcon("layout-mirror"));
-  mirrorLayoutButton.appendText("镜像树");
+  const mirrorLayoutButton = createToolbarButton(toolbar, "layout-mirror", "镜像树");
   mirrorLayoutButton.onclick = () => options.onChangeLayoutMode("tree-mirror");
 
-  const rightLayoutButton = toolbar.createEl("button");
-  rightLayoutButton.append(createToolbarIcon("layout-right"));
-  rightLayoutButton.appendText("右向树");
+  const rightLayoutButton = createToolbarButton(toolbar, "layout-right", "右向树");
   rightLayoutButton.onclick = () => options.onChangeLayoutMode("tree-right");
 
-  const freeLayoutButton = toolbar.createEl("button");
-  freeLayoutButton.append(createToolbarIcon("layout-free"));
-  freeLayoutButton.appendText("自由布局");
+  const freeLayoutButton = createToolbarButton(toolbar, "layout-free", "自由布局");
   freeLayoutButton.onclick = () => options.onChangeLayoutMode("free");
 
   const searchWrapper = toolbar.createDiv({ cls: "mindmap-search-wrapper" });
@@ -212,7 +188,27 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
 
   setLayoutMode(options.layoutMode);
 
+  const checkOverflow = (): void => {
+    const clone = toolbar.cloneNode(true) as HTMLElement;
+    clone.classList.remove("is-compact");
+    clone.style.visibility = "hidden";
+    clone.style.position = "absolute";
+    clone.style.pointerEvents = "none";
+    clone.style.whiteSpace = "nowrap";
+    toolbar.parentElement?.append(clone);
+    const overflows = clone.scrollWidth > toolbar.clientWidth;
+    clone.remove();
+    toolbar.classList.toggle("is-compact", overflows);
+  };
+
+  const resizeObserver = new ResizeObserver(() => checkOverflow());
+  resizeObserver.observe(toolbar);
+  checkOverflow();
+
   return {
+    destroy(): void {
+      resizeObserver.disconnect();
+    },
     setLayoutMode,
     setSaveStatus(label): void {
       saveStatusEl.setText(label);

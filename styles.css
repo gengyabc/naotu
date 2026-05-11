@@ -82,6 +82,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
+  overflow: hidden;
 }
 
 .semantic-mindmap-toolbar button {
@@ -136,15 +137,22 @@
   color: var(--text-normal);
 }
 
-.semantic-mindmap-toolbar button.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-
 .semantic-mindmap-toolbar button svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.semantic-mindmap-toolbar.is-compact .toolbar-button-text {
+  display: none;
+}
+
+.semantic-mindmap-toolbar.is-compact button {
+  padding: 6px;
+}
+
+.semantic-mindmap-toolbar.is-compact .mindmap-search-wrapper input[type="text"] {
+  min-width: 80px;
 }
 
 .mindmap-search-wrapper {
