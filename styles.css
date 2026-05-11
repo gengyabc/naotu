@@ -297,6 +297,7 @@
   fill: var(--text-normal);
   font-weight: 600;
   pointer-events: none;
+  dominant-baseline: middle;
 }
 
 .mindmap-node-title-hitbox {

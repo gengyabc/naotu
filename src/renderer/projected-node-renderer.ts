@@ -363,7 +363,7 @@ export function renderProjectedNodes(args: {
       });
       
       const lineHeight = visual.titleFontSize * 1.4;
-      const startY = textLayout.lines.length === 1 ? 26 : 18;
+      const startY = node.displayHeight / 2 - ((textLayout.lines.length - 1) * lineHeight) / 2;
       titleHitboxHeight = node.displayHeight - TITLE_HITBOX_INSET_Y * 2;
       
       titleText
