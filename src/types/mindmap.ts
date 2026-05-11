@@ -113,6 +113,9 @@ export interface ProjectedNode {
   showOpenNotebookButton: boolean;
   showResizeHandle: boolean;
   usesCustomSize: boolean;
+  branchColor?: string;
+  branchColorSoft?: string;
+  branchColorBorder?: string;
 }
 
 export interface ProjectedEdge {
@@ -122,6 +125,8 @@ export interface ProjectedEdge {
   relation: EdgeRelation;
   type: EdgeType;
   label?: string;
+  branchColor?: string;
+  branchColorBorder?: string;
 }
 
 export interface SemanticProjection {

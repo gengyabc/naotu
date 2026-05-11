@@ -36,6 +36,15 @@ export function renderProjectedEdges(args: {
       if (!source || !target) return "";
       return routeEdge({ edge, source, target }).d;
     })
+    .each(function (edge) {
+      const pathEl = d3.select(this);
+      if (edge.branchColor) {
+        pathEl.style("--branch-color", edge.branchColor);
+      }
+      if (edge.branchColorBorder) {
+        pathEl.style("--branch-color-border", edge.branchColorBorder);
+      }
+    })
     .on("contextmenu", (event, edge) => {
       event.preventDefault();
       event.stopPropagation();

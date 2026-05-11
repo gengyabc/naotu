@@ -16,6 +16,7 @@ import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
 import { getTextNodeDisplaySize } from "./text-layout";
 import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
+import { computeBranchMeta } from "./branch-color";
 
 export interface CreateSemanticProjectionExtra {
   searchResultIds?: Set<string>;
@@ -207,6 +208,21 @@ export function createSemanticProjection(
 
   const hasExpandedNotebook = projectedNodes.some((node) => node.kind === "notebook" && node.detailLevel >= 4);
 
+  const branchMeta = computeBranchMeta({
+    rootId: hierarchy.rootId,
+    childrenById: hierarchy.childrenById,
+    visibleNodeIds,
+  });
+
+  for (const node of projectedNodes) {
+    const meta = branchMeta.get(node.id);
+    if (meta) {
+      node.branchColor = meta.branchColor;
+      node.branchColorSoft = meta.branchColorSoft;
+      node.branchColorBorder = meta.branchColorBorder;
+    }
+  }
+
   // Free layout: skip relaxation — user positions are authoritative; auto-pushing
   // nodes apart would fight manual placement and cause drift on selection/zoom.
   const needsRelaxation = hasExpandedNotebook || (isTreeLayout && hasDynamicNodeSizes(projectedNodes));
@@ -225,14 +241,22 @@ export function createSemanticProjection(
 
   const projectedEdges: ProjectedEdge[] = doc.edges
     .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
-    .map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      relation: edge.relation,
-      type: edge.type,
-      label: edge.label,
-    }));
+    .map((edge) => {
+      const sourceMeta = branchMeta.get(edge.source);
+      const targetMeta = branchMeta.get(edge.target);
+      const branchColor = sourceMeta?.branchColor ?? targetMeta?.branchColor;
+      const branchColorBorder = sourceMeta?.branchColorBorder ?? targetMeta?.branchColorBorder;
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        relation: edge.relation,
+        type: edge.type,
+        label: edge.label,
+        branchColor,
+        branchColorBorder,
+      };
+    });
 
   return { rootNodeId: hierarchy.rootId, focusNodeId, visibleNodeIds, nodes: projectedNodes, edges: projectedEdges };
 }

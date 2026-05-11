@@ -1,3 +1,74 @@
+:root {
+  --mindmap-focus: #2f9cf4;
+  --mindmap-focus-soft: rgba(47, 156, 244, 0.18);
+
+  --mindmap-branch-1: #d97706;
+  --mindmap-branch-1-soft: rgba(217, 119, 6, 0.12);
+  --mindmap-branch-1-border: rgba(217, 119, 6, 0.48);
+
+  --mindmap-branch-2: #2563eb;
+  --mindmap-branch-2-soft: rgba(37, 99, 235, 0.12);
+  --mindmap-branch-2-border: rgba(37, 99, 235, 0.48);
+
+  --mindmap-branch-3: #16a34a;
+  --mindmap-branch-3-soft: rgba(22, 163, 74, 0.12);
+  --mindmap-branch-3-border: rgba(22, 163, 74, 0.48);
+
+  --mindmap-branch-4: #dc2626;
+  --mindmap-branch-4-soft: rgba(220, 38, 38, 0.12);
+  --mindmap-branch-4-border: rgba(220, 38, 38, 0.48);
+
+  --mindmap-branch-5: #7c3aed;
+  --mindmap-branch-5-soft: rgba(124, 58, 237, 0.12);
+  --mindmap-branch-5-border: rgba(124, 58, 237, 0.48);
+
+  --mindmap-branch-6: #0891b2;
+  --mindmap-branch-6-soft: rgba(8, 145, 178, 0.12);
+  --mindmap-branch-6-border: rgba(8, 145, 178, 0.48);
+
+  --mindmap-branch-7: #c2410c;
+  --mindmap-branch-7-soft: rgba(194, 65, 12, 0.12);
+  --mindmap-branch-7-border: rgba(194, 65, 12, 0.48);
+
+  --mindmap-branch-8: #4f46e5;
+  --mindmap-branch-8-soft: rgba(79, 70, 229, 0.12);
+  --mindmap-branch-8-border: rgba(79, 70, 229, 0.48);
+}
+
+.theme-dark {
+  --mindmap-branch-1: #f59e0b;
+  --mindmap-branch-1-soft: rgba(245, 158, 11, 0.14);
+  --mindmap-branch-1-border: rgba(245, 158, 11, 0.58);
+
+  --mindmap-branch-2: #60a5fa;
+  --mindmap-branch-2-soft: rgba(96, 165, 250, 0.14);
+  --mindmap-branch-2-border: rgba(96, 165, 250, 0.58);
+
+  --mindmap-branch-3: #4ade80;
+  --mindmap-branch-3-soft: rgba(74, 222, 128, 0.14);
+  --mindmap-branch-3-border: rgba(74, 222, 128, 0.58);
+
+  --mindmap-branch-4: #f87171;
+  --mindmap-branch-4-soft: rgba(248, 113, 113, 0.14);
+  --mindmap-branch-4-border: rgba(248, 113, 113, 0.58);
+
+  --mindmap-branch-5: #a78bfa;
+  --mindmap-branch-5-soft: rgba(167, 139, 250, 0.14);
+  --mindmap-branch-5-border: rgba(167, 139, 250, 0.58);
+
+  --mindmap-branch-6: #22d3ee;
+  --mindmap-branch-6-soft: rgba(34, 211, 238, 0.14);
+  --mindmap-branch-6-border: rgba(34, 211, 238, 0.58);
+
+  --mindmap-branch-7: #fb923c;
+  --mindmap-branch-7-soft: rgba(251, 146, 60, 0.14);
+  --mindmap-branch-7-border: rgba(251, 146, 60, 0.58);
+
+  --mindmap-branch-8: #818cf8;
+  --mindmap-branch-8-soft: rgba(129, 140, 248, 0.14);
+  --mindmap-branch-8-border: rgba(129, 140, 248, 0.58);
+}
+
 .semantic-mindmap-view {
   display: flex;
   flex-direction: column;
@@ -145,27 +216,74 @@
 
 .mindmap-node-bg {
   fill: var(--background-primary);
-  stroke: var(--background-modifier-border);
+  stroke: var(--branch-color-border, var(--background-modifier-border));
   stroke-width: 1.2px;
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
 }
 
-/* Underline nodes (depth>=2 text) intentionally drop the shadow and background
-   for a minimal visual weight. See isUnderlineNode() in types/mindmap.ts.
-   Notebook nodes never get underline style, so .is-missing-notebook is irrelevant here. */
-.mindmap-node-underline {
+.mindmap-node.is-text:not(.is-underline) .mindmap-node-bg {
+  stroke: var(--branch-color-border, var(--background-modifier-border));
+}
+
+.mindmap-node.is-notebook .mindmap-node-bg {
+  stroke: var(--branch-color-border, var(--background-modifier-border));
+}
+
+.mindmap-node.is-root .mindmap-node-bg {
   stroke: var(--background-modifier-border);
+  stroke-width: 1.2px;
+}
+
+.mindmap-node.is-selected .mindmap-node-bg {
+  stroke: var(--branch-color, var(--interactive-accent));
+  stroke-width: 2.4px;
+  filter: drop-shadow(0 0 0 4px var(--mindmap-focus-soft)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
+}
+
+/* Order matters: .is-focus:not(.is-selected) must come after .is-selected (same specificity) */
+.mindmap-node.is-focus:not(.is-selected) .mindmap-node-bg {
+  stroke: var(--branch-color-border, var(--background-modifier-border));
+  stroke-width: 1.2px;
+}
+
+.mindmap-node.is-root.is-selected .mindmap-node-bg {
+  stroke: var(--interactive-accent);
+  stroke-width: 2.4px;
+  filter: drop-shadow(0 0 0 4px var(--mindmap-focus-soft)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
+}
+
+.mindmap-node.is-ancestor-path .mindmap-node-bg {
+  stroke-width: 1.6px;
+}
+
+.mindmap-node.is-search-match .mindmap-node-bg {
+  stroke: var(--text-accent);
+  stroke-width: 3px;
+}
+
+.mindmap-node.is-missing-notebook .mindmap-node-bg {
+  stroke: var(--text-error);
+  stroke-width: 2.5px;
+  stroke-dasharray: 5 3;
+}
+
+.mindmap-node-underline {
+  stroke: var(--branch-color-border, var(--background-modifier-border));
   stroke-width: 2px;
   stroke-linecap: round;
 }
 
-.mindmap-node.is-underline.is-selected .mindmap-node-underline,
-.mindmap-node.is-underline.is-focus .mindmap-node-underline {
-  stroke: var(--interactive-accent);
-  stroke-width: 2.4px;
+.mindmap-node.is-underline.is-selected .mindmap-node-underline {
+  stroke: var(--branch-color, var(--interactive-accent));
+  stroke-width: 3px;
+  filter: drop-shadow(0 1px 4px var(--mindmap-focus-soft));
 }
 
-/* ancestor-path inherits stroke color from .mindmap-node-underline; only width changes */
+.mindmap-node.is-underline.is-focus:not(.is-selected) .mindmap-node-underline {
+  stroke: var(--branch-color-border, var(--background-modifier-border));
+  stroke-width: 2px;
+}
+
 .mindmap-node.is-underline.is-ancestor-path .mindmap-node-underline {
   stroke-width: 2.8px;
 }
@@ -173,16 +291,6 @@
 .mindmap-node.is-underline.is-search-match .mindmap-node-underline {
   stroke: var(--text-accent);
   stroke-width: 3px;
-}
-
-.mindmap-node.is-selected .mindmap-node-bg,
-.mindmap-node.is-focus .mindmap-node-bg {
-  stroke: var(--interactive-accent);
-  stroke-width: 2.4px;
-}
-
-.mindmap-node.is-ancestor-path .mindmap-node-bg {
-  stroke-width: 1.6px;
 }
 
 .mindmap-node-title {
@@ -193,7 +301,11 @@
 
 .mindmap-node-title-hitbox {
   pointer-events: all;
-  cursor: text;
+  cursor: pointer;
+}
+
+.mindmap-node.is-underline .mindmap-node-title-hitbox {
+  cursor: pointer;
 }
 
 .mindmap-node-kind-badge {
@@ -236,14 +348,14 @@
 }
 
 .mindmap-node-tree-toggle-text {
-  fill: var(--text-muted);
+  fill: var(--branch-color, var(--text-muted));
   font-size: 18px;
   font-weight: 700;
   pointer-events: none;
 }
 
 .mindmap-node-tree-toggle:hover .mindmap-node-tree-toggle-text {
-  fill: var(--interactive-accent);
+  fill: var(--branch-color, var(--interactive-accent));
 }
 
 .mindmap-node-resize-handle {
@@ -269,7 +381,7 @@
 }
 
 .mindmap-edge-mindmap {
-  stroke: var(--background-modifier-border);
+  stroke: var(--branch-color-border, var(--background-modifier-border));
   stroke-width: 2px;
 }
 
@@ -281,18 +393,7 @@
 }
 
 .mindmap-edge:hover {
-  stroke: var(--interactive-accent);
-}
-
-.mindmap-node.is-search-match .mindmap-node-bg {
-  stroke: var(--text-accent);
-  stroke-width: 3px;
-}
-
-.mindmap-node.is-missing-notebook .mindmap-node-bg {
-  stroke: var(--text-error);
-  stroke-width: 2.5px;
-  stroke-dasharray: 5 3;
+  stroke: var(--branch-color, var(--interactive-accent));
 }
 
 .selection-box {

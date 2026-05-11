@@ -293,6 +293,16 @@ export function renderProjectedNodes(args: {
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
     const baseVisual = getVisualSpec(node.kind, node.detailLevel);
     const targetKind = node.notebook?.targetKind ?? "markdown";
+
+    if (node.branchColor) {
+      group.style("--branch-color", node.branchColor);
+    }
+    if (node.branchColorSoft) {
+      group.style("--branch-color-soft", node.branchColorSoft);
+    }
+    if (node.branchColorBorder) {
+      group.style("--branch-color-border", node.branchColorBorder);
+    }
     
     let visual: DetailVisualSpec;
     if (node.usesCustomSize && node.kind === "notebook") {
@@ -324,6 +334,7 @@ export function renderProjectedNodes(args: {
     group.attr("transform", `translate(${screen.x}, ${screen.y})`);
     group.classed("is-text", node.kind === "text");
     group.classed("is-notebook", node.kind === "notebook");
+    group.classed("is-root", node.isRoot);
     group.classed("is-focus", node.isFocus);
     group.classed("is-selected", node.isSelected);
     group.classed("is-ancestor-path", node.isAncestorPath);
@@ -388,10 +399,20 @@ export function renderProjectedNodes(args: {
       .attr("ry", 8)
       .attr("fill", "currentColor")
       .attr("fill-opacity", 0.001)
-      .style("pointer-events", hideNotebookTextForPreview ? "none" : "all")
-      .style("cursor", hideNotebookTextForPreview ? "default" : "text")
-      .on("pointerdown.title-hitbox", (event) => {
+      .style("pointer-events", "all")
+      .style("cursor", "pointer")
+      .on("click.title-hitbox", (event: MouseEvent) => {
         event.stopPropagation();
+        if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
+        else if (event.shiftKey) args.onSelectNode(node.id, "add");
+        else args.onSelectNode(node.id, "replace");
+      })
+      .on("dblclick.title-hitbox", (event: MouseEvent) => {
+        if (!canInlineEditNodeTitle(node)) return;
+        event.stopPropagation();
+        event.preventDefault();
+        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
