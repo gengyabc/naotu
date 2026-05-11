@@ -25,6 +25,7 @@ describe("shouldCullProjection", () => {
       displayWidth: 180,
       displayHeight: 56,
       detailLevel: 3,
+      depth: 0,
       isRoot: false,
       isFocus: false,
       isSelected: false,

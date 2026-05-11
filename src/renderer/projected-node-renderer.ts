@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { App, Component } from "obsidian";
 import type { ProjectedNode } from "../types/mindmap";
+import { isUnderlineNode } from "../types/mindmap";
 import type { LayoutMode } from "../types/mindmap";
 import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
@@ -173,6 +174,7 @@ export function renderProjectedNodes(args: {
 
   const entered = selection.enter().append("g").attr("class", "mindmap-node");
   entered.append("rect").attr("class", "mindmap-node-bg").attr("rx", 12).attr("ry", 12);
+  entered.append("line").attr("class", "mindmap-node-underline").attr("stroke-linecap", "round").style("display", "none");
   entered.append("rect").attr("class", "mindmap-node-title-hitbox");
   entered.append("text").attr("class", "mindmap-node-title");
   entered.append("text").attr("class", "mindmap-node-kind-badge");
@@ -327,8 +329,21 @@ export function renderProjectedNodes(args: {
     group.classed("is-ancestor-path", node.isAncestorPath);
     group.classed("is-search-match", Boolean(node.isSearchMatch));
     group.classed("is-missing-notebook", Boolean(node.isMissingNotebook));
+    const isUnderline = isUnderlineNode(node);
 
-    group.select<SVGRectElement>("rect.mindmap-node-bg").attr("width", node.displayWidth).attr("height", node.displayHeight);
+    group.classed("is-underline", isUnderline);
+
+    group.select<SVGRectElement>("rect.mindmap-node-bg")
+      .attr("width", node.displayWidth)
+      .attr("height", node.displayHeight)
+      .style("display", isUnderline ? "none" : "");
+
+    group.select<SVGLineElement>("line.mindmap-node-underline")
+      .attr("x1", 0)
+      .attr("y1", node.displayHeight - 1)
+      .attr("x2", node.displayWidth)
+      .attr("y2", node.displayHeight - 1)
+      .style("display", isUnderline ? "" : "none");
 
     const titleText = group.select<SVGTextElement>("text.mindmap-node-title");
     titleText.selectAll("*").remove();

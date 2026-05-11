@@ -190,6 +190,7 @@ export function createSemanticProjection(
       displayHeight: finalSize.height,
       aspectRatio: node.aspectRatio,
       detailLevel: finalDetail,
+      depth,
       isRoot,
       isFocus,
       isSelected,

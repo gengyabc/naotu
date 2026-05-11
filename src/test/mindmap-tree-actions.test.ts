@@ -21,6 +21,7 @@ function createProjectedNode(args: {
     displayWidth: 180,
     displayHeight: 56,
     detailLevel: 3,
+    depth: args.id === "root" ? 0 : 1,
     isRoot: args.id === "root",
     isFocus: false,
     isSelected: false,

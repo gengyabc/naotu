@@ -1,4 +1,5 @@
 import type { ProjectedEdge, ProjectedNode } from "../types/mindmap";
+import { isUnderlineNode } from "../types/mindmap";
 
 export interface EdgeRoute {
   d: string;
@@ -58,9 +59,24 @@ function getAnchorPoint(node: ProjectedNode, toward: ProjectedNode): { x: number
 
   const tx = toward.projectedX + toward.displayWidth / 2;
   const ty = toward.projectedY + toward.displayHeight / 2;
-
   const dx = tx - cx;
   const dy = ty - cy;
+
+  if (isUnderlineNode(node)) {
+    // >= (not >) so horizontal bottom-edge wins ties when dy===0
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return {
+        x: dx > 0 ? node.projectedX + node.displayWidth : node.projectedX,
+        y: node.projectedY + node.displayHeight,
+      };
+    }
+    if (dy > 0) {
+      return {
+        x: cx,
+        y: node.projectedY + node.displayHeight,
+      };
+    }
+  }
 
   if (Math.abs(dx) > Math.abs(dy)) {
     return {

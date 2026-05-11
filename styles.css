@@ -150,6 +150,31 @@
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
 }
 
+/* Underline nodes (depth>=2 text) intentionally drop the shadow and background
+   for a minimal visual weight. See isUnderlineNode() in types/mindmap.ts.
+   Notebook nodes never get underline style, so .is-missing-notebook is irrelevant here. */
+.mindmap-node-underline {
+  stroke: var(--background-modifier-border);
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+
+.mindmap-node.is-underline.is-selected .mindmap-node-underline,
+.mindmap-node.is-underline.is-focus .mindmap-node-underline {
+  stroke: var(--interactive-accent);
+  stroke-width: 2.4px;
+}
+
+/* ancestor-path inherits stroke color from .mindmap-node-underline; only width changes */
+.mindmap-node.is-underline.is-ancestor-path .mindmap-node-underline {
+  stroke-width: 2.8px;
+}
+
+.mindmap-node.is-underline.is-search-match .mindmap-node-underline {
+  stroke: var(--text-accent);
+  stroke-width: 3px;
+}
+
 .mindmap-node.is-selected .mindmap-node-bg,
 .mindmap-node.is-focus .mindmap-node-bg {
   stroke: var(--interactive-accent);

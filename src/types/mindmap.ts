@@ -8,6 +8,11 @@ export type LayoutMode = "tree-mirror" | "tree-right" | "free";
 export type NodeDetailLevel = 0 | 1 | 2 | 3 | 4 | 5;
 export type NotebookTargetKind = "markdown" | "image" | "excalidraw";
 
+/** Depth>=2 text nodes render as underline-only (no border/background) to reduce visual weight. */
+export function isUnderlineNode(node: Pick<ProjectedNode, "kind" | "depth">): boolean {
+  return node.kind === "text" && node.depth >= 2;
+}
+
 export interface MindmapDocument {
   version: MindmapVersion;
   title: string;
@@ -96,6 +101,7 @@ export interface ProjectedNode {
   displayHeight: number;
   aspectRatio?: number;
   detailLevel: NodeDetailLevel;
+  depth: number;
   isRoot: boolean;
   isFocus: boolean;
   isSelected: boolean;

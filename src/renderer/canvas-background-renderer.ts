@@ -1,5 +1,6 @@
 import { worldToScreen } from "../core/screen-transform";
 import type { ProjectedEdge, ProjectedNode } from "../types/mindmap";
+import { isUnderlineNode } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { routeEdge } from "../core/edge-routing";
 
@@ -29,16 +30,26 @@ export class CanvasBackgroundRenderer {
 
   private drawNodes(ctx: CanvasRenderingContext2D, nodes: ProjectedNode[], transform: ViewTransform): void {
     ctx.save();
-    ctx.strokeStyle = "rgba(140, 140, 140, 0.8)";
-    ctx.fillStyle = "rgba(120, 120, 120, 0.9)";
     ctx.font = "12px sans-serif";
     ctx.textBaseline = "middle";
 
+    ctx.strokeStyle = "rgba(140, 140, 140, 0.8)";
+    ctx.fillStyle = "rgba(120, 120, 120, 0.9)";
+
     for (const node of nodes) {
       const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, transform);
-      ctx.beginPath();
-      roundRect(ctx, screen.x, screen.y, node.displayWidth, node.displayHeight, 8);
-      ctx.stroke();
+      if (isUnderlineNode(node)) {
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(screen.x, screen.y + node.displayHeight - 1);
+        ctx.lineTo(screen.x + node.displayWidth, screen.y + node.displayHeight - 1);
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        roundRect(ctx, screen.x, screen.y, node.displayWidth, node.displayHeight, 8);
+        ctx.stroke();
+      }
       ctx.fillText(node.title, screen.x + 8, screen.y + Math.min(node.displayHeight / 2, 18));
     }
 
