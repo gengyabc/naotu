@@ -64,7 +64,6 @@ export class CanvasBackgroundRenderer {
       }),
     );
     ctx.save();
-    ctx.strokeStyle = "rgba(120, 120, 120, 0.6)";
     for (const edge of edges) {
       const source = nodeMap.get(edge.source);
       const target = nodeMap.get(edge.target);
@@ -73,6 +72,8 @@ export class CanvasBackgroundRenderer {
       const route = routeEdge({ edge, source, target });
       ctx.beginPath();
       const path = new Path2D(route.d);
+      ctx.strokeStyle = edge.branchColorBorder ?? "rgba(120, 120, 120, 0.6)";
+      ctx.lineWidth = edge.isFromRoot ? 3 : 2;
       ctx.stroke(path);
     }
     ctx.restore();

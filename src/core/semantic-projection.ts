@@ -255,6 +255,7 @@ export function createSemanticProjection(
         label: edge.label,
         branchColor,
         branchColorBorder,
+        isFromRoot: edge.source === hierarchy.rootId,
       };
     });
 

@@ -29,6 +29,7 @@ export function renderProjectedEdges(args: {
     .merge(selection)
     .classed("mindmap-edge-mindmap", (edge) => edge.relation === "mindmap")
     .classed("mindmap-edge-reference", (edge) => edge.relation === "reference")
+    .classed("mindmap-edge-from-root", (edge) => edge.isFromRoot === true)
     .attr("fill", "none")
     .attr("d", (edge) => {
       const source = nodeMap.get(edge.source);

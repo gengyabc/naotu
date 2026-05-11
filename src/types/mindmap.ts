@@ -127,6 +127,7 @@ export interface ProjectedEdge {
   label?: string;
   branchColor?: string;
   branchColorBorder?: string;
+  isFromRoot?: boolean;
 }
 
 export interface SemanticProjection {

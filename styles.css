@@ -385,6 +385,10 @@
   stroke-width: 2px;
 }
 
+.mindmap-edge-from-root.mindmap-edge-mindmap {
+  stroke-width: 3px;
+}
+
 .mindmap-edge-reference {
   stroke: var(--text-muted);
   stroke-width: 1.4px;
