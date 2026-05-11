@@ -156,7 +156,7 @@ export function renderProjectedNodes(args: {
   onLeaveNode: () => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
-  onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number }) => void;
+  onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
   onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
@@ -272,7 +272,10 @@ export function renderProjectedNodes(args: {
       event.preventDefault();
       event.stopPropagation();
       const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-      args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
+      const visual = getVisualSpec(node.kind, node.detailLevel);
+      const editorHeight = node.displayHeight - 16;
+      const editorY = screen.y + (node.displayHeight - editorHeight) / 2;
+      args.onStartInlineEdit(node, { x: screen.x + 10, y: editorY, width: node.displayWidth - 20, height: editorHeight, fontSize: visual.titleFontSize });
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())

@@ -1,38 +1,60 @@
-import { shouldSuggestNotebook } from "../core/text-layout";
+import { layoutText, shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
+
+// padding 8px * 2 + border 1px * 2 = 18, rounded up for scrollbars
+const TEXTAREA_CHROME_HORIZONTAL = 20;
+
+const measureCtx = document.createElement("canvas").getContext("2d");
+
+function measureTextWidth(text: string, fontFamily: string, fontSize: number): number {
+  if (!measureCtx) return text.length * fontSize * 0.6;
+  measureCtx.font = `${fontSize}px ${fontFamily}`;
+  return measureCtx.measureText(text).width;
+}
 
 export interface InlineTitleEditorOptions {
   layer: HTMLElement;
   x: number;
   y: number;
   width: number;
+  height: number;
+  fontSize: number;
   value: string;
   onCommitText: (value: string) => Promise<void> | void;
   onCancel: () => void;
 }
 
 export class InlineTitleEditor {
-  private input: HTMLInputElement | null = null;
+  private textarea: HTMLTextAreaElement | null = null;
   private warning: HTMLDivElement | null = null;
+  private maxWidth: number;
+  private fontFamily: string;
 
-  constructor(private options: InlineTitleEditorOptions) {}
+  constructor(private options: InlineTitleEditorOptions) {
+    const fontFace = getComputedStyle(document.documentElement).getPropertyValue("--font-interface").trim() || "sans-serif";
+    this.fontFamily = fontFace;
+    const scaleFactor = options.fontSize / BASE_FONT_SIZE;
+    this.maxWidth = TITLE_MAX_WIDTH_CHARS * CHAR_WIDTH_CHINESE * scaleFactor + TEXTAREA_CHROME_HORIZONTAL;
+  }
 
   open(): void {
     this.close();
-    const input = document.createElement("input");
-    input.className = "mindmap-inline-title-input";
-    input.value = this.options.value;
-    input.style.left = `${this.options.x}px`;
-    input.style.top = `${this.options.y}px`;
-    input.style.width = `${this.options.width}px`;
+    const textarea = document.createElement("textarea");
+    textarea.className = "mindmap-inline-title-input";
+    textarea.value = this.options.value;
+    textarea.style.left = `${this.options.x}px`;
+    textarea.style.top = `${this.options.y}px`;
+    textarea.style.minHeight = `${this.options.height}px`;
+    textarea.style.fontSize = `${this.options.fontSize}px`;
+    textarea.style.width = `${this.getInitialWidth()}px`;
 
-    this.options.layer.appendChild(input);
-    this.input = input;
+    this.options.layer.appendChild(textarea);
+    this.textarea = textarea;
 
-    input.focus();
-    input.select();
+    textarea.focus();
+    textarea.select();
 
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         void this.commit();
       }
@@ -42,22 +64,52 @@ export class InlineTitleEditor {
       }
     });
 
-    input.addEventListener("input", () => {
-      input.value = input.value.replace(/\n/g, " ");
+    textarea.addEventListener("input", () => {
+      this.autoResize();
       this.checkLengthWarning();
     });
 
-    input.addEventListener("blur", () => {
+    textarea.addEventListener("blur", () => {
       void this.commit();
     });
 
+    this.autoResize();
     this.checkLengthWarning();
   }
 
-  private checkLengthWarning(): void {
-    if (!this.input) return;
+  private getInitialWidth(): number {
+    const valueWidth = measureTextWidth(this.options.value, this.fontFamily, this.options.fontSize) + TEXTAREA_CHROME_HORIZONTAL;
+    return Math.max(valueWidth, this.options.width);
+  }
 
-    const value = this.input.value;
+  private autoResize(): void {
+    if (!this.textarea) return;
+
+    const value = this.textarea.value;
+    const lines = value.split("\n");
+    let maxLineWidth = 0;
+
+    for (const line of lines) {
+      const lineWidth = measureTextWidth(line, this.fontFamily, this.options.fontSize);
+      maxLineWidth = Math.max(maxLineWidth, lineWidth);
+    }
+
+    const neededWidth = maxLineWidth + TEXTAREA_CHROME_HORIZONTAL;
+    const minWidth = this.options.width;
+    const newWidth = Math.max(minWidth, Math.min(neededWidth, this.maxWidth));
+
+    this.textarea.style.width = `${newWidth}px`;
+    this.textarea.style.height = "auto";
+
+    const scrollHeight = this.textarea.scrollHeight;
+    const minHeight = this.options.height;
+    this.textarea.style.height = `${Math.max(scrollHeight, minHeight)}px`;
+  }
+
+  private checkLengthWarning(): void {
+    if (!this.textarea) return;
+
+    const value = this.textarea.value;
     if (shouldSuggestNotebook(value)) {
       this.showWarning();
     } else {
@@ -67,14 +119,14 @@ export class InlineTitleEditor {
 
   private showWarning(): void {
     if (this.warning) return;
-    if (!this.input) return;
+    if (!this.textarea) return;
 
     const warning = document.createElement("div");
     warning.className = "mindmap-inline-title-warning";
     warning.textContent = "内容较多，建议转为笔记节点";
     warning.style.left = `${this.options.x}px`;
-    warning.style.top = `${this.options.y + 32}px`;
-    warning.style.width = `${this.options.width}px`;
+    warning.style.top = `${this.options.y + this.textarea.offsetHeight + 4}px`;
+    warning.style.width = `${this.textarea.offsetWidth}px`;
 
     this.options.layer.appendChild(warning);
     this.warning = warning;
@@ -86,8 +138,8 @@ export class InlineTitleEditor {
   }
 
   async commit(): Promise<void> {
-    if (!this.input) return;
-    const value = this.input.value.trim();
+    if (!this.textarea) return;
+    const value = this.textarea.value.trim();
     this.hideWarning();
     this.close();
 
@@ -106,8 +158,8 @@ export class InlineTitleEditor {
   }
 
   close(): void {
-    this.input?.remove();
-    this.input = null;
+    this.textarea?.remove();
+    this.textarea = null;
     this.warning?.remove();
     this.warning = null;
   }

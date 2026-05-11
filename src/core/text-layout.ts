@@ -1,7 +1,8 @@
-const CHAR_WIDTH_CHINESE = 14;
+export const BASE_FONT_SIZE = 14;
+export const CHAR_WIDTH_CHINESE = 14;
 const CHAR_WIDTH_ENGLISH = 8;
 const CHAR_WIDTH_SPACE = 4;
-const TITLE_MAX_WIDTH_CHARS = 30;
+export const TITLE_MAX_WIDTH_CHARS = 30;
 const TITLE_MAX_LINES = 2;
 const TITLE_PADDING_HORIZONTAL = 24;
 const TITLE_PADDING_VERTICAL_SINGLE_LINE = 30;
@@ -22,7 +23,7 @@ function measureCharWidth(char: string): number {
 }
 
 function measureTextWidth(text: string, fontSize: number): number {
-  const scaleFactor = fontSize / 14;
+  const scaleFactor = fontSize / BASE_FONT_SIZE;
   let width = 0;
   for (const char of text) {
     width += measureCharWidth(char) * scaleFactor;
@@ -32,7 +33,7 @@ function measureTextWidth(text: string, fontSize: number): number {
 
 export function layoutText(args: { text: string; fontSize: number }): TextLayoutResult {
   const { text, fontSize } = args;
-  const scaleFactor = fontSize / 14;
+  const scaleFactor = fontSize / BASE_FONT_SIZE;
   const maxWidth = TITLE_MAX_WIDTH_CHARS * CHAR_WIDTH_CHINESE * scaleFactor;
   
   const lines: string[] = [];
@@ -85,7 +86,7 @@ export function layoutText(args: { text: string; fontSize: number }): TextLayout
 }
 
 export function shouldSuggestNotebook(text: string): boolean {
-  const result = layoutText({ text, fontSize: 14 });
+  const result = layoutText({ text, fontSize: BASE_FONT_SIZE });
   return result.isOverflow;
 }
 
@@ -100,7 +101,7 @@ export function getTextNodeDisplaySize(args: { title: string; fontSize: number }
 export function truncateTextForNotebook(text: string, maxWidth: number, fontSize: number): string {
   if (fontSize <= 0 || maxWidth <= 0) return "";
   
-  const scaleFactor = fontSize / 14;
+  const scaleFactor = fontSize / BASE_FONT_SIZE;
   const ellipsis = "...";
   const ellipsisWidth = measureTextWidth(ellipsis, fontSize);
   
@@ -126,7 +127,7 @@ export function layoutDescription(args: { text: string; maxWidth: number; fontSi
   
   if (fontSize <= 0 || maxWidth <= 0 || maxLines <= 0) return [];
   
-  const scaleFactor = fontSize / 14;
+  const scaleFactor = fontSize / BASE_FONT_SIZE;
   const lines: string[] = [];
   let currentLine = "";
   let currentWidth = 0;
