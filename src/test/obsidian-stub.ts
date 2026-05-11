@@ -82,6 +82,19 @@ export class FakeElement {
     }
   }
 
+  get classList() {
+    const self = this;
+    return {
+      contains(name: string): boolean { return self.classNames.has(name); },
+      add(name: string): void { self.classNames.add(name); },
+      remove(name: string): void { self.classNames.delete(name); },
+      toggle(name: string, force?: boolean): void {
+        if (force === false || (force === undefined && self.classNames.has(name))) self.classNames.delete(name);
+        else self.classNames.add(name);
+      },
+    };
+  }
+
   addClass(name: string): void {
     this.classNames.add(name);
   }

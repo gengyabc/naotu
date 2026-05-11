@@ -113,6 +113,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       });
 
     this.svg.call(this.zoomBehavior);
+    this.svg.on("dblclick.zoom", null); // allow node dblclick to reach inline title editor instead of zoom
     this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
     this.bindBoxSelect();
     this.bindFocusRestore();
@@ -458,7 +459,11 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
   private bindFocusRestore(): void {
     this.svg.on("click.focus", (event) => {
-      requestAnimationFrame(() => this.options.container.focus());
+      requestAnimationFrame(() => {
+        const active = this.options.container.ownerDocument?.activeElement;
+        if (active instanceof HTMLElement && active.classList.contains("mindmap-inline-title-input")) return;
+        this.options.container.focus();
+      });
       if (!(event.target as Element).closest(".mindmap-node")) {
         this.options.onClearSelection();
       }

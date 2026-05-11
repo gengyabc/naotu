@@ -7,7 +7,7 @@ import {
   screenDragDeltaToWorldDelta,
   shouldOpenEmbeddedFileOnDoubleClick,
   shouldRenderEmbeddedFilePreview,
-  shouldStartInlineTitleEdit,
+  shouldStartInlineEditForDblClick,
   shouldStartNodeDrag,
 } from "../renderer/projected-node-renderer";
 
@@ -54,22 +54,25 @@ describe("projected node dragging", () => {
     expect(shouldStartNodeDrag({ closest: () => null } as unknown as EventTarget)).toBe(true);
   });
 
-  it("starts inline title editing only from title targets", () => {
-    expect(
-      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector.includes(".mindmap-node-title") ? {} : null) } as unknown as EventTarget),
-    ).toBe(true);
-    expect(
-      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector.includes(".mindmap-node-title-hitbox") ? {} : null) } as unknown as EventTarget),
-    ).toBe(true);
-    expect(
-      shouldStartInlineTitleEdit({ closest: (selector: string) => (selector === ".mindmap-node" ? {} : null) } as unknown as EventTarget),
-    ).toBe(false);
-    expect(
-      shouldStartInlineTitleEdit({
-        closest: (selector: string) => (selector.includes("mindmap-node-open-notebook") || selector === ".mindmap-node-title" ? {} : null),
-      } as unknown as EventTarget),
-    ).toBe(false);
-    expect(shouldStartInlineTitleEdit({ closest: () => null } as unknown as EventTarget)).toBe(false);
+  it("starts inline edit on any area for text nodes, title area only for notebooks", () => {
+    const titleTarget = { closest: (selector: string) => (selector.includes(".mindmap-node-title") ? {} : null) } as unknown as EventTarget;
+    const hitboxTarget = { closest: (selector: string) => (selector.includes(".mindmap-node-title-hitbox") ? {} : null) } as unknown as EventTarget;
+    const nodeBgTarget = { closest: (selector: string) => (selector === ".mindmap-node" ? {} : null) } as unknown as EventTarget;
+    const buttonTarget = {
+      closest: (selector: string) => (selector.includes("mindmap-node-open-notebook") ? {} : null),
+    } as unknown as EventTarget;
+
+    expect(shouldStartInlineEditForDblClick(titleTarget, "text")).toBe(true);
+    expect(shouldStartInlineEditForDblClick(hitboxTarget, "text")).toBe(true);
+    expect(shouldStartInlineEditForDblClick(nodeBgTarget, "text")).toBe(true);
+    expect(shouldStartInlineEditForDblClick(buttonTarget, "text")).toBe(false);
+    expect(shouldStartInlineEditForDblClick({} as unknown as EventTarget, "text")).toBe(false);
+    expect(shouldStartInlineEditForDblClick({ closest: () => undefined } as unknown as EventTarget, "notebook")).toBe(false);
+
+    expect(shouldStartInlineEditForDblClick(titleTarget, "notebook")).toBe(true);
+    expect(shouldStartInlineEditForDblClick(hitboxTarget, "notebook")).toBe(true);
+    expect(shouldStartInlineEditForDblClick(nodeBgTarget, "notebook")).toBe(false);
+    expect(shouldStartInlineEditForDblClick(buttonTarget, "notebook")).toBe(false);
   });
 
   it("only enables node dragging in free layout", () => {

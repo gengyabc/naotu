@@ -102,7 +102,7 @@ export class MindmapView extends ItemView {
       focusNode: (id) => this.rendererCoordinator.focusNode(id),
       setLastFocusNodeId: (id) => this.rendererCoordinator.setLastFocusNodeId(id),
       setSearchResultIds: (ids) => this.rendererCoordinator.setSearchResultIds(ids),
-      focusCanvas: () => this.canvasEl?.focus(),
+      focusCanvas: () => this.focusCanvasUnlessInlineEditorActive(),
       focusSearchInput: () => this.toolbar?.focusSearchInput(),
       startInlineEdit: (id) => this.rendererCoordinator.startInlineEditByNodeId(id),
       zoomBy: (factor) => this.rendererCoordinator.zoomBy(factor),
@@ -385,7 +385,7 @@ export class MindmapView extends ItemView {
     this.rendererCoordinator.setLastFocusNodeId(child.id);
     this.rendererCoordinator.render();
     this.rendererCoordinator.focusNode(child.id);
-    requestAnimationFrame(() => this.canvasEl?.focus());
+    requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
   }
 
   private addSiblingNode(): void {
@@ -399,7 +399,7 @@ export class MindmapView extends ItemView {
     this.rendererCoordinator.setLastFocusNodeId(sibling.id);
     this.rendererCoordinator.render();
     this.rendererCoordinator.focusNode(sibling.id);
-    requestAnimationFrame(() => this.canvasEl?.focus());
+    requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
   }
 
   private async createNotebookForTextNode(id: string): Promise<void> {
@@ -531,6 +531,20 @@ export class MindmapView extends ItemView {
 
   private zoomOut(): void {
     this.interactions.handleZoomInput(1 / 1.2);
+  }
+
+  private focusCanvasUnlessInlineEditorActive(): void {
+    const ownerDocument = ((this.contentEl as unknown as { ownerDocument?: { activeElement?: unknown } }).ownerDocument ?? document) as {
+      activeElement?: unknown;
+    };
+    const activeElement = ownerDocument.activeElement as
+      | { classList?: { contains(name: string): boolean } }
+      | null
+      | undefined;
+    if (activeElement?.classList?.contains("mindmap-inline-title-input")) {
+      return;
+    }
+    this.canvasEl?.focus();
   }
 
   private editSelectedNode(): void {

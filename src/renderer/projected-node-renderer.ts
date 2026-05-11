@@ -95,12 +95,12 @@ export function shouldStartNodeDrag(target: EventTarget | null): boolean {
 const TITLE_HITBOX_INSET_X = 8;
 const TITLE_HITBOX_INSET_Y = 6;
 const TITLE_HITBOX_MIN_HEIGHT = 32;
-const TITLE_HITBOX_PADDING = 12;
 
-export function shouldStartInlineTitleEdit(target: EventTarget | null): boolean {
+export function shouldStartInlineEditForDblClick(target: EventTarget | null, nodeKind: ProjectedNode["kind"]): boolean {
   const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
   if (typeof elementTarget?.closest !== "function") return false;
   if (elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle")) return false;
+  if (nodeKind === "text") return true;
   return Boolean(elementTarget.closest(".mindmap-node-title, .mindmap-node-title-hitbox"));
 }
 
@@ -255,12 +255,6 @@ export function renderProjectedNodes(args: {
   merged
     .on("click", (event, node) => {
       event.stopPropagation();
-      if (event.detail >= 2 && shouldStartInlineTitleEdit(event.target) && canInlineEditNodeTitle(node)) {
-        event.preventDefault();
-        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
-        return;
-      }
 
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
@@ -274,9 +268,11 @@ export function renderProjectedNodes(args: {
         return;
       }
       if (!canInlineEditNodeTitle(node)) return;
-      if (!shouldStartInlineTitleEdit(event.target)) return;
+      if (!shouldStartInlineEditForDblClick(event.target, node.kind)) return;
       event.preventDefault();
       event.stopPropagation();
+      const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
+      args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
@@ -368,7 +364,7 @@ export function renderProjectedNodes(args: {
       
       const lineHeight = visual.titleFontSize * 1.4;
       const startY = textLayout.lines.length === 1 ? 26 : 18;
-      titleHitboxHeight = Math.min(node.displayHeight - TITLE_HITBOX_INSET_X, Math.max(TITLE_HITBOX_MIN_HEIGHT, Math.ceil(textLayout.lines.length * lineHeight) + TITLE_HITBOX_PADDING));
+      titleHitboxHeight = node.displayHeight - TITLE_HITBOX_INSET_Y * 2;
       
       titleText
         .attr("x", 12)
@@ -406,13 +402,6 @@ export function renderProjectedNodes(args: {
         if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
         else if (event.shiftKey) args.onSelectNode(node.id, "add");
         else args.onSelectNode(node.id, "replace");
-      })
-      .on("dblclick.title-hitbox", (event: MouseEvent) => {
-        if (!canInlineEditNodeTitle(node)) return;
-        event.stopPropagation();
-        event.preventDefault();
-        const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-        args.onStartInlineEdit(node, { x: screen.x + 10, y: screen.y + 8, width: node.displayWidth - 20, height: 28 });
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");

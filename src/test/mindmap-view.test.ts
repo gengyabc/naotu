@@ -763,6 +763,24 @@ describe("MindmapView", () => {
     expect(renderer.startInlineEditByNodeId).not.toHaveBeenCalled();
   });
 
+  it("does not steal focus from an active inline title editor during node selection", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+    const canvasEl = (harness.view as any).canvasEl as HTMLElement;
+    const focusSpy = vi.spyOn(canvasEl, "focus");
+    const input = document.createElement("input");
+    input.classList.add("mindmap-inline-title-input");
+    (document as unknown as { activeElement: unknown }).activeElement = input;
+
+    renderer.options.onSelectNode("child", "replace");
+
+    expect((document as unknown as { activeElement: unknown }).activeElement).toBe(input);
+    expect(focusSpy).not.toHaveBeenCalled();
+
+    (document as unknown as { activeElement: unknown }).activeElement = null;
+  });
+
   it("deletes an edge through the extracted edge context menu", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);

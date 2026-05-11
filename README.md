@@ -197,6 +197,31 @@ npm run test
 npm run test:watch
 ```
 
+### 开发注意事项
+
+#### 焦点竞争问题
+
+**问题描述**: 双击节点编辑标题时，内联编辑输入框会立即关闭，用户看起来像"双击没反应"。
+
+**根本原因**: 不是双击事件没触发，而是前两次单击触发的"延迟聚焦画布"把刚打开的输入框焦点抢走了。
+
+事件链：
+1. 第一次点击节点 → 触发选中 → `handleNodeSelection()` 排队 `requestAnimationFrame(() => focusCanvas())`
+2. 第二次点击节点 → 再排队一个 `focusCanvas()`
+3. 随后 `dblclick` 触发 → 内联输入框创建并 `focus()`
+4. 前面排队的两个 `requestAnimationFrame` 立刻执行 → 把焦点切回画布
+5. 输入框收到 `blur` → `InlineTitleEditor` 的 `blur` 逻辑会 `commit()` 并关闭
+6. 结果：用户看到"双击没反应"
+
+**解决方案**: 在 `focusCanvas()` 时检查当前激活元素是否是内联编辑输入框（`.mindmap-inline-title-input`），如果是则不抢焦点。
+
+相关代码位置：
+- `src/view/mindmap-view.ts`: `focusCanvasUnlessInlineEditorActive()` 方法
+- `src/view/mindmap-interactions.ts`: `handleNodeSelection()` 中的焦点管理
+- `src/renderer/shared-mindmap-renderer-base.ts`: D3 zoom 的 `dblclick.zoom` 禁用
+
+**注意**: 如果以后遇到类似的"交互元素打开后立即关闭"问题，首先检查是否有延迟焦点抢夺逻辑。
+
 ### 技术栈
 
 - TypeScript
@@ -401,6 +426,31 @@ npm run test
 # Test watch mode
 npm run test:watch
 ```
+
+### Development Notes
+
+#### Focus Competition Issue
+
+**Problem**: When double-clicking a node to edit its title, the inline editing input closes immediately, appearing as if "double-click has no effect".
+
+**Root Cause**: Not that the double-click event didn't fire, but that the delayed "focus canvas" calls triggered by the first two clicks stole the focus from the newly opened input field.
+
+Event chain:
+1. First click on node → triggers selection → `handleNodeSelection()` queues `requestAnimationFrame(() => focusCanvas())`
+2. Second click on node → queues another `focusCanvas()`
+3. Then `dblclick` fires → inline input field is created and `focus()` is called
+4. The two queued `requestAnimationFrame` callbacks execute immediately → focus switches back to canvas
+5. Input field receives `blur` → `InlineTitleEditor`'s `blur` logic calls `commit()` and closes
+6. Result: User sees "double-click has no effect"
+
+**Solution**: When calling `focusCanvas()`, check if the current active element is the inline editing input (`.mindmap-inline-title-input`). If it is, don't steal the focus.
+
+Related code locations:
+- `src/view/mindmap-view.ts`: `focusCanvasUnlessInlineEditorActive()` method
+- `src/view/mindmap-interactions.ts`: Focus management in `handleNodeSelection()`
+- `src/renderer/shared-mindmap-renderer-base.ts`: D3 zoom's `dblclick.zoom` disabled
+
+**Note**: If you encounter similar "interactive element closes immediately after opening" issues, first check if there's delayed focus stealing logic.
 
 ### Tech Stack
 
