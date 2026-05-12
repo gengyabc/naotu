@@ -116,6 +116,7 @@ export interface ProjectedNode {
   branchColor?: string;
   branchColorSoft?: string;
   branchColorBorder?: string;
+  treeSide?: -1 | 1;
 }
 
 export interface ProjectedEdge {

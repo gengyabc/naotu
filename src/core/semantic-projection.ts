@@ -203,6 +203,11 @@ export function createSemanticProjection(
     const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
     const usesCustomSize = Boolean(customSize);
 
+    let treeSide: -1 | 1 | undefined;
+    if (!isRoot && rootNode) {
+      treeSide = node.x < rootNode.x ? -1 : 1;
+    }
+
     projectedNodes.push({
       id: node.id,
       sourceNodeId: node.id,
@@ -229,6 +234,7 @@ export function createSemanticProjection(
       showOpenNotebookButton: node.kind === "notebook" && finalDetail >= 4 && Boolean(node.notebook?.link),
       showResizeHandle: node.kind === "notebook" && (finalDetail >= 4 || usesCustomSize || (isSelected && finalDetail >= 2)),
       usesCustomSize,
+      treeSide,
     });
   }
 

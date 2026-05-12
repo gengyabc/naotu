@@ -489,9 +489,13 @@ export function renderProjectedNodes(args: {
         args.onToggleTree(node.id, node.childrenExpanded);
       });
 
+    const isLeftSide = node.treeSide === -1;
+    const toggleX = isLeftSide ? -26 : node.displayWidth + 2;
+    const toggleTextX = isLeftSide ? -16 : node.displayWidth + 10;
+
     treeToggleGroup
       .select<SVGRectElement>("rect.mindmap-node-tree-toggle-hitbox")
-      .attr("x", node.displayWidth + 2)
+      .attr("x", toggleX)
       .attr("y", node.displayHeight / 2 - 10)
       .attr("width", 24)
       .attr("height", 24)
@@ -501,7 +505,7 @@ export function renderProjectedNodes(args: {
 
     treeToggleGroup
       .select<SVGTextElement>("text.mindmap-node-tree-toggle-text")
-      .attr("x", node.displayWidth + 10)
+      .attr("x", toggleTextX)
       .attr("y", node.displayHeight / 2 + 6)
       .text(node.childrenExpanded ? "−" : "+");
 
