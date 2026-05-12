@@ -224,20 +224,27 @@ export class MindmapInteractions {
 
   handleZoomInput(factor: number): boolean {
     const selectedIds = this.options.selection.getIds();
-    if (selectedIds.length !== 1) {
+    let focusId: string | undefined;
+    
+    if (selectedIds.length === 1) {
+      focusId = selectedIds[0];
+    } else if (selectedIds.length === 0) {
+      focusId = findRootNodeId(this.options.getDocument());
+    }
+    
+    if (!focusId) {
       this.clearSubtreeVirtualZoomState();
       this.options.zoomBy(factor);
       return true;
     }
 
-    const selectedId = selectedIds[0];
-    const currentVirtualZoom = this.subtreeVirtualZoomState?.nodeId === selectedId
+    const currentVirtualZoom = this.subtreeVirtualZoomState?.nodeId === focusId
       ? this.subtreeVirtualZoomState.zoom
       : this.options.getDocument().viewport.zoom;
 
     const plan = planSubtreeSemanticZoom({
       doc: this.options.getDocument(),
-      rootId: selectedId,
+      rootId: focusId,
       currentVirtualZoom,
       projectionZoom: this.options.getDocument().viewport.zoom,
       factor,
@@ -253,7 +260,7 @@ export class MindmapInteractions {
       return true;
     }
 
-    this.subtreeVirtualZoomState = { nodeId: selectedId, zoom: plan.nextVirtualZoom };
+    this.subtreeVirtualZoomState = { nodeId: focusId, zoom: plan.nextVirtualZoom };
     if (plan.controls.size === 0) {
       this.options.zoomBy(factor);
       return true;

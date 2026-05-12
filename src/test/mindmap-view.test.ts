@@ -591,6 +591,21 @@ describe("MindmapView", () => {
     expect(getDocument(harness.view).viewport.zoom).toBe(1);
   });
 
+  it("treats empty selection as root-focused subtree semantic zoom", async () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    const harness = createHarness({ document: doc });
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).clearSelection();
+    (harness.view as any).handleZoomInput(0.2);
+
+    expect(getSubtreeVirtualZoomState(harness.view)).toMatchObject({ nodeId: "root" });
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
+    expect(renderer.zoomBy).not.toHaveBeenCalled();
+  });
+
   it("toggles selected tree nodes through keyboard collapse flow", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
