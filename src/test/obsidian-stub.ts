@@ -467,6 +467,16 @@ if (typeof globalThis.document === "undefined") {
   (globalThis as unknown as { document: typeof fakeDocument }).document = fakeDocument;
 }
 
+if (typeof globalThis.getComputedStyle === "undefined") {
+  (globalThis as unknown as { getComputedStyle: (el: Element) => { getPropertyValue: (prop: string) => string } }).getComputedStyle = () => ({
+    getPropertyValue: (prop: string) => {
+      if (prop === "--font-text-size") return "16";
+      if (prop === "--font-interface") return "sans-serif";
+      return "";
+    },
+  });
+}
+
 if (typeof globalThis.ResizeObserver === "undefined") {
   (globalThis as unknown as { ResizeObserver: typeof FakeResizeObserver }).ResizeObserver = FakeResizeObserver;
 }

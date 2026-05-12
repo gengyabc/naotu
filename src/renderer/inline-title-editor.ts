@@ -18,6 +18,7 @@ export interface InlineTitleEditorOptions {
   width: number;
   height: number;
   fontSize: number;
+  isBold: boolean;
   value: string;
   onCommitText: (value: string) => Promise<void> | void;
   onCancel: () => void;
@@ -40,11 +41,13 @@ export class InlineTitleEditor {
     this.close();
     const textarea = document.createElement("textarea");
     textarea.className = "mindmap-inline-title-input";
+    if (this.options.isBold) textarea.classList.add("is-bold");
     textarea.value = this.options.value;
     textarea.style.left = `${this.options.x}px`;
     textarea.style.top = `${this.options.y}px`;
     textarea.style.minHeight = `${this.options.height}px`;
     textarea.style.fontSize = `${this.options.fontSize}px`;
+    if (this.options.isBold) textarea.style.fontWeight = "700";
     textarea.style.width = `${this.getInitialWidth()}px`;
 
     this.options.layer.appendChild(textarea);

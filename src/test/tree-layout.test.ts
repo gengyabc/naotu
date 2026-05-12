@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TreeLayoutEngine } from "../core/tree-layout";
 import { nodeWorldRect } from "../core/geometry";
 import { getTextNodeDisplaySize } from "../core/text-layout";
+import { getFontSizeForDepth } from "../core/font-size";
 import { createSmallTestDocument } from "./test-fixtures";
 
 describe("TreeLayoutEngine", () => {
@@ -100,8 +101,10 @@ describe("TreeLayoutEngine", () => {
     expect(root).toBeDefined();
     expect(child).toBeDefined();
 
-    const rootSize = getTextNodeDisplaySize({ title: root!.title, fontSize: 14 });
-    const childSize = getTextNodeDisplaySize({ title: child!.title, fontSize: 14 });
+    const rootFontSize = getFontSizeForDepth(0);
+    const childFontSize = getFontSizeForDepth(1);
+    const rootSize = getTextNodeDisplaySize({ title: root!.title, fontSize: rootFontSize });
+    const childSize = getTextNodeDisplaySize({ title: child!.title, fontSize: childFontSize });
     const visibleGap = child!.x - root!.x - rootSize.width / 2 - childSize.width / 2;
     expect(Math.round(visibleGap)).toBe(10);
   });

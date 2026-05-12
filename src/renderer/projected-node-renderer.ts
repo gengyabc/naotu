@@ -7,6 +7,7 @@ import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
+import { getFontSizeForDepth } from "../core/font-size";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { renderTextAsMarkdown } from "./text-markdown-renderer";
 import {
@@ -33,6 +34,7 @@ const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
 const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
 const BADGE_FONT_SIZE = 11;
 const BADGE_LINE_HEIGHT_FACTOR = 1.27;
+const SECONDARY_FONT_SIZE_OFFSET = -1;
 
 const descriptionCache = new Map<string, string | null>();
 let descriptionCacheVersion = -1;
@@ -157,7 +159,7 @@ export function renderProjectedNodes(args: {
   onLeaveNode: () => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
-  onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number }) => void;
+  onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number; isBold: boolean }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
   onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
@@ -273,10 +275,10 @@ export function renderProjectedNodes(args: {
       event.preventDefault();
       event.stopPropagation();
       const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-      const visual = getVisualSpec(node.kind, node.detailLevel);
+      const fontSize = getFontSizeForDepth(node.depth);
       const editorHeight = node.displayHeight - 16;
       const editorY = screen.y + (node.displayHeight - editorHeight) / 2;
-      args.onStartInlineEdit(node, { x: screen.x + 10, y: editorY, width: node.displayWidth - 20, height: editorHeight, fontSize: visual.titleFontSize });
+      args.onStartInlineEdit(node, { x: screen.x + 10, y: editorY, width: node.displayWidth - 20, height: editorHeight, fontSize, isBold: node.depth <= 1 });
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
@@ -293,6 +295,7 @@ export function renderProjectedNodes(args: {
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
     const baseVisual = getVisualSpec(node.kind, node.detailLevel);
     const targetKind = node.notebook?.targetKind ?? "markdown";
+    const nodeFontSize = getFontSizeForDepth(node.depth);
 
     if (node.branchColor) {
       group.style("--branch-color", node.branchColor);
@@ -312,14 +315,14 @@ export function renderProjectedNodes(args: {
       visual = {
         width: node.displayWidth,
         height: node.displayHeight,
-        titleFontSize: baseVisual.titleFontSize,
-        fontSize: baseVisual.fontSize,
+        titleFontSize: nodeFontSize,
+        fontSize: nodeFontSize + SECONDARY_FONT_SIZE_OFFSET,
         showSummary,
         showLink,
         showPreview,
       };
     } else {
-      visual = baseVisual;
+      visual = { ...baseVisual, titleFontSize: nodeFontSize, fontSize: nodeFontSize + SECONDARY_FONT_SIZE_OFFSET };
     }
     
     const showEmbeddedFilePreview = shouldRenderEmbeddedFilePreview({
@@ -335,6 +338,7 @@ export function renderProjectedNodes(args: {
     group.classed("is-text", node.kind === "text");
     group.classed("is-notebook", node.kind === "notebook");
     group.classed("is-root", node.isRoot);
+    group.classed("is-root-or-child", node.depth <= 1);
     group.classed("is-focus", node.isFocus);
     group.classed("is-selected", node.isSelected);
     group.classed("is-ancestor-path", node.isAncestorPath);

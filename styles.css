@@ -259,6 +259,10 @@
   word-wrap: break-word;
 }
 
+.mindmap-inline-title-input.is-bold {
+  font-weight: 700;
+}
+
 .mindmap-node-bg {
   fill: var(--background-primary);
   stroke: var(--branch-color-border, var(--background-modifier-border));
@@ -343,6 +347,14 @@
   font-weight: 600;
   pointer-events: none;
   dominant-baseline: middle;
+}
+
+.mindmap-node.is-root-or-child .mindmap-node-title {
+  font-weight: 700;
+}
+
+.mindmap-node.is-root-or-child .mindmap-text-markdown-wrapper {
+  font-weight: 700;
 }
 
 .mindmap-node-title-hitbox {

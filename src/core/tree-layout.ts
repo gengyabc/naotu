@@ -1,12 +1,14 @@
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
-import { buildHierarchy } from "./hierarchy";
+import { buildHierarchy, type MindmapHierarchy } from "./hierarchy";
 import { getStoredNodeSize } from "./notebook-size";
 import { getTextNodeDisplaySize } from "./text-layout";
+import { getFontSizeForDepth } from "./font-size";
 
 export interface TreeLayoutOptions {
   mode: "tree-mirror" | "tree-right";
   horizontalSpacing: number;
   verticalSpacing: number;
+  baseFontSize?: number;
 }
 
 export class TreeLayoutEngine {
@@ -23,7 +25,8 @@ export class TreeLayoutEngine {
     root.x = 0;
     root.y = 0;
 
-    const spans = computeVisibleSubtreeSpans(rootId, hierarchy.childrenById, nodeMap, options.verticalSpacing);
+    const depthMap = buildDepthMap(hierarchy);
+    const spans = computeVisibleSubtreeSpans(rootId, hierarchy.childrenById, nodeMap, options.verticalSpacing, options.baseFontSize, depthMap);
     const rootChildren = hierarchy.childrenById.get(rootId) ?? [];
 
     if (options.mode === "tree-right") {
@@ -37,6 +40,8 @@ export class TreeLayoutEngine {
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
         visiting: new Set<string>(),
+        baseFontSize: options.baseFontSize,
+        depthMap,
       });
     } else {
       const split = splitRootChildrenForMirror(rootChildren, spans);
@@ -50,6 +55,8 @@ export class TreeLayoutEngine {
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
         visiting: new Set<string>(),
+        baseFontSize: options.baseFontSize,
+        depthMap,
       });
       layoutDirectedSubtree({
         parentId: rootId,
@@ -61,6 +68,8 @@ export class TreeLayoutEngine {
         horizontalSpacing: options.horizontalSpacing,
         verticalSpacing: options.verticalSpacing,
         visiting: new Set<string>(),
+        baseFontSize: options.baseFontSize,
+        depthMap,
       });
     }
 
@@ -69,11 +78,21 @@ export class TreeLayoutEngine {
   }
 }
 
+function buildDepthMap(hierarchy: MindmapHierarchy): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const [id, hNode] of hierarchy.nodes) {
+    result.set(id, hNode.depth);
+  }
+  return result;
+}
+
 function computeVisibleSubtreeSpans(
   rootId: string,
   childrenById: Map<string, string[]>,
   nodeMap: Map<string, MindmapNode>,
   verticalSpacing: number,
+  baseFontSize: number | undefined,
+  depthMap: Map<string, number>,
 ): Map<string, number> {
   const result = new Map<string, number>();
   const visiting = new Set<string>();
@@ -91,7 +110,8 @@ function computeVisibleSubtreeSpans(
       return 1;
     }
 
-    const nodeHeight = getLayoutNodeSize(node).height;
+    const depth = depthMap.get(nodeId) ?? 0;
+    const nodeHeight = getLayoutNodeSize(node, depth, baseFontSize).height;
 
     if (isCollapsedForLayout(node)) {
       visiting.delete(nodeId);
@@ -153,6 +173,8 @@ function layoutDirectedSubtree(args: {
   horizontalSpacing: number;
   verticalSpacing: number;
   visiting: Set<string>;
+  baseFontSize: number | undefined;
+  depthMap: Map<string, number>;
 }): void {
   if (args.visiting.has(args.parentId)) return;
   args.visiting.add(args.parentId);
@@ -163,7 +185,8 @@ function layoutDirectedSubtree(args: {
     return;
   }
 
-  const parentSize = getLayoutNodeSize(parent);
+  const parentDepth = args.depthMap.get(args.parentId) ?? 0;
+  const parentSize = getLayoutNodeSize(parent, parentDepth, args.baseFontSize);
   const totalHeight = args.children.reduce((sum, childId, index) => {
     const childSpan = args.spans.get(childId) ?? 0;
     return sum + childSpan + (index < args.children.length - 1 ? args.verticalSpacing : 0);
@@ -174,7 +197,8 @@ function layoutDirectedSubtree(args: {
     const child = args.nodeMap.get(childId);
     if (!child) continue;
 
-    const childSize = getLayoutNodeSize(child);
+    const childDepth = args.depthMap.get(childId) ?? 0;
+    const childSize = getLayoutNodeSize(child, childDepth, args.baseFontSize);
     const childSpan = args.spans.get(childId) ?? childSize.height;
     const childCenterY = cursorTop + childSpan / 2;
     child.x = parent.x + args.direction * (parentSize.width / 2 + args.horizontalSpacing + childSize.width / 2);
@@ -197,9 +221,10 @@ function isCollapsedForLayout(node: MindmapNode): boolean {
   return node.treeControl === "manual-collapsed";
 }
 
-export function getLayoutNodeSize(node: MindmapNode): { width: number; height: number } {
+export function getLayoutNodeSize(node: MindmapNode, depth?: number, baseFontSize?: number): { width: number; height: number } {
   if (node.kind === "text") {
-    return getTextNodeDisplaySize({ title: node.title, fontSize: 14 });
+    const fontSize = getFontSizeForDepth(depth ?? 0, baseFontSize);
+    return getTextNodeDisplaySize({ title: node.title, fontSize });
   }
 
   return getStoredNodeSize(node);

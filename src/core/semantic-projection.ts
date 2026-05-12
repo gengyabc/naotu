@@ -16,6 +16,7 @@ import { getCustomNotebookSize, getStoredNodeSize } from "./notebook-size";
 import { areChildrenExpanded } from "./tree-control";
 import { getLayoutNodeSize } from "./tree-layout";
 import { getTextNodeDisplaySize } from "./text-layout";
+import { getFontSizeForDepth } from "./font-size";
 import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 import { computeBranchMeta } from "./branch-color";
 
@@ -74,7 +75,13 @@ export function createSemanticProjection(
   const rootNode = hierarchy.rootId ? docNodeMap.get(hierarchy.rootId) : undefined;
   const prevFrozenLevels = extra.prevFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
   const nextFrozenLevels = extra.nextFrozenNotebookLevels ?? new Map<string, NodeDetailLevel>();
-  const layoutSizeCache = isTreeLayout ? new Map(doc.nodes.map((n) => [n.id, getLayoutNodeSize(n)])) : undefined;
+  const layoutSizeCache = isTreeLayout
+    ? new Map(doc.nodes.map((n) => {
+        const hNode = hierarchy.nodes.get(n.id);
+        const depth = hNode?.depth ?? 0;
+        return [n.id, getLayoutNodeSize(n, depth)];
+      }))
+    : undefined;
 
   for (const node of doc.nodes) {
     if (!visibleNodeIds.has(node.id)) continue;
@@ -170,9 +177,10 @@ export function createSemanticProjection(
       const visual = getVisualSpec(node.kind, finalDetail);
       
       if (node.kind === "text") {
+        const fontSize = getFontSizeForDepth(depth);
         const dynamicSize = getTextNodeDisplaySize({
           title: node.title,
-          fontSize: visual.titleFontSize,
+          fontSize,
         });
         finalSize = { width: dynamicSize.width, height: dynamicSize.height };
       } else {
@@ -190,6 +198,7 @@ export function createSemanticProjection(
       isRoot,
       rootNode,
       layoutSizeCache,
+      depth,
     });
     const childrenExpanded = children.some((childId) => visibleNodeIds.has(childId));
     const usesCustomSize = Boolean(customSize);
@@ -326,6 +335,7 @@ function projectNodeTopLeft(args: {
   isRoot: boolean;
   rootNode?: MindmapNode;
   layoutSizeCache?: Map<string, { width: number; height: number }>;
+  depth?: number;
 }): { x: number; y: number } {
   const centeredX = args.projectedCenter.x - args.finalSize.width / (2 * args.context.zoom);
   const centeredY = args.projectedCenter.y - args.finalSize.height / (2 * args.context.zoom);
@@ -338,7 +348,7 @@ function projectNodeTopLeft(args: {
     return { x: centeredX, y: centeredY };
   }
 
-  const layoutSize = args.layoutSizeCache?.get(args.node.id) ?? getLayoutNodeSize(args.node);
+  const layoutSize = args.layoutSizeCache?.get(args.node.id) ?? getLayoutNodeSize(args.node, args.depth);
   const side = args.node.x < args.rootNode.x ? TREE_SIDE_LEFT : TREE_SIDE_RIGHT;
   const x = side === TREE_SIDE_RIGHT
     ? args.projectedCenter.x - layoutSize.width / (2 * args.context.zoom)

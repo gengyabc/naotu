@@ -5,7 +5,7 @@ import { normalizeRect } from "../core/geometry";
 import { PerformanceMonitor } from "../core/performance-monitor";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport-culling";
-import { getVisualSpec } from "../core/detail-level";
+import { getFontSizeForDepth } from "../core/font-size";
 import type { MindmapDocument, NodeDetailLevel, ProjectedNode, Rect } from "../types/mindmap";
 import type { SemanticMindmapSettings } from "../types/settings";
 import { renderProjectedEdges } from "./projected-edge-renderer";
@@ -201,7 +201,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const screenX = node.projectedX * transform.k + transform.x;
     const screenY = node.projectedY * transform.k + transform.y;
 
-    const visual = getVisualSpec(node.kind, node.detailLevel);
+    const fontSize = getFontSizeForDepth(node.depth);
     const editorHeight = node.displayHeight - 16;
     const editorY = screenY + (node.displayHeight - editorHeight) / 2;
 
@@ -210,7 +210,8 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       y: editorY,
       width: node.displayWidth - 20,
       height: editorHeight,
-      fontSize: visual.titleFontSize,
+      fontSize,
+      isBold: node.depth <= 1,
     });
   }
 
@@ -391,7 +392,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     return { doc, projection, renderNodes, renderEdges, transform };
   }
 
-  private openInlineTitleEditor(node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number }): void {
+  private openInlineTitleEditor(node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number; isBold: boolean }): void {
     new InlineTitleEditor({
       layer: this.inlineEditorLayer,
       x: rect.x,
@@ -399,6 +400,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       width: rect.width,
       height: rect.height,
       fontSize: rect.fontSize,
+      isBold: rect.isBold,
       value: node.title,
       onCommitText: async (value) => {
         await this.options.onInlineTextCommit(node.id, value);
