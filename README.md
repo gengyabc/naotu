@@ -1,4 +1,4 @@
-# Semantic Zoom Mindmap
+# MindCanvas 思维画布
 
 [中文](#中文文档) | [English](#english-documentation)
 
@@ -6,7 +6,10 @@
 
 ## 中文文档
 
-一个为 Obsidian 打造的语义缩放脑图插件，支持文本节点、笔记本节点、聚焦保持的层级缩放。
+> A mindmap that is really a map.  
+> 真正的思维投影。
+
+MindCanvas 不是普通脑图，而是一张可以像地图一样缩放、导航和承载资料的思维画布。
 
 ### 功能特性
 
@@ -14,11 +17,15 @@
 
 - **文本节点** - 简单的一句话节点，用于表达脑图结构
 - **笔记本节点** - 绑定 Obsidian 笔记，放大时可预览笔记内容
+- **图片/Excalidraw节点** - 绑定图片或 Excalidraw 文件，放大时显示嵌入预览
 - **语义缩放** - 缩放改变信息粒度而非简单放大文字，缩小看结构，放大看内容
+- **子树语义缩放** - 选中节点后缩放仅影响该子树的展开/收起状态
+- **分支颜色** - 根节点下的主要分支自动使用不同颜色，便于视觉区分
 - **多种布局模式** - 镜像树、右向树、自由布局
 - **Markdown 标题导入** - 从 Markdown 文件的标题结构生成脑图
 - **局部知识地图** - 基于当前文件的双向链接生成知识图谱
-- **SVG/PNG 导出** - 导出高清矢量图或位图
+- **SVG/PNG 导出** - 导出高清矢量图或位图（设置已预留，导出功能开发中）
+- **工具栏** - 完整的工具栏按钮，支持撤销、重做、布局切换、搜索等操作
 - **小地图** - 右上角显示缩略图便于导航
 - **键盘导航** - 方向键在节点间移动
 - **撤销/重做** - 完整的操作历史支持
@@ -50,11 +57,19 @@
 
 ##### 文本节点
 
-简单的单句脑图节点，用于构建思维结构。
+简单的单句脑图节点，用于构建思维结构。深度 ≥2 的文本节点渲染为仅下划线样式，减少视觉干扰。
 
 ##### 笔记本节点
 
 绑定到 Obsidian 笔记的节点，放大时可预览笔记内容。
+
+##### 图片节点
+
+绑定到 Obsidian vault 内的图片文件（png、jpg、jpeg、gif、webp、svg、avif、bmp），放大时显示图片预览。
+
+##### Excalidraw节点
+
+绑定到 Excalidraw 文件（.excalidraw 或 .excalidraw.md），放大时显示 Excalidraw 绘图预览。
 
 #### 操作快捷键
 
@@ -82,8 +97,10 @@
 - **点击双下箭头** - 文本节点转笔记本节点，笔记本节点展开预览
 - **点击右侧 +/-** - 展开/收起子树
 - **右键点击文本节点** - 创建或绑定笔记本
-- **滚轮** - 缩放
+- **右键点击笔记本节点** - 重新选择文件或转为文本节点
+- **滚轮** - 缩放（选中节点时仅缩放该子树）
 - **拖拽** - 平移画布
+- **拖拽节点边框** - 调整笔记本节点自定义尺寸
 
 ### 设置选项
 
@@ -146,6 +163,8 @@
       "y": 0,
       "width": 180,
       "height": 56,
+      "customWidth": 200,
+      "customHeight": 150,
       "treeControl": "auto"
     }
   ],
@@ -168,11 +187,21 @@
 - `viewport` - 视口状态
 - `nodes` - 节点数组
   - `kind` - 节点类型：`text` | `notebook`
+  - `customWidth` / `customHeight` - 自定义尺寸（笔记本节点手动调整后）
+  - `aspectRatio` - 宽高比（用于嵌入文件节点）
   - `treeControl` - 展开状态：`auto` | `manual-expanded` | `manual-collapsed`
   - `notebook` - 笔记本绑定信息（仅 notebook 类型）
+    - `targetType` - 目标类型：`file` | `heading` | `block`
+    - `targetKind` - 目标文件类型：`markdown` | `image` | `excalidraw`
+  - `link` - Obsidian 内部链接（如 `[[note]]` 或 `![[image.png]]`）
+  - `tags` - 标签数组（预留）
+  - `importance` - 重要度数值（预留）
+  - `style` - 自定义样式：`{ fill?, stroke? }`
 - `edges` - 边数组
-  - `relation` - 关系类型：`mindmap` | `reference`
+  - `relation` - 关系类型：`mindmap`（树结构）| `reference`（预留引用关系）
   - `type` - 边类型：`line` | `curve`
+  - `label` - 边标签（预留）
+  - `style` - 自定义样式：`{ stroke?, dashed? }`
 
 ### 隐私
 
@@ -236,7 +265,12 @@ MIT
 
 ## English Documentation
 
-A semantic zoom mindmap plugin for Obsidian with text nodes, notebook nodes, and focus-preserving hierarchical zoom.
+# MindCanvas
+
+> A mindmap that is really a map.  
+> 真正的思维投影。
+
+MindCanvas is a zoomable mindmap for Obsidian that helps you organize ideas, notes, images, links, and knowledge on a visual canvas like a real map.
 
 ### Features
 
@@ -244,11 +278,15 @@ A semantic zoom mindmap plugin for Obsidian with text nodes, notebook nodes, and
 
 - **Text Nodes** - Simple one-sentence nodes for expressing mindmap structure
 - **Notebook Nodes** - Nodes bound to Obsidian notes, with content preview when zoomed in
+- **Image/Excalidraw Nodes** - Nodes bound to image or Excalidraw files, showing embedded preview when zoomed in
 - **Semantic Zoom** - Zoom changes information granularity instead of simply scaling text; zoom out for structure, zoom in for content
+- **Subtree Semantic Zoom** - When a node is selected, zoom only affects that subtree's expand/collapse state
+- **Branch Colors** - Major branches under root node automatically use different colors for visual differentiation
 - **Multiple Layout Modes** - Mirror tree, right tree, free layout
 - **Markdown Heading Import** - Generate mindmaps from Markdown file heading structure
 - **Local Knowledge Map** - Generate knowledge graphs based on backlinks/outlinks of current file
-- **SVG/PNG Export** - Export high-quality vector or raster images
+- **SVG/PNG Export** - Export high-quality vector or raster images (settings available, export feature in development)
+- **Toolbar** - Full toolbar buttons for undo, redo, layout switching, search, and more
 - **Minimap** - Thumbnail navigation in top-right corner
 - **Keyboard Navigation** - Navigate between nodes with arrow keys
 - **Undo/Redo** - Full operation history support
@@ -280,11 +318,19 @@ Place plugin files in your Obsidian vault's `.obsidian/plugins/naotu/` directory
 
 ##### Text Node
 
-Simple single-sentence mindmap nodes for building thought structures.
+Simple single-sentence mindmap nodes for building thought structures. Text nodes at depth ≥2 render as underline-only style to reduce visual clutter.
 
 ##### Notebook Node
 
 Nodes bound to Obsidian notes, with content preview when zoomed in.
+
+##### Image Node
+
+Nodes bound to image files in Obsidian vault (png, jpg, jpeg, gif, webp, svg, avif, bmp), showing image preview when zoomed in.
+
+##### Excalidraw Node
+
+Nodes bound to Excalidraw files (.excalidraw or .excalidraw.md), showing Excalidraw drawing preview when zoomed in.
 
 #### Keyboard Shortcuts
 
@@ -312,8 +358,10 @@ Nodes bound to Obsidian notes, with content preview when zoomed in.
 - **Click double-down arrow** - Convert text node to notebook node, expand notebook node preview
 - **Click +/- on right side** - Expand/collapse subtree
 - **Right-click text node** - Create or bind notebook
-- **Scroll wheel** - Zoom
+- **Right-click notebook node** - Rebind file or convert to text node
+- **Scroll wheel** - Zoom (when node selected, zoom affects only that subtree)
 - **Drag** - Pan canvas
+- **Drag node border** - Resize notebook node custom size
 
 ### Settings
 
@@ -376,6 +424,8 @@ Mindmaps are saved as `.naotu` files:
       "y": 0,
       "width": 180,
       "height": 56,
+      "customWidth": 200,
+      "customHeight": 150,
       "treeControl": "auto"
     }
   ],
@@ -398,11 +448,21 @@ Mindmaps are saved as `.naotu` files:
 - `viewport` - Viewport state
 - `nodes` - Node array
   - `kind` - Node type: `text` | `notebook`
+  - `customWidth` / `customHeight` - Custom size (after manual resize of notebook node)
+  - `aspectRatio` - Aspect ratio (for embedded file nodes)
   - `treeControl` - Expand state: `auto` | `manual-expanded` | `manual-collapsed`
   - `notebook` - Notebook binding info (notebook type only)
+    - `targetType` - Target type: `file` | `heading` | `block`
+    - `targetKind` - Target file type: `markdown` | `image` | `excalidraw`
+  - `link` - Obsidian internal link (e.g. `[[note]]` or `![[image.png]]`)
+  - `tags` - Tags array (reserved)
+  - `importance` - Importance value (reserved)
+  - `style` - Custom style: `{ fill?, stroke? }`
 - `edges` - Edge array
-  - `relation` - Relation type: `mindmap` | `reference`
+  - `relation` - Relation type: `mindmap` (tree structure) | `reference` (reserved reference relation)
   - `type` - Edge type: `line` | `curve`
+  - `label` - Edge label (reserved)
+  - `style` - Custom style: `{ stroke?, dashed? }`
 
 ### Privacy
 

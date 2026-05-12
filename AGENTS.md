@@ -2,7 +2,7 @@
 
 ## Project
 
-Obsidian plugin: "Semantic Zoom Mindmap" (`semantic-zoom-mindmap`). Mindmaps saved as `.naotu` JSON files with nodes/edges.
+Obsidian plugin: "MindCanvas 思维画布" (`mindcanvas`). Mindmaps saved as `.naotu` JSON files with nodes/edges.
 
 ## Commands
 
@@ -43,13 +43,13 @@ Manual checks for cross-feature UI changes:
 
 - `src/main.ts` — plugin entrypoint, registers view/commands/settings
 - `src/constants.ts` — shared constants (view type, defaults, default document template)
-- `src/core/` — domain logic (47 modules, see breakdown below)
-- `src/renderer/` — SVG, Canvas, hybrid renderers; shared base; node/edge projection; minimap; export (11 files)
+- `src/core/` — domain logic (50 modules, see breakdown below)
+- `src/renderer/` — SVG, Canvas, hybrid renderers; shared base; node/edge projection; minimap; markdown rendering (11 files)
 - `src/view/` — Obsidian `ItemView` and extracted subsystems (6 files, see breakdown below)
 - `src/types/` — shared type definitions (`mindmap.ts`, `renderer.ts`, `settings.ts`)
-- `src/ui/` — settings tab, context menu, modals, toolbar, debug overlays (8 files)
+- `src/ui/` — settings tab, context menu, toolbar, debug overlays (8 files)
 - `src/migrations/` — document version migrations (`migration-runner.ts`)
-- `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts` (21 test files)
+- `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts` (31 test files)
 
 ### Core modules (`src/core/`)
 
@@ -65,13 +65,15 @@ Rendering mode & performance: `render-mode`, `render-partition`, `performance-mo
 
 Notebook system: `notebook-service`, `notebook-content-extractor`, `notebook-size`, `obsidian-link`, `missing-link-detector`, `preview-cache`
 
-Text & sizing: `text-layout`
+Embedded file nodes: `file-node-support`, `file-dimensions`
+
+Text & sizing: `text-layout`, `font-size`, `branch-color`
 
 Interaction: `keyboard-navigation`, `selection`, `search`, `edge-routing`, `screen-transform`, `geometry`
 
 Import/generation: `mindmap-from-markdown`, `markdown-heading-parser`, `local-knowledge-map`, `sample-data`
 
-Infrastructure: `accessibility`, `command-registry`, `error-boundary`, `i18n`, `sanitize-filename`, `telemetry-disabled`, `export-bounds`
+Infrastructure: `accessibility`, `command-registry`, `error-boundary`, `i18n`, `sanitize-filename`, `telemetry-disabled`
 
 ### View decomposition (`src/view/`)
 
@@ -88,7 +90,7 @@ Infrastructure: `accessibility`, `command-registry`, `error-boundary`, `i18n`, `
 
 ### Renderer modules (`src/renderer/`)
 
-`shared-mindmap-renderer-base` (shared logic for SVG & hybrid), `svg-mindmap-renderer`, `hybrid-mindmap-renderer`, `canvas-background-renderer`, `projected-node-renderer`, `projected-edge-renderer`, `notebook-preview-renderer`, `inline-title-editor`, `minimap-renderer`, `export-renderer`, `renderer-adapter`
+`shared-mindmap-renderer-base` (shared logic for SVG & hybrid), `svg-mindmap-renderer`, `hybrid-mindmap-renderer`, `canvas-background-renderer`, `projected-node-renderer`, `projected-edge-renderer`, `notebook-preview-renderer`, `text-markdown-renderer`, `inline-title-editor`, `minimap-renderer`, `renderer-adapter`
 
 Hotspots:
 
