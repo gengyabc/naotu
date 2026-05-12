@@ -91,6 +91,14 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected renderScheduled = false;
   protected lastProjectedNodes: ProjectedNode[] = [];
   protected missingNotebookNodeIds = new Set<string>();
+  private panActive = false;
+  private panPrev = { x: 0, y: 0 };
+  private panSvgRect = { left: 0, top: 0 };
+  private panDocMouse: ((e: MouseEvent) => void) | null = null;
+  private panUpDoc: (() => void) | null = null;
+  private panDocTouch: ((e: TouchEvent) => void) | null = null;
+  private panEndDoc: (() => void) | null = null;
+  private panTouchCapture: ((e: TouchEvent) => void) | null = null;
 
   constructor(protected options: MindmapRendererOptions) {}
 
@@ -106,7 +114,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.12, 4])
-      .filter((event) => event.type !== "wheel" && !event.button)
+      .filter((event) => "touches" in event)
       .on("zoom", (event) => {
         const t = event.transform;
         this.options.onViewportChange(t.x, t.y, t.k);
@@ -114,10 +122,11 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       });
 
     this.svg.call(this.zoomBehavior);
-    this.svg.on("dblclick.zoom", null); // allow node dblclick to reach inline title editor instead of zoom
+    this.svg.on("dblclick.zoom", null);
     this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
     this.bindBoxSelect();
     this.bindFocusRestore();
+    this.bindCustomPan();
 
     const viewport = this.options.getDocument().viewport;
     this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
@@ -126,6 +135,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
   unmount(): void {
     this.svg.node()?.removeEventListener("wheel", this.handleWheelZoom);
+    this.cleanupPanListeners();
     this.options.container.empty();
   }
 
@@ -466,6 +476,113 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       this.selectionStartWorld = null;
       this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");
     });
+  }
+
+  private bindCustomPan(): void {
+    const svgEl = this.svg.node();
+    if (!svgEl) return;
+
+    this.panTouchCapture = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      if ((event.target as Element).closest(".mindmap-node")) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.panActive = true;
+      this.dragging = true;
+
+      const rect = svgEl.getBoundingClientRect();
+      this.panSvgRect = { left: rect.left, top: rect.top };
+      this.panPrev = { x: event.touches[0].clientX - rect.left, y: event.touches[0].clientY - rect.top };
+
+      this.panDocTouch = (e: TouchEvent) => {
+        if (!this.panActive || e.touches.length !== 1) return;
+        e.preventDefault();
+        this.applyPanDelta(e.touches[0].clientX, e.touches[0].clientY);
+      };
+      this.panEndDoc = () => {
+        this.panActive = false;
+        this.dragging = false;
+        if (this.panDocTouch) document.removeEventListener("touchmove", this.panDocTouch, { passive: false } as AddEventListenerOptions);
+        if (this.panEndDoc) document.removeEventListener("touchend", this.panEndDoc);
+        this.panDocTouch = null;
+        this.panEndDoc = null;
+      };
+
+      document.addEventListener("touchmove", this.panDocTouch, { passive: false });
+      document.addEventListener("touchend", this.panEndDoc);
+    };
+    svgEl.addEventListener("touchstart", this.panTouchCapture, { passive: false, capture: true });
+
+    this.svg.on("mousedown.custompan", (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      if (event.shiftKey) return;
+      if ((event.target as Element).closest(".mindmap-node")) return;
+
+      event.preventDefault();
+      this.panActive = true;
+      this.dragging = true;
+
+      const rect = svgEl.getBoundingClientRect();
+      this.panSvgRect = { left: rect.left, top: rect.top };
+      const pt = d3.pointer(event, svgEl);
+      this.panPrev = { x: pt[0], y: pt[1] };
+
+      this.panDocMouse = (e: MouseEvent) => {
+        if (!this.panActive) return;
+        this.applyPanDelta(e.clientX, e.clientY);
+      };
+      this.panUpDoc = () => {
+        this.panActive = false;
+        this.dragging = false;
+        if (this.panDocMouse) document.removeEventListener("mousemove", this.panDocMouse);
+        if (this.panUpDoc) document.removeEventListener("mouseup", this.panUpDoc);
+        this.panDocMouse = null;
+        this.panUpDoc = null;
+      };
+
+      document.addEventListener("mousemove", this.panDocMouse);
+      document.addEventListener("mouseup", this.panUpDoc);
+    });
+  }
+
+  private applyPanDelta(clientX: number, clientY: number): void {
+    if (!this.panActive) return;
+    const svgNode = this.svg.node();
+    if (!svgNode) return;
+
+    const cx = clientX - this.panSvgRect.left;
+    const cy = clientY - this.panSvgRect.top;
+    const dx = cx - this.panPrev.x;
+    const dy = cy - this.panPrev.y;
+    this.panPrev = { x: cx, y: cy };
+
+    const k = d3.zoomTransform(svgNode).k;
+    const panScale = Math.sqrt(k);
+    const t = d3.zoomTransform(svgNode);
+    const nextX = t.x + dx * panScale;
+    const nextY = t.y + dy * panScale;
+
+    this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(k));
+  }
+
+  private cleanupPanListeners(): void {
+    this.panActive = false;
+    const svgEl = this.svg.node();
+    if (svgEl && this.panTouchCapture) {
+      svgEl.removeEventListener("touchstart", this.panTouchCapture, true);
+    }
+    this.svg.on("mousedown.custompan", null);
+    if (this.panDocMouse) document.removeEventListener("mousemove", this.panDocMouse);
+    if (this.panUpDoc) document.removeEventListener("mouseup", this.panUpDoc);
+    if (this.panDocTouch) document.removeEventListener("touchmove", this.panDocTouch);
+    if (this.panEndDoc) document.removeEventListener("touchend", this.panEndDoc);
+    this.panDocMouse = null;
+    this.panUpDoc = null;
+    this.panDocTouch = null;
+    this.panEndDoc = null;
+    this.panTouchCapture = null;
   }
 
   private bindFocusRestore(): void {
