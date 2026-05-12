@@ -293,9 +293,13 @@ export class ItemView extends Component {
 }
 
 export class MarkdownRenderer {
-  static async render(_app: App, markdown: string, wrapper: { renderedMarkdown?: string; renderedSourcePath?: string }, sourcePath: string, _component: Component): Promise<void> {
+  static async render(_app: App, markdown: string, wrapper: { renderedMarkdown?: string; renderedSourcePath?: string; children?: FakeElement[] }, sourcePath: string, _component: Component): Promise<void> {
     wrapper.renderedMarkdown = markdown;
     wrapper.renderedSourcePath = sourcePath;
+    const contentDiv = new FakeElement("div", { text: markdown });
+    contentDiv.classList.add("markdown-preview");
+    wrapper.children = wrapper.children ?? [];
+    wrapper.children.push(contentDiv);
   }
 }
 

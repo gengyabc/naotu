@@ -711,3 +711,57 @@
   margin: 6px 4px;
   background: var(--background-modifier-border);
 }
+
+.mindmap-node-text-foreign {
+  overflow: hidden;
+}
+
+.mindmap-text-markdown-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-normal);
+  pointer-events: none;
+}
+
+.mindmap-text-markdown-wrapper a {
+  pointer-events: auto;
+}
+
+.mindmap-text-markdown-wrapper p {
+  margin: 0;
+  text-align: center;
+}
+
+.mindmap-text-markdown-wrapper strong {
+  font-weight: 600;
+}
+
+.mindmap-text-markdown-wrapper em {
+  font-style: italic;
+}
+
+.mindmap-text-markdown-wrapper a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+.mindmap-text-markdown-wrapper a:hover {
+  text-decoration: underline;
+}
+
+.mindmap-text-markdown-wrapper .math {
+  font-family: var(--font-monospace, monospace);
+}
+
+.mindmap-node.is-underline .mindmap-text-markdown-wrapper {
+  background: transparent;
+  padding: 0;
+}
+

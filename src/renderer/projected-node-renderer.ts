@@ -8,6 +8,7 @@ import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
+import { renderTextAsMarkdown } from "./text-markdown-renderer";
 import {
   NOTEBOOK_MIN_CUSTOM_HEIGHT,
   NOTEBOOK_MIN_CUSTOM_WIDTH,
@@ -178,6 +179,7 @@ export function renderProjectedNodes(args: {
   entered.append("rect").attr("class", "mindmap-node-title-hitbox");
   entered.append("text").attr("class", "mindmap-node-title");
   entered.append("text").attr("class", "mindmap-node-kind-badge");
+  entered.append("foreignObject").attr("class", "mindmap-node-text-foreign");
   const openNotebook = entered.append("g").attr("class", "mindmap-node-open-notebook");
   openNotebook.append("rect").attr("class", "mindmap-node-open-notebook-bg").attr("rx", 10).attr("ry", 10);
   openNotebook.append("text").attr("class", "mindmap-node-open-notebook-text");
@@ -358,26 +360,26 @@ export function renderProjectedNodes(args: {
     titleText.selectAll("*").remove();
     titleText.text("");
     
+    const textForeignObject = group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-text-foreign");
+    
     if (node.kind === "text") {
-      const textLayout = layoutText({
-        text: node.title,
-        fontSize: visual.titleFontSize,
-      });
+      titleText.style("display", "none");
       
-      const lineHeight = visual.titleFontSize * 1.4;
-      const startY = node.displayHeight / 2 - ((textLayout.lines.length - 1) * lineHeight) / 2;
-      titleHitboxHeight = node.displayHeight - TITLE_HITBOX_INSET_Y * 2;
+      const padding = 12;
+
+      textForeignObject
+        .style("display", "")
+        .attr("x", padding)
+        .attr("y", padding)
+        .attr("width", node.displayWidth - padding * 2)
+        .attr("height", node.displayHeight - padding * 2);
       
-      titleText
-        .attr("x", 12)
-        .attr("y", startY)
-        .style("font-size", `${visual.titleFontSize}px`);
-      
-      textLayout.lines.forEach((line, index) => {
-        titleText.append("tspan")
-          .attr("x", 12)
-          .attr("y", startY + index * lineHeight)
-          .text(line);
+      void renderTextAsMarkdown({
+        app: args.app,
+        foreignObject: textForeignObject.node(),
+        markdown: node.title,
+        sourcePath: args.sourcePath,
+        component: args.component,
       });
     } else if (!hideNotebookTextForPreview) {
       const truncatedTitle = truncateTextForNotebook(node.title, node.displayWidth - 24, visual.titleFontSize);
@@ -386,6 +388,9 @@ export function renderProjectedNodes(args: {
         .attr("y", 26)
         .style("font-size", `${visual.titleFontSize}px`)
         .text(truncatedTitle);
+      
+      textForeignObject.style("display", "none");
+      textForeignObject.selectAll("*").remove();
     }
 
     titleHitbox
