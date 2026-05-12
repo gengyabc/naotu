@@ -290,6 +290,24 @@ export class ItemView extends Component {
     this.contentEl = new FakeElement("div");
     leaf.view = this;
   }
+
+  getState(): Record<string, unknown> {
+    return {};
+  }
+
+  async setState(_state: unknown, _result: unknown): Promise<void> {}
+}
+
+export abstract class FileView extends ItemView {
+  file: TFile | null = null;
+
+  abstract getViewData(): string;
+  abstract setViewData(data: string, clear: boolean): Promise<void> | void;
+  abstract clear(): void;
+
+  async onLoadFile(file: TFile): Promise<void> {
+    this.file = file;
+  }
 }
 
 export class MarkdownRenderer {

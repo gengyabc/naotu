@@ -43,9 +43,9 @@ export class MindmapDocumentStore {
     }
   }
 
-  async openFile(file: TFile): Promise<void> {
+  async openFile(file: TFile, content?: string): Promise<void> {
     this.file = file;
-    const raw = await this.app.vault.read(file);
+    const raw = (content && content.length > 0) ? content : await this.app.vault.read(file);
     this.lastSyncedRaw = raw;
 
     try {

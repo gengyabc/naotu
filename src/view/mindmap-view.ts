@@ -1,4 +1,4 @@
-import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { FileView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from "obsidian";
 import type SemanticZoomMindmapPlugin from "../main";
 import {
   VIEW_TYPE_MINDMAP,
@@ -30,7 +30,7 @@ import { MindmapNotebookActions } from "./mindmap-notebook-actions";
 import { MindmapRendererCoordinator } from "./mindmap-renderer-coordinator";
 import { MindmapTreeActions, isTreeLayoutMode } from "./mindmap-tree-actions";
 
-export class MindmapView extends ItemView {
+export class MindmapView extends FileView {
   private store: MindmapDocumentStore;
   private editSession: MindmapEditSession;
   private selection = new SelectionState();
@@ -224,27 +224,71 @@ export class MindmapView extends ItemView {
   }
 
   getDisplayText(): string {
-    return this.sourceFile?.basename ?? "Semantic Mindmap";
+    return this.getOpenFile()?.basename ?? "Semantic Mindmap";
   }
 
-  getState(): { file?: string } {
-    return this.sourceFile ? { file: this.sourceFile.path } : {};
+  getOpenFile(): TFile | null {
+    return this.file ?? this.sourceFile ?? null;
   }
 
-  async setState(state: { file?: string }, _result: unknown): Promise<void> {
-    if (state.file) {
-      const file = this.app.vault.getAbstractFileByPath(state.file);
-      if (file instanceof TFile) {
-        await this.setFile(file);
-      } else {
-        new Notice(`Mindmap file not found: ${state.file}`);
-      }
+  getState(): Record<string, unknown> {
+    const base = super.getState?.() ?? {};
+    const f = this.getOpenFile();
+    return { ...base, file: f?.path };
+  }
+
+  async setState(state: { file?: string }, result: ViewStateResult): Promise<void> {
+    await super.setState?.(state, result);
+    const filePath = state?.file;
+    if (!filePath || typeof filePath !== "string") return;
+    const f = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(f instanceof TFile)) {
+      new Notice(`Mindmap file not found: ${filePath}`);
+      return;
+    }
+    this.sourceFile = f;
+    await this.loadDocument(f);
+  }
+
+  async setFile(file: TFile, content?: string): Promise<void> {
+    this.sourceFile = file;
+    await this.loadDocument(file, content);
+  }
+
+  async onLoadFile(file: TFile): Promise<void> {
+    this.sourceFile = file;
+    await this.loadDocument(file);
+  }
+
+  getViewData(): string {
+    try {
+      return JSON.stringify(this.store.getDocument(), null, 2);
+    } catch (error) {
+      console.error("[Naotu] Failed to serialize mindmap view data", error);
+      return "";
     }
   }
 
-  async setFile(file: TFile): Promise<void> {
-    this.sourceFile = file;
-    await this.store.openFile(file);
+  setViewData(data: string, _clear: boolean): void {
+    void this.loadViewData(data);
+  }
+
+  clear(): void {
+    // No-op: mindmap doesn't support a "clear" state
+  }
+
+  private async loadViewData(data: string): Promise<void> {
+    const f = this.getOpenFile();
+    if (!f) return;
+    try {
+      await this.loadDocument(f, data);
+    } catch (error) {
+      console.error("[Naotu] Failed to load mindmap view data", error);
+    }
+  }
+
+  private async loadDocument(file: TFile, content?: string): Promise<void> {
+    await this.store.openFile(file, content);
     this.store.replaceDocument(this.relayoutDocument(this.store.getDocument()));
     this.clearSelection();
     this.editSession.clearHistory();
@@ -254,10 +298,6 @@ export class MindmapView extends ItemView {
     this.editSession.setDirtyState(loadError ? "error" : "saved");
     if (loadError) showErrorNotice(loadError, "无法打开脑图文件");
     this.renderView();
-  }
-
-  async onLoadFile(file: TFile): Promise<void> {
-    await this.setFile(file);
   }
 
   async onOpen(): Promise<void> {

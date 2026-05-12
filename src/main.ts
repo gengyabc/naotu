@@ -101,14 +101,35 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     return await this.app.vault.create(path, content);
   }
 
+  private findOpenMindmapLeaf(file: TFile): WorkspaceLeaf | null {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MINDMAP);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MindmapView && view.getOpenFile()?.path === file.path) {
+        return leaf;
+      }
+      const stateFile = leaf.getViewState()?.state?.file;
+      if (stateFile === file.path) {
+        return leaf;
+      }
+    }
+    return null;
+  }
+
   async openMindmapFile(file: TFile): Promise<void> {
-    const leaf = this.app.workspace.getLeaf(true);
+    const existingLeaf = this.findOpenMindmapLeaf(file);
+    if (existingLeaf) {
+      await this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+      return;
+    }
+
+    const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({
       type: VIEW_TYPE_MINDMAP,
       active: true,
       state: { file: file.path },
     });
-    this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
   }
 
   openMindmapFileSelector(): void {
