@@ -18,7 +18,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/d3": "^7.4.3",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "esbuild": "^0.24.0",
     "obsidian": "latest",
     "tslib": "^2.6.0",
