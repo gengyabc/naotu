@@ -4,7 +4,7 @@ import { t } from "../i18n";
 
 export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocument {
   const migrated = runMigrations(input);
-  const doc = migrated as MindmapDocument;
+  const doc: Partial<MindmapDocument> = migrated;
   const rawLayoutMode = (migrated as { layoutMode?: string }).layoutMode;
 
   return {

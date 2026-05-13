@@ -186,9 +186,6 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "notebook") return;
 
-    const confirmed = window.confirm(t("contextMenu.confirmConvertToText"));
-    if (!confirmed) return;
-
     this.options.applyDocumentChange(() => {
       this.options.store.patchNode(id, this.options.notebookService.disconnectFileNode(node));
     });

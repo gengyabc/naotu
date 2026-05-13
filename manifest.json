@@ -3,8 +3,8 @@
   "name": "MindCanvas",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "A mindmap that is really a map. 真正的思维投影。",
+  "description": "A mindmap that is really a map. 真正的思维投影.",
   "author": "Geng",
-  "authorUrl": "https://github.com/gengyabc/naotu",
+  "authorUrl": "https://github.com/gengyabc",
   "isDesktopOnly": false
 }

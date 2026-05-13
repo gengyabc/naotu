@@ -1,5 +1,9 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 
+function getActiveDocument(): Document {
+  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
+}
+
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 
 export async function renderTextAsMarkdown(args: {
@@ -13,7 +17,7 @@ export async function renderTextAsMarkdown(args: {
 
   let wrapper = args.foreignObject.querySelector<HTMLDivElement>(".mindmap-text-markdown-wrapper");
   if (!wrapper) {
-    wrapper = document.createElement("div");
+    wrapper = (args.foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
     wrapper.className = "mindmap-text-markdown-wrapper";
     args.foreignObject.appendChild(wrapper);
   }

@@ -11,6 +11,7 @@ const scrollBindingByElement = new WeakSet<HTMLDivElement>();
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 const embeddedObserverByElement = new WeakMap<HTMLDivElement, MutationObserver>();
 const embeddedResizeObserverByElement = new WeakMap<HTMLDivElement, ResizeObserver>();
+const renderRunIdByElement = new WeakMap<SVGForeignObjectElement, number>();
 
 interface PreviewRenderState {
   app: App;
@@ -35,6 +36,69 @@ const PREVIEW_VERTICAL_PADDING = 12;
 const PREVIEW_LINE_HEIGHT = 18;
 const PREVIEW_MIN_LINES = 20;
 const PREVIEW_MAX_LINES = 200;
+
+type ExcalidrawAutomateLike = {
+  reset?: () => void;
+  createSVG?: (
+    templatePath?: string,
+    embedFont?: boolean,
+    exportSettings?: Record<string, unknown>,
+    loader?: unknown,
+    theme?: string,
+    padding?: number,
+  ) => Promise<SVGSVGElement | null | undefined>;
+};
+
+function getExcalidrawAutomate(app: App): ExcalidrawAutomateLike | null {
+  const appWithPlugins = app as App & {
+    plugins?: { plugins?: Record<string, { ea?: ExcalidrawAutomateLike }> };
+  };
+  const pluginEa = appWithPlugins.plugins?.plugins?.["obsidian-excalidraw-plugin"]?.ea;
+  if (pluginEa?.createSVG) return pluginEa;
+
+  const activeWindowWithEa = getActiveWindow() as Window & { ExcalidrawAutomate?: ExcalidrawAutomateLike };
+  if (activeWindowWithEa.ExcalidrawAutomate?.createSVG) return activeWindowWithEa.ExcalidrawAutomate;
+
+  return null;
+}
+
+async function renderExcalidrawPreview(args: {
+  app: App;
+  filePath: string;
+}): Promise<SVGSVGElement | null> {
+  const ea = getExcalidrawAutomate(args.app);
+  if (!ea?.createSVG) return null;
+
+  ea.reset?.();
+  const svg = await ea.createSVG(
+    args.filePath,
+    false,
+    {
+      withBackground: true,
+      withTheme: true,
+      isMask: false,
+      skipInliningFonts: true,
+    },
+    undefined,
+    undefined,
+    0,
+  );
+  if (!svg) return null;
+
+  svg.classList?.add("mindmap-embedded-preview-media", "excalidraw-svg");
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
+
+  return svg;
+}
+
+function getActiveDocument(): Document {
+  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
+}
+
+function getActiveWindow(): Window {
+  return (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
+}
 
 function setEmbeddedWrapperState(
   wrapper: HTMLDivElement,
@@ -68,6 +132,10 @@ function normalizeEmbeddedPreviewOutput(
   const height = Math.max(0, Math.round(wrapper.clientHeight));
   const widthValue = width > 0 ? `${width}px` : "100%";
   const heightValue = height > 0 ? `${height}px` : "100%";
+  wrapper.setCssProps({
+    "--mindmap-embed-width": widthValue,
+    "--mindmap-embed-height": heightValue,
+  });
 
   const baseSelectors = [
     ".internal-embed",
@@ -76,37 +144,17 @@ function normalizeEmbeddedPreviewOutput(
     ".image-embed",
   ];
   wrapper.querySelectorAll<HTMLElement>(baseSelectors.join(", ")).forEach((element) => {
-    element.style.setProperty("width", widthValue, "important");
-    element.style.setProperty("height", heightValue, "important");
-    element.style.setProperty("max-width", "none", "important");
-    element.style.setProperty("max-height", "none", "important");
-    element.style.setProperty("min-width", "0", "important");
-    element.style.setProperty("min-height", "0", "important");
-    element.style.setProperty("margin", "0", "important");
-    element.style.setProperty("padding", "0", "important");
+    element.classList?.add("mindmap-embedded-preview-content");
   });
 
   if (targetKind !== "excalidraw") return;
 
   wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
-    element.style.setProperty("width", widthValue, "important");
-    element.style.setProperty("height", heightValue, "important");
-    element.style.setProperty("max-width", "none", "important");
-    element.style.setProperty("max-height", "none", "important");
-    element.style.setProperty("min-width", "0", "important");
-    element.style.setProperty("min-height", "0", "important");
-    element.style.setProperty("margin", "0", "important");
-    element.style.setProperty("padding", "0", "important");
+    element.classList?.add("mindmap-embedded-preview-content");
   });
 
   wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
-    element.style.setProperty("width", widthValue, "important");
-    element.style.setProperty("height", heightValue, "important");
-    element.style.setProperty("max-width", "none", "important");
-    element.style.setProperty("max-height", "none", "important");
-    element.style.setProperty("min-width", "0", "important");
-    element.style.setProperty("min-height", "0", "important");
-    element.style.setProperty("display", "block", "important");
+    element.classList?.add("mindmap-embedded-preview-media");
     element.removeAttribute("width");
     element.removeAttribute("height");
   });
@@ -128,27 +176,24 @@ function bindEmbeddedPreviewObserver(
     const observer = new MutationObserver(() => {
       normalizeEmbeddedPreviewOutput(wrapper, targetKind);
     });
-    observer.observe(wrapper, { childList: true, subtree: true, attributes: true });
+    observer.observe(wrapper, { childList: true, subtree: true });
     embeddedObserverByElement.set(wrapper, observer);
   }
 
   if (typeof ResizeObserver !== "undefined") {
     let resizeRafId = 0;
+    const ownerWindow = wrapper.ownerDocument?.defaultView ?? getActiveWindow();
     const resizeObserver = new ResizeObserver(() => {
-      if (typeof cancelAnimationFrame === "function") {
-        cancelAnimationFrame(resizeRafId);
-      }
-      resizeRafId = requestAnimationFrame(() => {
+      ownerWindow?.cancelAnimationFrame(resizeRafId);
+      resizeRafId = ownerWindow?.requestAnimationFrame(() => {
         normalizeEmbeddedPreviewOutput(wrapper, targetKind);
-      });
+      }) ?? 0;
     });
     resizeObserver.observe(wrapper);
     embeddedResizeObserverByElement.set(wrapper, resizeObserver);
   }
 
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(() => normalizeEmbeddedPreviewOutput(wrapper, targetKind));
-  }
+  (wrapper.ownerDocument?.defaultView ?? getActiveWindow()).requestAnimationFrame(() => normalizeEmbeddedPreviewOutput(wrapper, targetKind));
 }
 
 export async function renderNotebookPreview(args: {
@@ -173,13 +218,15 @@ export async function renderNotebookPreview(args: {
 
   let wrapper = args.foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
   if (!wrapper) {
-    wrapper = document.createElement("div");
+    wrapper = (args.foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
     wrapper.className = "mindmap-preview-wrapper";
     args.foreignObject.appendChild(wrapper);
   }
   setEmbeddedWrapperState(wrapper, (args.targetKind ?? "markdown") !== "markdown", args.targetKind);
   bindEmbeddedPreviewObserver(wrapper, args.targetKind ?? "markdown");
-  wrapper.style.pointerEvents = (args.targetKind ?? "markdown") === "markdown" ? "auto" : "none";
+  const isInteractive = (args.targetKind ?? "markdown") === "markdown";
+  wrapper.classList.toggle("is-interactive", isInteractive);
+  wrapper.setCssProps({ "pointer-events": isInteractive ? "auto" : "none" });
   if (!wheelBindingByElement.has(wrapper)) {
     wrapper.addEventListener("wheel", (event) => {
       if (shouldKeepWheelWithinPreview(wrapper, event.deltaY)) {
@@ -189,8 +236,8 @@ export async function renderNotebookPreview(args: {
     wheelBindingByElement.add(wrapper);
   }
   if (!scrollBindingByElement.has(wrapper)) {
-    wrapper.addEventListener("scroll", async () => {
-      await maybeLoadMore(args.foreignObject!);
+    wrapper.addEventListener("scroll", () => {
+      void maybeLoadMore(args.foreignObject!);
     });
     scrollBindingByElement.add(wrapper);
   }
@@ -222,10 +269,12 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
   const key = `${state.sourceKey}::${state.previewWidth}::${state.previewHeight}::${maxLines}`;
   if (renderedKeyByElement.get(foreignObject) === key) return;
   renderedKeyByElement.set(foreignObject, key);
+  const renderRunId = (renderRunIdByElement.get(foreignObject) ?? 0) + 1;
+  renderRunIdByElement.set(foreignObject, renderRunId);
 
   let wrapper = foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
   if (!wrapper) {
-    wrapper = document.createElement("div");
+    wrapper = (foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
     wrapper.className = "mindmap-preview-wrapper";
     foreignObject.appendChild(wrapper);
   }
@@ -260,6 +309,20 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
       state.requestedLines = maxLines;
       state.totalLines = maxLines;
 
+      if ((state.targetKind ?? "markdown") === "excalidraw") {
+        const svg = await renderExcalidrawPreview({
+          app: state.app,
+          filePath: resolved.path,
+        });
+        if (renderRunIdByElement.get(foreignObject) !== renderRunId) return;
+        if (svg) {
+          wrapper.appendChild(svg);
+          bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
+          wrapper.scrollTop = previousScrollTop;
+          return;
+        }
+      }
+
       await MarkdownRenderer.render(
         state.app,
         buildEmbeddedPreviewMarkdown(resolved.path, state.previewWidth, state.previewHeight),
@@ -267,6 +330,10 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
         state.sourcePath,
         child,
       );
+      if (renderRunIdByElement.get(foreignObject) !== renderRunId) {
+        wrapper.empty();
+        return;
+      }
       bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
       wrapper.scrollTop = previousScrollTop;
       return;
@@ -294,6 +361,10 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
     state.totalLines = result.totalLines;
 
     await MarkdownRenderer.render(state.app, result.markdown, wrapper, result.resolvedPath, child);
+    if (renderRunIdByElement.get(foreignObject) !== renderRunId) {
+      wrapper.empty();
+      return;
+    }
     wrapper.scrollTop = previousScrollTop;
   } catch (error) {
     renderedKeyByElement.delete(foreignObject);

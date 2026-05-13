@@ -7,7 +7,7 @@ import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
-import { getFontSizeForDepth } from "../core/font-size";
+import { getFontSizeForDepth, getObsidianBaseFontSize } from "../core/font-size";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { renderTextAsMarkdown } from "./text-markdown-renderer";
 import { t } from "../i18n";
@@ -276,7 +276,7 @@ export function renderProjectedNodes(args: {
       event.preventDefault();
       event.stopPropagation();
       const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
-      const fontSize = getFontSizeForDepth(node.depth);
+      const fontSize = getFontSizeForDepth(node.depth, getObsidianBaseFontSize(args.nodeLayer.node()?.ownerDocument.documentElement));
       const editorHeight = node.displayHeight - 16;
       const editorY = screen.y + (node.displayHeight - editorHeight) / 2;
       args.onStartInlineEdit(node, { x: screen.x + 10, y: editorY, width: node.displayWidth - 20, height: editorHeight, fontSize, isBold: node.depth <= 1 });
@@ -296,7 +296,7 @@ export function renderProjectedNodes(args: {
     const screen = worldToScreen({ x: node.projectedX, y: node.projectedY }, args.transform);
     const baseVisual = getVisualSpec(node.kind, node.detailLevel);
     const targetKind = node.notebook?.targetKind ?? "markdown";
-    const nodeFontSize = getFontSizeForDepth(node.depth);
+    const nodeFontSize = getFontSizeForDepth(node.depth, getObsidianBaseFontSize(args.nodeLayer.node()?.ownerDocument.documentElement));
 
     if (node.branchColor) {
       group.style("--branch-color", node.branchColor);

@@ -15,7 +15,7 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: t("settings.title") });
+    new Setting(containerEl).setName(t("settings.title")).setHeading();
 
     this.renderNotebookSettings(containerEl);
     this.renderImportSettings(containerEl);
@@ -24,7 +24,7 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
   }
 
   private createSection(containerEl: HTMLElement, title: string, desc?: string): void {
-    containerEl.createEl("h3", { text: title });
+    new Setting(containerEl).setName(title).setHeading();
     if (desc) {
       containerEl.createEl("p", { text: desc, cls: "setting-item-description" });
     }

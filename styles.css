@@ -152,6 +152,9 @@
   flex-direction: column;
   align-items: center;
   position: fixed;
+  top: var(--mindmap-tooltip-top, 0);
+  left: var(--mindmap-tooltip-left, 0);
+  transform: translateX(-50%);
   padding: 6px 10px;
   border-radius: 6px;
   background: var(--background-secondary);
@@ -161,6 +164,10 @@
   pointer-events: none;
   white-space: nowrap;
   gap: 2px;
+}
+
+.semantic-mindmap-tooltip.is-visible {
+  display: flex;
 }
 
 .semantic-mindmap-tooltip-label {
@@ -184,6 +191,13 @@
 
 .semantic-mindmap-toolbar.is-compact .mindmap-search-wrapper input[type="text"] {
   min-width: 80px;
+}
+
+.semantic-mindmap-toolbar-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .mindmap-search-wrapper {
@@ -491,6 +505,14 @@
   justify-content: flex-start;
 }
 
+.mindmap-preview-wrapper.is-interactive {
+  pointer-events: auto;
+}
+
+.mindmap-preview-wrapper:not(.is-interactive) {
+  pointer-events: none;
+}
+
 .mindmap-preview-wrapper.is-embedded-file > * {
   margin: 0 !important;
 }
@@ -505,6 +527,27 @@
   box-shadow: none !important;
   background: transparent !important;
   max-width: none;
+}
+
+.mindmap-preview-wrapper.is-embedded-file .mindmap-embedded-preview-content {
+  width: var(--mindmap-embed-width, 100%) !important;
+  height: var(--mindmap-embed-height, 100%) !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.mindmap-preview-wrapper.is-embedded-file .mindmap-embedded-preview-media {
+  width: var(--mindmap-embed-width, 100%) !important;
+  height: var(--mindmap-embed-height, 100%) !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: block !important;
 }
 
 .mindmap-preview-wrapper.is-embedded-file[data-target-kind="excalidraw"] .internal-embed,
@@ -776,4 +819,3 @@
   background: transparent;
   padding: 0;
 }
-

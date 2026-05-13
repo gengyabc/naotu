@@ -1,6 +1,8 @@
 export class FakeElement {
   tagName: string;
+  ownerDocument: typeof fakeDocument | undefined;
   private _textContent = "";
+  dataset: Record<string, string> = {};
   value = "";
   tabIndex = 0;
   focused = false;
@@ -24,6 +26,7 @@ export class FakeElement {
   ) {
     this.tagName = tagName.toUpperCase();
     this.namespaceUriValue = namespaceUri;
+    this.ownerDocument = (globalThis as unknown as { document?: typeof fakeDocument }).document;
     if (options.text) this._textContent = options.text;
     if (options.cls) this.classNames.add(options.cls);
     if (options.type) this.attributes.set("type", options.type);
@@ -54,9 +57,18 @@ export class FakeElement {
     return this.namespaceUriValue;
   }
 
+  get className(): string {
+    return [...this.classNames].join(" ");
+  }
+
+  set className(value: string) {
+    this.classNames = new Set(value.split(/\s+/).filter(Boolean));
+  }
+
   append(...nodes: (FakeElement | Node)[]): void {
     for (const node of nodes) {
       if (node instanceof FakeElement) {
+        node.ownerDocument = node.ownerDocument ?? this.ownerDocument;
         node.parentElement = this;
         this.children.push(node);
       }
@@ -64,12 +76,14 @@ export class FakeElement {
   }
 
   appendChild(child: FakeElement): FakeElement {
+    child.ownerDocument = child.ownerDocument ?? this.ownerDocument;
     child.parentElement = this;
     this.children.push(child);
     return child;
   }
 
   insertBefore(newNode: FakeElement, referenceNode: FakeElement | null): FakeElement {
+    newNode.ownerDocument = newNode.ownerDocument ?? this.ownerDocument;
     newNode.parentElement = this;
     if (!referenceNode) {
       this.children.push(newNode);
@@ -89,7 +103,9 @@ export class FakeElement {
   }
 
   appendText(text: string): void {
-    this.children.push(new FakeElement("#text", { text }));
+    const child = new FakeElement("#text", { text });
+    child.ownerDocument = this.ownerDocument;
+    this.children.push(child);
   }
 
   createDiv(options: { cls?: string } = {}): FakeElement {
@@ -102,9 +118,21 @@ export class FakeElement {
 
   createEl(tagName: string, options: { text?: string; cls?: string; type?: string; placeholder?: string } = {}): FakeElement {
     const child = new FakeElement(tagName, options);
+    child.ownerDocument = this.ownerDocument;
     child.parentElement = this;
     this.children.push(child);
     return child;
+  }
+
+  prepend(child: FakeElement): void {
+    child.ownerDocument = child.ownerDocument ?? this.ownerDocument;
+    child.parentElement = this;
+    this.children.unshift(child);
+  }
+
+  before(node: FakeElement): void {
+    if (!this.parentElement) return;
+    this.parentElement.insertBefore(node, this);
   }
 
   empty(): void {
@@ -121,6 +149,7 @@ export class FakeElement {
 
   cloneNode(deep: boolean): FakeElement {
     const copy = new FakeElement(this.tagName, {}, this.namespaceUriValue);
+    copy.ownerDocument = this.ownerDocument;
     copy._textContent = this._textContent;
     for (const cls of this.classNames) copy.classNames.add(cls);
     for (const [k, v] of this.attributes) copy.attributes.set(k, v);
@@ -173,6 +202,10 @@ export class FakeElement {
     this.attributes.set(name, value);
   }
 
+  removeAttribute(name: string): void {
+    this.attributes.delete(name);
+  }
+
   getAttribute(name: string): string | null {
     return this.attributes.get(name) ?? null;
   }
@@ -187,6 +220,10 @@ export class FakeElement {
 
   select(): void {
     this.selected = true;
+  }
+
+  setCssProps(props: Record<string, string>): void {
+    Object.assign(this.style, props);
   }
 
   closest(selector: string): FakeElement | null {
@@ -397,6 +434,25 @@ export class Menu {
   }
 }
 
+export class Modal {
+  contentEl = new FakeElement("div");
+
+  constructor(public app: App) {
+    this.contentEl.ownerDocument = fakeDocument;
+  }
+
+  onOpen(): void {}
+  onClose(): void {}
+
+  open(): void {
+    this.onOpen();
+  }
+
+  close(): void {
+    this.onClose();
+  }
+}
+
 export class FuzzySuggestModal<T> {
   placeholder = "";
   opened = false;
@@ -451,11 +507,48 @@ export class Setting {
 
   setName(_name: string): this { return this; }
   setDesc(_desc: string): this { return this; }
+  setHeading(): this { return this; }
   addText(_callback: (component: { setPlaceholder(value: string): unknown; setValue(value: string): unknown; onChange(callback: (value: string) => unknown): unknown }) => void): this { return this; }
   addToggle(_callback: (component: { setValue(value: boolean): unknown; onChange(callback: (value: boolean) => unknown): unknown }) => void): this { return this; }
   addDropdown(_callback: (component: { addOption(value: string, label: string): unknown; setValue(value: string): unknown; onChange(callback: (value: string) => unknown): unknown }) => void): this { return this; }
   addSlider(_callback: (component: { setLimits(min: number, max: number, step: number): unknown; setValue(value: number): unknown; setDynamicTooltip(): unknown; onChange(callback: (value: number) => unknown): unknown }) => void): this { return this; }
+  addButton(callback: (component: { setButtonText(value: string): unknown; setCta(): unknown; onClick(handler: () => void): unknown }) => void): this {
+    callback({
+      setButtonText: () => ({
+        onClick: () => undefined,
+        setCta: () => ({ onClick: () => undefined }),
+      }),
+      setCta: () => ({ onClick: () => undefined }),
+      onClick: () => undefined,
+    });
+    return this;
+  }
 }
+
+export function setIcon(_el: HTMLElement | FakeElement, _icon: string): void {}
+
+export function getLanguage(): string {
+  const stored = (globalThis as { localStorage?: { getItem(key: string): string | null } }).localStorage?.getItem("language");
+  if (typeof stored === "string" && stored.length > 0) return stored;
+  const nav = (globalThis as { navigator?: { language?: string } }).navigator;
+  return typeof nav?.language === "string" ? nav.language : "en";
+}
+
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isDesktopApp: true,
+  isMobileApp: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isPhone: false,
+  isTablet: false,
+  isMacOS: false,
+  isWin: true,
+  isLinux: false,
+  isSafari: false,
+  resourcePathPrefix: "app://local/",
+};
 
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/(^|\/)\.\//g, "$1");
@@ -486,13 +579,46 @@ export class FakeSVGElement extends FakeElement {
   }
 }
 
+export const fakeWindow = {
+  innerWidth: 1200,
+  innerHeight: 800,
+  addEventListener: (_type: string, _listener: (event: Event) => void): void => {},
+  removeEventListener: (_type: string, _listener: (event: Event) => void): void => {},
+  requestAnimationFrame: (callback: FrameRequestCallback): number => {
+    callback(0);
+    return 1;
+  },
+  cancelAnimationFrame: (_id: number): void => {},
+  setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+  clearTimeout: (id: Parameters<typeof clearTimeout>[0]) => clearTimeout(id),
+  get activeWindow(): unknown {
+    return (globalThis as { window?: unknown }).window ?? fakeWindow;
+  },
+  get activeDocument(): unknown {
+    return (globalThis as { document?: unknown }).document ?? fakeDocument;
+  },
+};
+
 export const fakeDocument = {
-  createElement: (tagName: string): FakeElement => new FakeElement(tagName),
-  createElementNS: (_ns: string, tagName: string): FakeSVGElement => new FakeSVGElement(tagName),
+  createElement: (tagName: string): FakeElement => {
+    const element = new FakeElement(tagName);
+    element.ownerDocument = fakeDocument;
+    return element;
+  },
+  createElementNS: (_ns: string, tagName: string): FakeSVGElement => {
+    const element = new FakeSVGElement(tagName);
+    element.ownerDocument = fakeDocument;
+    return element;
+  },
   body: new FakeElement("body"),
+  documentElement: new FakeElement("html"),
+  defaultView: fakeWindow,
   addEventListener: (_type: string, _listener: (event: Event) => void, _capture?: boolean): void => {},
   removeEventListener: (_type: string, _listener: (event: Event) => void, _capture?: boolean): void => {},
 };
+
+fakeDocument.body.ownerDocument = fakeDocument;
+fakeDocument.documentElement.ownerDocument = fakeDocument;
 
 class FakeResizeObserver {
   observe(_target: Element): void {}
@@ -502,6 +628,10 @@ class FakeResizeObserver {
 
 if (typeof globalThis.document === "undefined") {
   (globalThis as unknown as { document: typeof fakeDocument }).document = fakeDocument;
+}
+
+if (typeof globalThis.window === "undefined") {
+  (globalThis as unknown as { window: typeof fakeWindow }).window = fakeWindow;
 }
 
 if (typeof globalThis.getComputedStyle === "undefined") {

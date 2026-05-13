@@ -129,7 +129,7 @@ export function moveMindmapNode(
 
   if (isDescendantNode(next, args.nodeId, args.newParentId)) return next;
 
-  const incomingEdge = next.edges[incomingIndex] as MindmapEdge;
+  const incomingEdge = next.edges[incomingIndex];
   next.edges.splice(incomingIndex, 1);
 
   const parentChildIndices = next.edges

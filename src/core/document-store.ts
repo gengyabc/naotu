@@ -59,7 +59,8 @@ export class MindmapDocumentStore {
     this.lastSyncedRaw = raw;
 
     try {
-      this.doc = migrateDocument(JSON.parse(raw));
+      const parsed = JSON.parse(raw) as unknown;
+      this.doc = migrateDocument(isDocumentPatch(parsed) ? parsed : {});
       this.loadError = null;
     } catch (error) {
       this.doc = createLocalizedDocument();
@@ -243,4 +244,8 @@ export class MindmapDocumentStore {
     this.doc.viewport = { x, y, zoom };
     this.emit();
   }
+}
+
+function isDocumentPatch(value: unknown): value is Partial<MindmapDocument> {
+  return typeof value === "object" && value !== null;
 }

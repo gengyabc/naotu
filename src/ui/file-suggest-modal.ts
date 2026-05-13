@@ -5,6 +5,10 @@ import { t } from "../i18n";
 
 type FileBindingFilterState = Record<NotebookTargetKind, boolean>;
 
+function getActiveDocument(): Document {
+  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
+}
+
 function getFilterLabels(): Record<NotebookTargetKind, string> {
   return {
     markdown: "Notebook",
@@ -24,7 +28,7 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
 
   constructor(
     app: App,
-    private onChoose: (file: TFile, targetKind: NotebookTargetKind) => void,
+    private onChoose: (file: TFile, targetKind: NotebookTargetKind) => void | Promise<void>,
   ) {
     super(app);
     this.setPlaceholder(t("filePicker.bindExistingPlaceholder"));
@@ -50,7 +54,7 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
   onChooseItem(file: TFile): void {
     const targetKind = this.getTargetKindForFile(file);
     if (!targetKind) return;
-    this.onChoose(file, targetKind);
+    void this.onChoose(file, targetKind);
   }
 
   setFilterEnabled(targetKind: NotebookTargetKind, enabled: boolean): void {
@@ -75,24 +79,25 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
     const anchor = this.getFilterAnchor();
     const filterHost = this.getFilterHost();
     if (!filterHost) return;
+    const ownerDocument = filterHost.ownerDocument ?? getActiveDocument();
 
     this.filterContainer?.remove();
-    const container = document.createElement("div");
+    const container = ownerDocument.createElement("div");
     container.className = "mindmap-file-binding-filters";
 
     const labels = getFilterLabels();
     for (const kind of Object.keys(labels) as NotebookTargetKind[]) {
-      const label = document.createElement("label");
+      const label = ownerDocument.createElement("label");
       label.className = "mindmap-file-binding-filter";
 
-      const checkbox = document.createElement("input");
+      const checkbox = ownerDocument.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = this.filters[kind];
       checkbox.addEventListener("change", () => {
         this.setFilterEnabled(kind, checkbox.checked);
       });
 
-      const text = document.createElement("span");
+      const text = ownerDocument.createElement("span");
       text.textContent = labels[kind];
 
       label.appendChild(checkbox);

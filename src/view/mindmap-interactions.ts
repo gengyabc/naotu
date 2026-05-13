@@ -182,7 +182,12 @@ export class MindmapInteractions {
     if (mode === "toggle") this.toggleSelection(id);
     if (mode === "add") this.addSelection(id);
     this.options.setLastFocusNodeId(id);
-    requestAnimationFrame(() => this.options.focusCanvas());
+    const ownerWindow = (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
+    if (typeof ownerWindow.requestAnimationFrame === "function") {
+      ownerWindow.requestAnimationFrame(() => this.options.focusCanvas());
+    } else {
+      this.options.focusCanvas();
+    }
   }
 
   setSelectionOnly(id: string): void {

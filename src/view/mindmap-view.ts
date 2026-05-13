@@ -2,15 +2,12 @@ import { FileView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from "obsidia
 import type SemanticZoomMindmapPlugin from "../main";
 import {
   VIEW_TYPE_MINDMAP,
-  DEFAULT_NODE_HEIGHT,
-  DEFAULT_NODE_WIDTH,
 } from "../constants";
 import { MindmapDocumentStore } from "../core/document-store";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
-import { createId } from "../core/id";
 import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
-import type { MindmapDocument, MindmapNode } from "../types/mindmap";
+import type { MindmapDocument } from "../types/mindmap";
 import {
   expandDraggedNodeMoves,
   resolveDraggedNodeIds,
@@ -436,7 +433,7 @@ export class MindmapView extends FileView {
     this.rendererCoordinator.setLastFocusNodeId(child.id);
     this.rendererCoordinator.render();
     this.rendererCoordinator.focusNode(child.id);
-    requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
+    this.contentEl.ownerDocument.defaultView?.requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
   }
 
   private addSiblingNode(): void {
@@ -450,7 +447,7 @@ export class MindmapView extends FileView {
     this.rendererCoordinator.setLastFocusNodeId(sibling.id);
     this.rendererCoordinator.render();
     this.rendererCoordinator.focusNode(sibling.id);
-    requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
+    this.contentEl.ownerDocument.defaultView?.requestAnimationFrame(() => this.focusCanvasUnlessInlineEditorActive());
   }
 
   private async createNotebookForTextNode(id: string): Promise<void> {
@@ -512,6 +509,7 @@ export class MindmapView extends FileView {
 
     createNodeContextMenu({
       nodeKind: node.kind,
+      ownerDocument: this.contentEl.ownerDocument,
       onConvertNotebookToText: () => this.convertNotebookToText(id),
       onCreateNotebook: () => {
         void this.createNotebookForTextNode(id);
@@ -585,7 +583,7 @@ export class MindmapView extends FileView {
   }
 
   private focusCanvasUnlessInlineEditorActive(): void {
-    const ownerDocument = ((this.contentEl as unknown as { ownerDocument?: { activeElement?: unknown } }).ownerDocument ?? document) as {
+    const ownerDocument = this.contentEl.ownerDocument as {
       activeElement?: unknown;
     };
     const activeElement = ownerDocument.activeElement as
@@ -714,6 +712,7 @@ export class MindmapView extends FileView {
 
   private openEdgeContextMenu(edgeId: string, x: number, y: number): void {
     createEdgeContextMenu({
+      ownerDocument: this.contentEl.ownerDocument,
       onDeleteEdge: () => {
         this.applyDocumentChange(() => {
           this.store.deleteEdge(edgeId);

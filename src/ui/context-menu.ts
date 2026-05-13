@@ -1,4 +1,4 @@
-import { Menu } from "obsidian";
+import { Menu, setIcon } from "obsidian";
 import { t } from "../i18n";
 import { isMacOS } from "../core/platform";
 
@@ -6,6 +6,7 @@ import type { NodeKind } from "../types/mindmap";
 
 interface MindmapNodeContextMenuOptions {
   nodeKind: NodeKind;
+  ownerDocument: Document;
   onConvertNotebookToText(): void;
   onCreateNotebook(): void;
   onBindExistingNotebook(): void;
@@ -14,6 +15,7 @@ interface MindmapNodeContextMenuOptions {
 }
 
 interface MindmapEdgeContextMenuOptions {
+  ownerDocument: Document;
   onDeleteEdge(): void;
 }
 
@@ -25,28 +27,11 @@ type ContextMenuItem = {
   shortcut?: string;
 };
 
-const MENU_ICON_PATHS: Record<NonNullable<ContextMenuItem["icon"]>, string> = {
-  unlink: `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>`,
-  plus: `<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>`,
-  file: `<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>`,
-  search: `<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="11.5" cy="12.5" r="2"/><path d="m15 15 2 2"/>`,
-  trash: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>`,
-};
-
-function createIconSvg(icon: NonNullable<ContextMenuItem["icon"]>): SVGSVGElement {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-
-  svg.innerHTML = MENU_ICON_PATHS[icon];
-
-  return svg;
+function createIconSpan(ownerDocument: Document, icon: NonNullable<ContextMenuItem["icon"]>): HTMLSpanElement {
+  const iconEl = ownerDocument.createElement("span");
+  setIcon(iconEl, icon);
+  iconEl.setAttribute("aria-hidden", "true");
+  return iconEl;
 }
 
 let activeMenu: MindmapContextMenu | null = null;
@@ -57,6 +42,7 @@ export function closeActiveContextMenu(): void {
 
 class MindmapContextMenu {
   items: ContextMenuItem[] = [];
+  constructor(private ownerDocument: Document) {}
   private containerEl: HTMLDivElement | null = null;
   private onDocumentPointerDown = (event: Event): void => {
     const target = event.target;
@@ -86,35 +72,33 @@ class MindmapContextMenu {
     activeMenu = this;
     (Menu as unknown as { lastShown?: unknown }).lastShown = this;
 
-    if (typeof document === "undefined") return;
-
-    const containerEl = document.createElement("div");
+    const containerEl = this.ownerDocument.createElement("div");
     containerEl.className = "mindmap-context-menu";
 
     for (const item of this.items) {
       if (item.separator) {
-        const separatorEl = document.createElement("div");
+        const separatorEl = this.ownerDocument.createElement("div");
         separatorEl.className = "mindmap-context-menu-separator";
         containerEl.append(separatorEl);
         continue;
       }
 
-      const buttonEl = document.createElement("button");
+      const buttonEl = this.ownerDocument.createElement("button");
       buttonEl.type = "button";
       buttonEl.className = "mindmap-context-menu-item";
 
-      const iconEl = document.createElement("span");
+      const iconEl = this.ownerDocument.createElement("span");
       iconEl.className = "mindmap-context-menu-icon";
-      if (item.icon) iconEl.append(createIconSvg(item.icon));
+      if (item.icon) iconEl.append(createIconSpan(this.ownerDocument, item.icon));
 
-      const labelEl = document.createElement("span");
+      const labelEl = this.ownerDocument.createElement("span");
       labelEl.className = "mindmap-context-menu-label";
       labelEl.textContent = item.title;
 
       buttonEl.append(iconEl, labelEl);
 
       if (item.shortcut) {
-        const shortcutEl = document.createElement("span");
+        const shortcutEl = this.ownerDocument.createElement("span");
         shortcutEl.className = "mindmap-context-menu-shortcut";
         shortcutEl.textContent = item.shortcut;
         buttonEl.append(shortcutEl);
@@ -127,14 +111,12 @@ class MindmapContextMenu {
       containerEl.append(buttonEl);
     }
 
-    document.body.append(containerEl);
+    this.ownerDocument.body.append(containerEl);
     this.containerEl = containerEl;
     this.positionContainer(position.x, position.y);
-    document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
-    if (typeof window.addEventListener === "function") {
-      window.addEventListener("blur", this.onWindowBlur);
-      window.addEventListener("keydown", this.onKeydown, true);
-    }
+    this.ownerDocument.addEventListener("pointerdown", this.onDocumentPointerDown, true);
+    this.ownerDocument.defaultView?.addEventListener("blur", this.onWindowBlur);
+    this.ownerDocument.defaultView?.addEventListener("keydown", this.onKeydown, true);
   }
 
   close(): void {
@@ -144,32 +126,29 @@ class MindmapContextMenu {
     }
     this.containerEl?.remove();
     this.containerEl = null;
-    if (typeof document !== "undefined") {
-      document.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
-    }
-    if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
-      window.removeEventListener("blur", this.onWindowBlur);
-      window.removeEventListener("keydown", this.onKeydown, true);
-    }
+    this.ownerDocument.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
+    this.ownerDocument.defaultView?.removeEventListener("blur", this.onWindowBlur);
+    this.ownerDocument.defaultView?.removeEventListener("keydown", this.onKeydown, true);
   }
 
   private positionContainer(x: number, y: number): void {
     if (!this.containerEl) return;
 
+    const ownerWindow = this.ownerDocument.defaultView;
+    if (!ownerWindow) return;
     const margin = 8;
     const rect = this.containerEl.getBoundingClientRect();
-    const maxX = window.innerWidth - rect.width - margin;
-    const maxY = window.innerHeight - rect.height - margin;
+    const maxX = ownerWindow.innerWidth - rect.width - margin;
+    const maxY = ownerWindow.innerHeight - rect.height - margin;
     const left = Math.max(margin, Math.min(x, maxX));
     const top = Math.max(margin, Math.min(y, maxY));
 
-    this.containerEl.style.left = `${left}px`;
-    this.containerEl.style.top = `${top}px`;
+    this.containerEl.setCssProps({ left: `${left}px`, top: `${top}px` });
   }
 }
 
 export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): { showAtPosition(position: { x: number; y: number }): void } {
-  const menu = new MindmapContextMenu();
+  const menu = new MindmapContextMenu(options.ownerDocument);
 
   if (options.nodeKind === "notebook") {
     menu.addItem(t("contextMenu.convertToText"), "unlink", () => options.onConvertNotebookToText());
@@ -192,7 +171,7 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): {
 }
 
 export function createEdgeContextMenu(options: MindmapEdgeContextMenuOptions): { showAtPosition(position: { x: number; y: number }): void } {
-  const menu = new MindmapContextMenu();
+  const menu = new MindmapContextMenu(options.ownerDocument);
   menu.addItem(t("contextMenu.deleteEdge"), "trash", () => options.onDeleteEdge());
   return menu;
 }

@@ -69,12 +69,10 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     );
   }
 
-  onunload(): void {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_MINDMAP);
-  }
-
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = await this.loadData() as unknown;
+    const saved = data && typeof data === "object" ? data : {};
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }
 
   async saveSettings(): Promise<void> {
@@ -122,7 +120,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
   async openMindmapFile(file: TFile): Promise<void> {
     const existingLeaf = this.findOpenMindmapLeaf(file);
     if (existingLeaf) {
-      await this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+      this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
       return;
     }
 
@@ -136,8 +134,8 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
   }
 
   openMindmapFileSelector(): void {
-    new MindmapFileSuggestModal(this.app, async (file) => {
-      await this.openMindmapFile(file);
+    new MindmapFileSuggestModal(this.app, (file) => {
+      void this.openMindmapFile(file);
     }).open();
   }
 

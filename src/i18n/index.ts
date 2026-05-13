@@ -1,3 +1,4 @@
+import { getLanguage } from "obsidian";
 import { en } from "./en";
 import { zh } from "./zh";
 import type { Locale } from "./types";
@@ -19,13 +20,7 @@ let currentLocale: "en" | "zh" = "en";
 const localeListeners = new Set<() => void>();
 
 function resolveAutoLocale(): "en" | "zh" {
-  const storedLanguage = globalThis.localStorage?.getItem("language");
-  if (typeof storedLanguage === "string" && storedLanguage.toLowerCase().startsWith("zh")) {
-    return "zh";
-  }
-
-  const nav = globalThis.navigator?.language;
-  return typeof nav === "string" && nav.toLowerCase().startsWith("zh") ? "zh" : "en";
+  return getLanguage().toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
 export function resolveLocale(locale: Locale): "en" | "zh" {
@@ -36,7 +31,7 @@ export function resolveLocale(locale: Locale): "en" | "zh" {
   return resolveAutoLocale();
 }
 
-export function setLocale(locale: Locale) {
+export function setLocale(locale: Locale): void {
   const next = resolveLocale(locale);
   if (currentLocale === next) return;
   currentLocale = next;

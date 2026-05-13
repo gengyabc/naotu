@@ -1,12 +1,26 @@
-import { layoutText, shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
+import { shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
 import { t } from "../i18n";
 
 // padding 8px * 2 + border 1px * 2 = 18, rounded up for scrollbars
 const TEXTAREA_CHROME_HORIZONTAL = 20;
 
-const measureCtx = document.createElement("canvas").getContext("2d");
+const measureCtxByDocument = new WeakMap<Document, CanvasRenderingContext2D | null>();
 
-function measureTextWidth(text: string, fontFamily: string, fontSize: number): number {
+function getMeasureCtx(ownerDocument: Document): CanvasRenderingContext2D | null {
+  const cached = measureCtxByDocument.get(ownerDocument);
+  if (cached !== undefined) return cached;
+
+  const next = ownerDocument.createElement("canvas").getContext("2d");
+  measureCtxByDocument.set(ownerDocument, next);
+  return next;
+}
+
+function getActiveDocument(): Document {
+  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
+}
+
+function measureTextWidth(text: string, fontFamily: string, fontSize: number, ownerDocument: Document): number {
+  const measureCtx = getMeasureCtx(ownerDocument);
   if (!measureCtx) return text.length * fontSize * 0.6;
   measureCtx.font = `${fontSize}px ${fontFamily}`;
   return measureCtx.measureText(text).width;
@@ -30,10 +44,12 @@ export class InlineTitleEditor {
   private warning: HTMLDivElement | null = null;
   private maxWidth: number;
   private fontFamily: string;
+  private ownerDocument: Document;
   private _cleanupClickOutside: (() => void) | null = null;
 
   constructor(private options: InlineTitleEditorOptions) {
-    const fontFace = getComputedStyle(document.documentElement).getPropertyValue("--font-interface").trim() || "sans-serif";
+    this.ownerDocument = options.layer.ownerDocument ?? getActiveDocument();
+    const fontFace = getComputedStyle(this.ownerDocument.documentElement).getPropertyValue("--font-interface").trim() || "sans-serif";
     this.fontFamily = fontFace;
     const scaleFactor = options.fontSize / BASE_FONT_SIZE;
     this.maxWidth = TITLE_MAX_WIDTH_CHARS * CHAR_WIDTH_CHINESE * scaleFactor + TEXTAREA_CHROME_HORIZONTAL;
@@ -41,16 +57,17 @@ export class InlineTitleEditor {
 
   open(): void {
     this.close();
-    const textarea = document.createElement("textarea");
+    const textarea = this.ownerDocument.createElement("textarea");
     textarea.className = "mindmap-inline-title-input";
     if (this.options.isBold) textarea.classList.add("is-bold");
     textarea.value = this.options.value;
-    textarea.style.left = `${this.options.x}px`;
-    textarea.style.top = `${this.options.y}px`;
-    textarea.style.minHeight = `${this.options.height}px`;
-    textarea.style.fontSize = `${this.options.fontSize}px`;
-    if (this.options.isBold) textarea.style.fontWeight = "700";
-    textarea.style.width = `${this.getInitialWidth()}px`;
+    textarea.setCssProps({
+      left: `${this.options.x}px`,
+      top: `${this.options.y}px`,
+      "min-height": `${this.options.height}px`,
+      "font-size": `${this.options.fontSize}px`,
+      width: `${this.getInitialWidth()}px`,
+    });
 
     this.options.layer.appendChild(textarea);
     this.textarea = textarea;
@@ -85,10 +102,10 @@ export class InlineTitleEditor {
         void this.commit();
       }
     };
-    document.addEventListener("mousedown", onClickOutside, { capture: true });
+    this.ownerDocument.addEventListener("mousedown", onClickOutside, { capture: true });
     // 在提交或取消时移除监听器
     const cleanup = () => {
-      document.removeEventListener("mousedown", onClickOutside, { capture: true });
+      this.ownerDocument.removeEventListener("mousedown", onClickOutside, { capture: true });
     };
     this._cleanupClickOutside = cleanup;
 
@@ -97,7 +114,7 @@ export class InlineTitleEditor {
   }
 
   private getInitialWidth(): number {
-    const valueWidth = measureTextWidth(this.options.value, this.fontFamily, this.options.fontSize) + TEXTAREA_CHROME_HORIZONTAL;
+    const valueWidth = measureTextWidth(this.options.value, this.fontFamily, this.options.fontSize, this.ownerDocument) + TEXTAREA_CHROME_HORIZONTAL;
     return Math.max(valueWidth, this.options.width);
   }
 
@@ -109,7 +126,7 @@ export class InlineTitleEditor {
     let maxLineWidth = 0;
 
     for (const line of lines) {
-      const lineWidth = measureTextWidth(line, this.fontFamily, this.options.fontSize);
+      const lineWidth = measureTextWidth(line, this.fontFamily, this.options.fontSize, this.ownerDocument);
       maxLineWidth = Math.max(maxLineWidth, lineWidth);
     }
 
@@ -117,12 +134,11 @@ export class InlineTitleEditor {
     const minWidth = this.options.width;
     const newWidth = Math.max(minWidth, Math.min(neededWidth, this.maxWidth));
 
-    this.textarea.style.width = `${newWidth}px`;
-    this.textarea.style.height = "auto";
+    this.textarea.setCssProps({ width: `${newWidth}px`, height: "auto" });
 
     const scrollHeight = this.textarea.scrollHeight;
     const minHeight = this.options.height;
-    this.textarea.style.height = `${Math.max(scrollHeight, minHeight)}px`;
+    this.textarea.setCssProps({ height: `${Math.max(scrollHeight, minHeight)}px` });
   }
 
   private checkLengthWarning(): void {
@@ -140,12 +156,14 @@ export class InlineTitleEditor {
     if (this.warning) return;
     if (!this.textarea) return;
 
-    const warning = document.createElement("div");
+    const warning = this.ownerDocument.createElement("div");
     warning.className = "mindmap-inline-title-warning";
     warning.textContent = t("renderer.longContentWarning");
-    warning.style.left = `${this.options.x}px`;
-    warning.style.top = `${this.options.y + this.textarea.offsetHeight + 4}px`;
-    warning.style.width = `${this.textarea.offsetWidth}px`;
+    warning.setCssProps({
+      left: `${this.options.x}px`,
+      top: `${this.options.y + this.textarea.offsetHeight + 4}px`,
+      width: `${this.textarea.offsetWidth}px`,
+    });
 
     this.options.layer.appendChild(warning);
     this.warning = warning;

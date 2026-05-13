@@ -5,7 +5,7 @@ import { normalizeRect } from "../core/geometry";
 import { PerformanceMonitor } from "../core/performance-monitor";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport-culling";
-import { getFontSizeForDepth } from "../core/font-size";
+import { getFontSizeForDepth, getObsidianBaseFontSize } from "../core/font-size";
 import type { MindmapDocument, NodeDetailLevel, ProjectedNode, Rect } from "../types/mindmap";
 import type { SemanticMindmapSettings } from "../types/settings";
 import { renderProjectedEdges } from "./projected-edge-renderer";
@@ -115,7 +115,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.12, 4])
       .filter((event) => "touches" in event)
-      .on("zoom", (event) => {
+      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
         const t = event.transform;
         this.options.onViewportChange(t.x, t.y, t.k);
         this.scheduleRender();
@@ -129,7 +129,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.bindCustomPan();
 
     const viewport = this.options.getDocument().viewport;
-    this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
+    this.svg.call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(viewport.x, viewport.y).scale(viewport.zoom));
+    });
     this.render();
   }
 
@@ -199,7 +201,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const x = rect.width / 2 - node.x * k;
     const y = rect.height / 2 - node.y * k;
 
-    this.svg.transition().duration(250).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(x, y).scale(k));
+    this.svg.transition().duration(250).call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(x, y).scale(k));
+    });
   }
 
   startInlineEditByNodeId(nodeId: string): void {
@@ -211,7 +215,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const screenX = node.projectedX * transform.k + transform.x;
     const screenY = node.projectedY * transform.k + transform.y;
 
-    const fontSize = getFontSizeForDepth(node.depth);
+    const fontSize = getFontSizeForDepth(node.depth, getObsidianBaseFontSize(this.options.container.ownerDocument.documentElement));
     const editorHeight = node.displayHeight - 16;
     const editorY = screenY + (node.displayHeight - editorHeight) / 2;
 
@@ -238,7 +242,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const nextX = cx - worldCenter[0] * nextK;
     const nextY = cy - worldCenter[1] * nextK;
 
-    this.svg.transition().duration(160).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(nextK));
+    this.svg.transition().duration(160).call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(nextX, nextY).scale(nextK));
+    });
   }
 
   handleZoomInput(factor: number): boolean {
@@ -258,7 +264,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const current = d3.zoomTransform(this.svg.node()!);
     const nextX = rect.width / 2 - x * current.k;
     const nextY = rect.height / 2 - y * current.k;
-    this.svg.transition().duration(180).call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(current.k));
+    this.svg.transition().duration(180).call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(nextX, nextY).scale(current.k));
+    });
   }
 
   getViewportWorldRect(): Rect {
@@ -340,7 +348,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected scheduleRender(): void {
     if (this.renderScheduled) return;
     this.renderScheduled = true;
-    requestAnimationFrame(() => {
+    this.options.container.ownerDocument.defaultView?.requestAnimationFrame(() => {
       this.renderScheduled = false;
       this.render();
     });
@@ -504,14 +512,15 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       this.panEndDoc = () => {
         this.panActive = false;
         this.dragging = false;
-        if (this.panDocTouch) document.removeEventListener("touchmove", this.panDocTouch, { passive: false } as AddEventListenerOptions);
-        if (this.panEndDoc) document.removeEventListener("touchend", this.panEndDoc);
+        const ownerDocument = svgEl.ownerDocument;
+        if (this.panDocTouch) ownerDocument.removeEventListener("touchmove", this.panDocTouch, { passive: false } as AddEventListenerOptions);
+        if (this.panEndDoc) ownerDocument.removeEventListener("touchend", this.panEndDoc);
         this.panDocTouch = null;
         this.panEndDoc = null;
       };
 
-      document.addEventListener("touchmove", this.panDocTouch, { passive: false });
-      document.addEventListener("touchend", this.panEndDoc);
+      svgEl.ownerDocument.addEventListener("touchmove", this.panDocTouch, { passive: false });
+      svgEl.ownerDocument.addEventListener("touchend", this.panEndDoc);
     };
     svgEl.addEventListener("touchstart", this.panTouchCapture, { passive: false, capture: true });
 
@@ -536,14 +545,15 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       this.panUpDoc = () => {
         this.panActive = false;
         this.dragging = false;
-        if (this.panDocMouse) document.removeEventListener("mousemove", this.panDocMouse);
-        if (this.panUpDoc) document.removeEventListener("mouseup", this.panUpDoc);
+        const ownerDocument = svgEl.ownerDocument;
+        if (this.panDocMouse) ownerDocument.removeEventListener("mousemove", this.panDocMouse);
+        if (this.panUpDoc) ownerDocument.removeEventListener("mouseup", this.panUpDoc);
         this.panDocMouse = null;
         this.panUpDoc = null;
       };
 
-      document.addEventListener("mousemove", this.panDocMouse);
-      document.addEventListener("mouseup", this.panUpDoc);
+      svgEl.ownerDocument.addEventListener("mousemove", this.panDocMouse);
+      svgEl.ownerDocument.addEventListener("mouseup", this.panUpDoc);
     });
   }
 
@@ -564,7 +574,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     const nextX = t.x + dx * panScale;
     const nextY = t.y + dy * panScale;
 
-    this.svg.call(this.zoomBehavior.transform, d3.zoomIdentity.translate(nextX, nextY).scale(k));
+    this.svg.call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(nextX, nextY).scale(k));
+    });
   }
 
   private cleanupPanListeners(): void {
@@ -573,11 +585,12 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     if (svgEl && this.panTouchCapture) {
       svgEl.removeEventListener("touchstart", this.panTouchCapture, true);
     }
+    const ownerDocument = this.options.container.ownerDocument;
     this.svg.on("mousedown.custompan", null);
-    if (this.panDocMouse) document.removeEventListener("mousemove", this.panDocMouse);
-    if (this.panUpDoc) document.removeEventListener("mouseup", this.panUpDoc);
-    if (this.panDocTouch) document.removeEventListener("touchmove", this.panDocTouch);
-    if (this.panEndDoc) document.removeEventListener("touchend", this.panEndDoc);
+    if (this.panDocMouse) ownerDocument.removeEventListener("mousemove", this.panDocMouse);
+    if (this.panUpDoc) ownerDocument.removeEventListener("mouseup", this.panUpDoc);
+    if (this.panDocTouch) ownerDocument.removeEventListener("touchmove", this.panDocTouch);
+    if (this.panEndDoc) ownerDocument.removeEventListener("touchend", this.panEndDoc);
     this.panDocMouse = null;
     this.panUpDoc = null;
     this.panDocTouch = null;
@@ -587,7 +600,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
   private bindFocusRestore(): void {
     this.svg.on("click.focus", (event) => {
-      requestAnimationFrame(() => {
+      this.options.container.ownerDocument.defaultView?.requestAnimationFrame(() => {
         const active = this.options.container.ownerDocument?.activeElement;
         if (active instanceof HTMLElement && active.classList.contains("mindmap-inline-title-input")) return;
         this.options.container.focus();

@@ -8,12 +8,11 @@ const OBSIDIAN_DEFAULT_FONT_SIZE = 16;
 
 let cachedBaseFontSize: number | null = null;
 
-export function getObsidianBaseFontSize(): number {
-  const style = getComputedStyle(document.documentElement);
-  const raw = style.getPropertyValue("--font-text-size").trim();
-  const parsed = parseFloat(raw);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    cachedBaseFontSize = parsed;
+export function getObsidianBaseFontSize(rootElement?: Element): number {
+  if (rootElement) {
+    const raw = getComputedStyle(rootElement).getPropertyValue("--font-text-size").trim();
+    const parsed = parseFloat(raw);
+    if (Number.isFinite(parsed) && parsed > 0) cachedBaseFontSize = parsed;
   }
   return cachedBaseFontSize ?? OBSIDIAN_DEFAULT_FONT_SIZE;
 }

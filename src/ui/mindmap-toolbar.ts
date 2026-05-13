@@ -1,7 +1,8 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
-import { t } from "../i18n";
+import { setIcon } from "obsidian";
 import { getModifierKey } from "../core/platform";
+import { t } from "../i18n";
 
 export interface MindmapToolbar {
   destroy(): void;
@@ -40,13 +41,13 @@ export interface MindmapToolbarOptions {
   onEdit(): void;
 }
 
-type ToolbarIconId = 
-  | "folder-open" 
-  | "layout-mirror" 
-  | "layout-right" 
-  | "layout-free" 
-  | "search" 
-  | "undo" 
+type ToolbarIconId =
+  | "folder-open"
+  | "layout-mirror"
+  | "layout-right"
+  | "layout-free"
+  | "search"
+  | "undo"
   | "redo"
   | "home"
   | "zoom-in"
@@ -57,27 +58,54 @@ type ToolbarIconId =
   | "pencil"
   | "target";
 
-const TOOLBAR_ICON_PATHS: Record<ToolbarIconId, string> = {
-  "folder-open": `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
-  "layout-mirror": `<path d="M12 3v18" stroke-width="1.5"/><path d="M12 6h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4" stroke-width="1.5"/><path d="M12 13h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4" stroke-width="1.5"/><path d="M12 6H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4" stroke-width="1.5"/><path d="M12 13H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4" stroke-width="1.5"/><circle cx="12" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="16" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="16" r="1.5" fill="currentColor" stroke="none"/>`,
-  "layout-right": `<path d="M5 3v18" stroke-width="1.5"/><path d="M5 7h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><path d="M5 12h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><path d="M5 17h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10" stroke-width="1.5"/><circle cx="5" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="10" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.5" fill="currentColor" stroke="none"/>`,
-  "layout-free": `<circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="12" cy="17" r="3"/><path d="M9 9l1 6" stroke-width="1.5"/><path d="M15 9l-1 6" stroke-width="1.5"/>`,
-  search: `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
-  undo: `<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>`,
-  redo: `<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>`,
-  home: `<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
-  "zoom-in": `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>`,
-  "zoom-out": `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>`,
-  plus: `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>`,
-  "git-branch": `<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>`,
-  "chevrons-up-down": `<polyline points="7 15 12 20 17 15"/><polyline points="7 4 12 9 17 4"/>`,
-  pencil: `<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>`,
-  target: `<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>`,
+type SvgSpec = {
+  tag: "path" | "circle" | "line" | "polyline";
+  attrs: Record<string, string>;
 };
 
-function createToolbarIcon(iconId: ToolbarIconId): SVGSVGElement {
+function getActiveDocument(): Document {
+  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
+}
+
+function getActiveWindow(): Window {
+  return (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
+}
+
+const CUSTOM_TOOLBAR_ICONS: Partial<Record<ToolbarIconId, SvgSpec[]>> = {
+  "layout-mirror": [
+    { tag: "path", attrs: { d: "M12 3v18", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M12 6h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M12 13h4c1.1 0 2 .9 2 2v1c0 1.1-.9 2-2 2h-4", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M12 6H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M12 13H8c-1.1 0-2 .9-2 2v1c0 1.1.9 2 2 2h4", "stroke-width": "1.5" } },
+    { tag: "circle", attrs: { cx: "12", cy: "3", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "18", cy: "9", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "18", cy: "16", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "6", cy: "9", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "6", cy: "16", r: "1.5", fill: "currentColor", stroke: "none" } },
+  ],
+  "layout-right": [
+    { tag: "path", attrs: { d: "M5 3v18", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M5 7h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M5 12h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M5 17h10c1.1 0 2 .9 2 2v0c0 1.1-.9 2-2 2h-10", "stroke-width": "1.5" } },
+    { tag: "circle", attrs: { cx: "5", cy: "3", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "17", cy: "10", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "17", cy: "15", r: "1.5", fill: "currentColor", stroke: "none" } },
+    { tag: "circle", attrs: { cx: "17", cy: "20", r: "1.5", fill: "currentColor", stroke: "none" } },
+  ],
+  "layout-free": [
+    { tag: "circle", attrs: { cx: "7", cy: "7", r: "3" } },
+    { tag: "circle", attrs: { cx: "17", cy: "7", r: "3" } },
+    { tag: "circle", attrs: { cx: "12", cy: "17", r: "3" } },
+    { tag: "path", attrs: { d: "M9 9l1 6", "stroke-width": "1.5" } },
+    { tag: "path", attrs: { d: "M15 9l-1 6", "stroke-width": "1.5" } },
+  ],
+};
+
+function createCustomToolbarIcon(ownerDocument: Document, specs: SvgSpec[]): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
+  const svg = ownerDocument.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
@@ -85,83 +113,84 @@ function createToolbarIcon(iconId: ToolbarIconId): SVGSVGElement {
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = TOOLBAR_ICON_PATHS[iconId];
+
+  for (const spec of specs) {
+    const element = ownerDocument.createElementNS(ns, spec.tag);
+    for (const [name, value] of Object.entries(spec.attrs)) {
+      element.setAttribute(name, value);
+    }
+    svg.appendChild(element);
+  }
+
   return svg;
 }
 
+function createToolbarIcon(ownerDocument: Document, iconId: ToolbarIconId): HTMLElement | SVGSVGElement {
+  const customIcon = CUSTOM_TOOLBAR_ICONS[iconId];
+  if (customIcon) return createCustomToolbarIcon(ownerDocument, customIcon);
 
+  const iconEl = ownerDocument.createElement("span");
+  iconEl.className = "semantic-mindmap-toolbar-icon";
+  setIcon(iconEl, iconId);
+  iconEl.setAttribute("aria-hidden", "true");
+  return iconEl;
+}
 
 export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions, beforeElement?: HTMLElement): MindmapToolbar {
+  const ownerDocument = container.ownerDocument ?? getActiveDocument();
+  const ownerWindow = ownerDocument.defaultView ?? getActiveWindow();
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });
   if (beforeElement && toolbar.parentElement === container) {
     container.insertBefore(toolbar, beforeElement);
   }
+
   const modKey = getModifierKey();
   const tooltipElements: HTMLElement[] = [];
-  const positionFns: (() => void)[] = [];
+  const positionFns: Array<() => void> = [];
 
   const onScrollOrResize = () => {
-    for (const fn of positionFns) {
-      fn();
-    }
+    for (const fn of positionFns) fn();
   };
-  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-    window.addEventListener("scroll", onScrollOrResize);
-    window.addEventListener("resize", onScrollOrResize);
-  }
 
-  const createButtonWithTooltip = (
-    iconId: ToolbarIconId,
-    label: string,
-    shortcut?: string
-  ): HTMLButtonElement => {
+  ownerWindow.addEventListener("scroll", onScrollOrResize);
+  ownerWindow.addEventListener("resize", onScrollOrResize);
+
+  const createButtonWithTooltip = (iconId: ToolbarIconId, label: string, shortcut?: string): HTMLButtonElement => {
     const button = toolbar.createEl("button");
-    button.append(createToolbarIcon(iconId));
+    button.append(createToolbarIcon(ownerDocument, iconId));
     button.createSpan({ cls: "toolbar-button-text", text: label });
 
-    const tooltip = document.createElement("div");
+    const tooltip = ownerDocument.createElement("div");
     tooltip.className = "semantic-mindmap-tooltip";
-    if (shortcut) {
-      tooltip.createSpan({ cls: "semantic-mindmap-tooltip-label", text: label });
-      tooltip.createSpan({ cls: "semantic-mindmap-tooltip-shortcut", text: shortcut });
-    } else {
-      tooltip.createSpan({ cls: "semantic-mindmap-tooltip-label", text: label });
-    }
+    tooltip.setAttribute("aria-hidden", "true");
+    tooltip.createSpan({ cls: "semantic-mindmap-tooltip-label", text: label });
+    if (shortcut) tooltip.createSpan({ cls: "semantic-mindmap-tooltip-shortcut", text: shortcut });
     tooltipElements.push(tooltip);
-    if (typeof document !== "undefined" && document.body) {
-      document.body.appendChild(tooltip);
-    }
+    ownerDocument.body?.appendChild(tooltip);
 
     const positionTooltip = () => {
       const rect = button.getBoundingClientRect();
-      tooltip.style.position = "fixed";
-      tooltip.style.top = `${rect.bottom + 6}px`;
-      tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      tooltip.style.transform = "translateX(-50%)";
+      tooltip.setCssProps({
+        "--mindmap-tooltip-top": `${rect.bottom + 6}px`,
+        "--mindmap-tooltip-left": `${rect.left + rect.width / 2}px`,
+      });
     };
 
     const showTooltip = () => {
-      if (!toolbar.classList.contains("is-compact")) {
-        return;
-      }
-      if (button.disabled) {
-        return;
-      }
-      requestAnimationFrame(() => {
+      if (!toolbar.classList.contains("is-compact") || button.disabled) return;
+      ownerWindow.requestAnimationFrame(() => {
         positionTooltip();
-        tooltip.style.display = "flex";
+        tooltip.classList.add("is-visible");
       });
     };
 
     const hideTooltip = () => {
-      tooltip.style.display = "none";
+      tooltip.classList.remove("is-visible");
     };
 
     button.addEventListener("mouseenter", showTooltip);
     button.addEventListener("mouseleave", hideTooltip);
-
     positionFns.push(positionTooltip);
-
     return button;
   };
 
@@ -208,7 +237,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   freeLayoutButton.onclick = () => options.onChangeLayoutMode("free");
 
   const searchWrapper = toolbar.createDiv({ cls: "mindmap-search-wrapper" });
-  searchWrapper.append(createToolbarIcon("search"));
+  searchWrapper.append(createToolbarIcon(ownerDocument, "search"));
   const searchInput = searchWrapper.createEl("input", {
     type: "text",
     placeholder: t("toolbar.searchPlaceholder"),
@@ -223,10 +252,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     }
   };
 
-  const saveStatusEl = toolbar.createSpan({
-    cls: "mindmap-save-status",
-    text: options.saveStatus,
-  });
+  const saveStatusEl = toolbar.createSpan({ cls: "mindmap-save-status", text: options.saveStatus });
 
   const setLayoutMode = (mode: LayoutMode): void => {
     mirrorLayoutButton.toggleClass("is-active", mode === "tree-mirror");
@@ -239,10 +265,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   const checkOverflow = (): void => {
     const clone = toolbar.cloneNode(true) as HTMLElement;
     clone.classList.remove("is-compact");
-    clone.style.visibility = "hidden";
-    clone.style.position = "absolute";
-    clone.style.pointerEvents = "none";
-    clone.style.whiteSpace = "nowrap";
+    clone.addClass("semantic-mindmap-toolbar-measure");
     toolbar.parentElement?.append(clone);
     const overflows = clone.scrollWidth > toolbar.clientWidth;
     clone.remove();
@@ -256,11 +279,9 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   return {
     destroy(): void {
       resizeObserver.disconnect();
-      if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
-        window.removeEventListener("scroll", onScrollOrResize);
-        window.removeEventListener("resize", onScrollOrResize);
-      }
-      tooltipElements.forEach((t) => t.remove());
+      ownerWindow.removeEventListener("scroll", onScrollOrResize);
+      ownerWindow.removeEventListener("resize", onScrollOrResize);
+      tooltipElements.forEach((tooltip) => tooltip.remove());
       toolbar.remove();
     },
     setLayoutMode,
