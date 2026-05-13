@@ -192,7 +192,7 @@
 
 ### 隐私
 
-本插件不发送任何分析数据、遥测数据或用户内容到远程服务器。
+本插件不发送任何分析数据、遥测数据或用户内容到远程服务器。本插件不会发起任何网络请求。脑图数据以 `.naotu` 文件形式存储在用户 vault 内。
 
 ### 开发
 
@@ -398,7 +398,7 @@ Mindmaps are saved as `.naotu` files:
 
 ### Privacy
 
-This plugin does not send analytics, telemetry, or user content to remote servers.
+This plugin does not send analytics, telemetry, or user content to remote servers. This plugin does not make any network requests. Mindmap data is stored as `.naotu` files inside the user's vault.
 
 ### Development
 

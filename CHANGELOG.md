@@ -15,3 +15,4 @@ Initial release.
 - Reference edges
 - SVG / PNG export
 - Minimap
+- Export settings placeholder (SVG/PNG export UI reserved, export logic in development)
