@@ -24,13 +24,16 @@
 - **多种布局模式** - 镜像树、右向树、自由布局
 - **Markdown 标题导入** - 从 Markdown 文件的标题结构生成脑图
 - **局部知识地图** - 基于当前文件的双向链接生成知识图谱
-- **SVG/PNG 导出** - 导出高清矢量图或位图（设置已预留，导出功能开发中）
 - **工具栏** - 完整的工具栏按钮，支持撤销、重做、布局切换、搜索等操作
 - **小地图** - 右上角显示缩略图便于导航
 - **键盘导航** - 方向键在节点间移动
 - **撤销/重做** - 完整的操作历史支持
 - **搜索** - 快速搜索节点内容
 - **自动保存** - 编辑后自动保存
+
+### 路线图
+
+- **SVG/PNG 导出** - 导出高清矢量图或位图（设置已预留，导出功能开发中）
 
 #### 性能优化
 
@@ -40,7 +43,7 @@
 
 ### 安装
 
-将插件文件放入 Obsidian vault 的 `.obsidian/plugins/naotu/` 目录下。
+将插件文件放入 Obsidian vault 的 `.obsidian/plugins/mindcanvas/` 目录下。
 
 ### 使用方法
 
@@ -195,6 +198,10 @@
 
 详见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
 
+### 平台支持
+
+当前仅支持桌面端（Desktop only）。移动端支持尚未测试，不保证可用性。
+
 ### 许可证
 
 MIT
@@ -230,7 +237,11 @@ MindCanvas is a zoomable mindmap for Obsidian that helps you organize ideas, not
 - **Search** - Quick node content search
 - **Auto-save** - Automatic saving after edits
 
-#### Performance Optimization
+### Roadmap
+
+- **SVG/PNG Export** - Export high-quality vector or bitmap images (settings reserved, export feature in development)
+
+### Performance Optimization
 
 - **Hybrid Renderer** - Automatically switch to Canvas background + SVG interaction layer for large graphs
 - **Viewport Culling** - Only render nodes near the viewport
@@ -238,7 +249,7 @@ MindCanvas is a zoomable mindmap for Obsidian that helps you organize ideas, not
 
 ### Installation
 
-Place plugin files in your Obsidian vault's `.obsidian/plugins/naotu/` directory.
+Place plugin files in your Obsidian vault's `.obsidian/plugins/mindcanvas/` directory.
 
 ### Usage
 
@@ -392,6 +403,10 @@ This plugin does not send analytics, telemetry, or user content to remote server
 ### Development
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md).
+
+### Platform Support
+
+Desktop only. Mobile support is not yet tested or guaranteed.
 
 ### License
 
