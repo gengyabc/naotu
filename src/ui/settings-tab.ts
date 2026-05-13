@@ -33,38 +33,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
     }
   }
 
-  private renderHelpSettings(containerEl: HTMLElement): void {
-    this.createSection(containerEl, t("settings.help"));
-
-    containerEl.createEl("p", {
-      text: t("settings.helpDesc"),
-    });
-
-    containerEl.createEl("h4", { text: t("settings.mainActions"), cls: "setting-item-description" });
-    const list = containerEl.createEl("ul");
-    [
-      t("settings.shortcuts.doubleClick"),
-      t("settings.shortcuts.doubleArrow"),
-      t("settings.shortcuts.plusMinus"),
-      t("settings.shortcuts.tab"),
-      t("settings.shortcuts.enter"),
-      t("settings.shortcuts.space"),
-      t("settings.shortcuts.f2"),
-      t("settings.shortcuts.arrows"),
-      t("settings.shortcuts.undo"),
-      t("settings.shortcuts.redo"),
-      t("settings.shortcuts.search"),
-      t("settings.shortcuts.fitRoot"),
-    ].forEach((text) => {
-      list.createEl("li", { text });
-    });
-
-    containerEl.createEl("h4", { text: t("settings.semanticZoom"), cls: "setting-item-description" });
-    containerEl.createEl("p", {
-      text: t("settings.semanticZoomDesc"),
-    });
-  }
-
   private renderNotebookSettings(containerEl: HTMLElement): void {
     this.createSection(containerEl, t("settings.notebook"));
 
