@@ -283,7 +283,9 @@ function createHarness(args: { document?: MindmapDocument } = {}) {
       if (record) record.content = content;
     },
     getRenderer(): InstanceType<typeof hoisted.FakeSvgRenderer> | InstanceType<typeof hoisted.FakeHybridRenderer> {
-      return hoisted.FakeHybridRenderer.instances.at(-1) ?? hoisted.FakeSvgRenderer.instances.at(-1)!;
+      const hybridInstances = hoisted.FakeHybridRenderer.instances;
+      const svgInstances = hoisted.FakeSvgRenderer.instances;
+      return hybridInstances[hybridInstances.length - 1] ?? svgInstances[svgInstances.length - 1]!;
     },
   };
 }
@@ -730,7 +732,8 @@ describe("MindmapView", () => {
     expect(harness.vault.create).toHaveBeenCalledWith("notebooks/Child.md", "Title: Child\n");
 
     await (harness.view as any).handleOpenNotebook("child");
-    const openedLeaf = harness.workspace.getLeaf.mock.results.at(-1)?.value as { lastOpenedFile?: TFile } | undefined;
+    const results = harness.workspace.getLeaf.mock.results;
+    const openedLeaf = results[results.length - 1]?.value as { lastOpenedFile?: TFile } | undefined;
     expect(openedLeaf?.lastOpenedFile?.path).toBe("notebooks/Child.md");
 
     (harness.view as any).convertNotebookToText("child");
@@ -890,7 +893,8 @@ describe("MindmapView", () => {
 
     await harness.view.setFile(harness.sourceFile);
     const renderer = harness.getRenderer();
-    const minimap = hoisted.FakeMinimapRenderer.instances.at(-1);
+    const minimapInstances = hoisted.FakeMinimapRenderer.instances;
+    const minimap = minimapInstances[minimapInstances.length - 1];
 
     expect(hoisted.FakeMinimapRenderer.instances).toHaveLength(1);
     expect(minimap).toBeDefined();

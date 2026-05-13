@@ -37,18 +37,24 @@ export class DebouncedAutosave {
 function getTimerWindow(): Pick<Window, "setTimeout" | "clearTimeout"> {
   try {
     const activeWin = getActiveWindow();
-    if (activeWin && typeof activeWin.setTimeout === "function" && typeof activeWin.clearTimeout === "function") {
+
+    if (
+      activeWin &&
+      typeof activeWin.setTimeout === "function" &&
+      typeof activeWin.clearTimeout === "function"
+    ) {
       return activeWin;
     }
   } catch {
     // activeWindow may not be available in test environment
   }
 
-  if (typeof globalThis.setTimeout === "function" && typeof globalThis.clearTimeout === "function") {
-    return {
-      setTimeout: globalThis.setTimeout.bind(globalThis),
-      clearTimeout: globalThis.clearTimeout.bind(globalThis),
-    };
+  if (
+    typeof window !== "undefined" &&
+    typeof window.setTimeout === "function" &&
+    typeof window.clearTimeout === "function"
+  ) {
+    return window;
   }
 
   return {

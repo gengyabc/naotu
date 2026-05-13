@@ -22,6 +22,16 @@ import { globalPreviewCache } from "../core/preview-cache";
 import { truncateTextForNotebook, layoutDescription } from "../core/text-layout";
 import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 
+function getEventTarget(event: unknown): EventTarget | null {
+  return event instanceof Event ? event.target : null;
+}
+
+function stopEventPropagation(event: unknown): void {
+  if (event instanceof Event) {
+    event.stopPropagation();
+  }
+}
+
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
 const NOTEBOOK_OPEN_BUTTON_WIDTH = 78;
@@ -196,9 +206,9 @@ export function renderProjectedNodes(args: {
 
   const dragBehavior = d3
     .drag<SVGGElement, ProjectedNode>()
-    .filter((event) => canDragNodes(args.layoutMode) && shouldStartNodeDrag(event.target))
+    .filter((event: Event) => canDragNodes(args.layoutMode) && shouldStartNodeDrag(getEventTarget(event)))
     .on("start", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
-      event.sourceEvent?.stopPropagation();
+      stopEventPropagation(event.sourceEvent);
       args.onDragStateChange?.(true);
       args.onBeforeNodeDragStart(node);
 
@@ -234,7 +244,7 @@ export function renderProjectedNodes(args: {
     });
 
   const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
-    event.sourceEvent?.stopPropagation();
+    stopEventPropagation(event.sourceEvent);
     resizeDrafts.set(node.id, { width: node.displayWidth, height: node.displayHeight, axis: "width" });
     args.onNotebookResizeStart(node.id);
   }).on("drag", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {

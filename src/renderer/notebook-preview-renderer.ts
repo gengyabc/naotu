@@ -121,9 +121,8 @@ function normalizeEmbeddedPreviewOutput(
 ): void {
   if (targetKind === "markdown") return;
 
-  const queryAll = (selector: string): HTMLElement[] => {
-    if (typeof wrapper.querySelectorAll !== "function") return [];
-    return Array.from(wrapper.querySelectorAll<HTMLElement>(selector));
+  const findAllInWrapper = (selector: string): Element[] => {
+    return wrapper.findAll(selector);
   };
 
   const width = Math.max(0, Math.round(wrapper.clientWidth));
@@ -141,17 +140,17 @@ function normalizeEmbeddedPreviewOutput(
     ".media-embed",
     ".image-embed",
   ];
-  queryAll(baseSelectors.join(", ")).forEach((element) => {
+  findAllInWrapper(baseSelectors.join(", ")).forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-content");
   });
 
   if (targetKind !== "excalidraw") return;
 
-  queryAll("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
+  findAllInWrapper("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-content");
   });
 
-  queryAll("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
+  findAllInWrapper("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-media");
     element.removeAttribute("width");
     element.removeAttribute("height");

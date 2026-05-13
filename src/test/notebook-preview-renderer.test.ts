@@ -15,26 +15,26 @@ afterAll(() => {
 
 interface FakeWrapper {
   className: string;
-  classList: { toggle: (token: string, force?: boolean) => void };
+  classList: { toggle(token: string, force?: boolean): void };
   dataset: Record<string, string>;
-  style: { pointerEvents?: string };
-   styleText?: string;
-  children?: unknown[];
+  style: Record<string, string | undefined>;
+  styleText?: string;
   scrollTop: number;
   clientWidth: number;
   clientHeight: number;
   scrollHeight: number;
-  renderedMarkdown?: string;
-  renderedSourcePath?: string;
+  children?: unknown[];
   empty: () => void;
   setCssProps: (props: Record<string, string>) => void;
   createDiv: (args: { cls: string; text: string }) => void;
   appendChild: (child: unknown) => void;
   addEventListener: (type: string, listener: EventListener) => void;
-  querySelectorAll: (selector: string) => HTMLElement[];
+  findAll: (selector: string) => Element[];
   getAttribute: (name: string) => string | null;
   setAttribute: (name: string, value: string) => void;
   removeAttribute: (name: string) => void;
+  renderedMarkdown?: string;
+  renderedSourcePath?: string;
 }
 
 interface FakeForeignObject {
@@ -75,7 +75,7 @@ function createWrapper(): FakeWrapper {
       wrapper.children?.push(child);
     }),
     addEventListener: vi.fn(),
-    querySelectorAll: () => [],
+    findAll: () => [],
     getAttribute: vi.fn((name: string) => attributes.get(name) ?? null),
     setAttribute: vi.fn((name: string, value: string) => {
       attributes.set(name, value);
@@ -735,12 +735,12 @@ describe("renderNotebookPreview", () => {
       },
       removeAttribute: vi.fn(),
     };
-    wrapper.querySelectorAll = vi.fn((selector: string) => {
-      if (selector.includes(".internal-embed")) return [embedElement as unknown as HTMLElement];
+    wrapper.findAll = vi.fn((selector: string) => {
+      if (selector.includes(".internal-embed")) return [embedElement as unknown as Element];
       if (selector.includes("img.excalidraw-svg") || selector.includes("svg.excalidraw-svg")) {
-        return [imageElement as unknown as HTMLElement];
+        return [imageElement as unknown as Element];
       }
-      if (selector.includes("excalidraw-svg")) return [embedElement as unknown as HTMLElement];
+      if (selector.includes("excalidraw-svg")) return [embedElement as unknown as Element];
       return [];
     });
 
@@ -789,7 +789,8 @@ describe("renderNotebookPreview", () => {
 
       expect(wrapper.renderedMarkdown).toBe("![[whiteboards/diagram.excalidraw.md|200x120]]");
       expect(resizeObservers.length).toBeGreaterThan(0);
-      expect(resizeObservers.at(-1)?.observe).toHaveBeenCalledWith(wrapper);
+      const lastResizeObserver = resizeObservers[resizeObservers.length - 1];
+      expect(lastResizeObserver?.observe).toHaveBeenCalledWith(wrapper);
       expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-width: 200px");
       expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-height: 100px");
       expect(embedClassCalls).toContain("mindmap-embedded-preview-content");
@@ -797,7 +798,7 @@ describe("renderNotebookPreview", () => {
 
       wrapper.clientWidth = 260;
       wrapper.clientHeight = 180;
-      resizeObservers.at(-1)?.callback([] as ResizeObserverEntry[], {} as ResizeObserver);
+      lastResizeObserver?.callback([] as ResizeObserverEntry[], {} as ResizeObserver);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -1144,7 +1145,7 @@ describe("renderNotebookPreview", () => {
       });
 
       expect(mutationObserverCalls.length).toBeGreaterThan(0);
-      expect(mutationObserverCalls.at(-1)).toEqual({ childList: true, subtree: true });
+      expect(mutationObserverCalls[mutationObserverCalls.length - 1]).toEqual({ childList: true, subtree: true });
 
       component.unload();
     } finally {
