@@ -200,7 +200,9 @@
 
 ### 平台支持
 
-当前仅支持桌面端（Desktop only）。移动端支持尚未测试，不保证可用性。
+MindCanvas 使用浏览器 Canvas 2D 渲染，不依赖 Node.js 或 Electron API。
+
+插件可以在移动端 Obsidian 安装，但当前公开版本主要针对桌面端体验优化。移动端触控、缩放、拖拽和大图性能将在后续版本继续改进。
 
 ### 许可证
 
@@ -406,7 +408,9 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ### Platform Support
 
-Desktop only. Mobile support is not yet tested or guaranteed.
+MindCanvas uses browser Canvas 2D and does not rely on Node.js or Electron APIs.
+
+The plugin can be installed on mobile Obsidian, but the first public version is primarily optimized for desktop usage. Mobile interaction and performance may be improved in future releases.
 
 ### License
 
