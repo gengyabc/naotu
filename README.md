@@ -1,4 +1,4 @@
-# MindCanvas 思维画布
+# MindCanvas 脑图
 
 [中文](#中文文档) | [English](#english-documentation)
 
@@ -9,7 +9,7 @@
 > A mindmap that is really a map.  
 > 真正的思维投影。
 
-MindCanvas 不是普通脑图，而是一张可以像地图一样缩放、导航和承载资料的思维画布。
+脑图不是普通思维导图，而是一张可以像地图一样缩放、导航和承载资料的思维画布。
 
 ### 功能特性
 
@@ -47,11 +47,11 @@ MindCanvas 不是普通脑图，而是一张可以像地图一样缩放、导航
 #### 创建脑图
 
 1. 点击左侧功能区脑图图标创建新脑图
-2. 或使用命令面板：`Create semantic zoom mindmap`
-3. 打开已有脑图文件：命令面板 `Open mindmap file`，或在文件中打开 `.naotu` 后执行 `Open current .naotu`
-4. 从 Markdown 文件创建：打开 .md 文件后执行 `Create mindmap from current markdown headings`
-5. 创建局部知识地图：打开 .md 文件后执行 `Create local knowledge map from current file`
-6. 创建示例脑图：命令面板选择 100 / 1000 / 3000 节点示例（用于性能测试）
+2. 或使用命令面板：`创建语义缩放脑图`
+3. 打开已有脑图文件：命令面板 `打开脑图文件`，或在文件中打开 `.naotu` 后执行 `打开当前 .naotu`
+4. 从 Markdown 文件创建：打开 .md 文件后执行 `从当前 Markdown 标题创建脑图`
+5. 创建局部知识地图：打开 .md 文件后执行 `从当前文件创建本地知识图谱`
+6. 创建示例脑图：命令面板选择 `创建示例脑图（100 / 1000 / 3000 节点）`（用于性能测试）
 
 #### 节点类型
 
@@ -117,32 +117,16 @@ MindCanvas 不是普通脑图，而是一张可以像地图一样缩放、导航
 #### Rendering 设置
 
 - **显示小地图** - 在右上角显示缩略导航图
-- **默认渲染模式** - auto/SVG/Hybrid，auto 根据节点数量自动选择
-- **缩放速度** - 鼠标滚轮缩放速度
+- **缩放速度** - 鼠标滚轮缩放速度（默认 0.003，值越大速度越快）
 - **树布局水平间距** - 树布局每层的水平距离
 - **树布局垂直间距** - 树布局相邻叶子槽位的垂直距离
 
-#### Performance 设置
-
-- **启用 Hybrid Renderer** - 大图时使用 Canvas 背景 + SVG 交互层
-- **Hybrid 节点阈值** - 节点数超过此值时使用 Hybrid 模式
-- **启用视口剔除** - 大图时仅渲染视口附近节点
-- **Culling 节点阈值** - 节点数超过此值时启用剔除
-
-#### Export 设置
-
-- **默认导出格式** - SVG 或 PNG
-
 #### Advanced 设置
 
+- **显示 missing notebook 警告** - 标注丢失链接的 notebook 节点
 - **自动保存** - 编辑后自动保存脑图文件
 - **自动保存延迟** - 输入停止后多久执行自动保存
-- **语言** - 界面语言（auto 自动检测、中文、English）
-
-#### Debug 设置
-
-- **显示调试信息** - 显示 zoom、节点数量等调试信息
-- **显示 missing notebook 警告** - 标注丢失链接的 notebook 节点
+- **语言** - 界面语言（自动、中文、English）
 
 ### 文件格式
 
@@ -209,53 +193,7 @@ MindCanvas 不是普通脑图，而是一张可以像地图一样缩放、导航
 
 ### 开发
 
-```bash
-# 安装依赖
-npm install
-
-# 开发模式（监听文件变化）
-npm run dev
-
-# 构建
-npm run build
-
-# 运行测试
-npm run test
-
-# 测试监听模式
-npm run test:watch
-```
-
-### 开发注意事项
-
-#### 焦点竞争问题
-
-**问题描述**: 双击节点编辑标题时，内联编辑输入框会立即关闭，用户看起来像"双击没反应"。
-
-**根本原因**: 不是双击事件没触发，而是前两次单击触发的"延迟聚焦画布"把刚打开的输入框焦点抢走了。
-
-事件链：
-1. 第一次点击节点 → 触发选中 → `handleNodeSelection()` 排队 `requestAnimationFrame(() => focusCanvas())`
-2. 第二次点击节点 → 再排队一个 `focusCanvas()`
-3. 随后 `dblclick` 触发 → 内联输入框创建并 `focus()`
-4. 前面排队的两个 `requestAnimationFrame` 立刻执行 → 把焦点切回画布
-5. 输入框收到 `blur` → `InlineTitleEditor` 的 `blur` 逻辑会 `commit()` 并关闭
-6. 结果：用户看到"双击没反应"
-
-**解决方案**: 在 `focusCanvas()` 时检查当前激活元素是否是内联编辑输入框（`.mindmap-inline-title-input`），如果是则不抢焦点。
-
-相关代码位置：
-- `src/view/mindmap-view.ts`: `focusCanvasUnlessInlineEditorActive()` 方法
-- `src/view/mindmap-interactions.ts`: `handleNodeSelection()` 中的焦点管理
-- `src/renderer/shared-mindmap-renderer-base.ts`: D3 zoom 的 `dblclick.zoom` 禁用
-
-**注意**: 如果以后遇到类似的"交互元素打开后立即关闭"问题，首先检查是否有延迟焦点抢夺逻辑。
-
-### 技术栈
-
-- TypeScript
-- D3.js - 布局和渲染
-- Obsidian API
+详见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
 
 ### 许可证
 
@@ -311,7 +249,7 @@ Place plugin files in your Obsidian vault's `.obsidian/plugins/naotu/` directory
 3. Open an existing mindmap: command palette `Open mindmap file`, or open a `.naotu` file and run `Open current .naotu`
 4. Create from Markdown file: Open a .md file and run `Create mindmap from current markdown headings`
 5. Create local knowledge map: Open a .md file and run `Create local knowledge map from current file`
-6. Create sample mindmaps: command palette offers 100 / 1000 / 3000 node samples (for performance testing)
+6. Create sample mindmaps: command palette offers `Create sample mindmap (100 / 1000 / 3000 nodes)` (for performance testing)
 
 #### Node Types
 
@@ -377,32 +315,16 @@ Nodes bound to Excalidraw files (.excalidraw or .excalidraw.md), showing Excalid
 #### Rendering Settings
 
 - **Show minimap** - Display thumbnail navigation in top-right corner
-- **Default render mode** - auto/SVG/Hybrid, auto selects based on node count
-- **Zoom speed** - Mouse wheel zoom speed
+- **Zoom speed** - Mouse wheel zoom speed (default 0.003, larger = faster)
 - **Tree layout horizontal spacing** - Horizontal distance between tree layout levels
 - **Tree layout vertical spacing** - Vertical distance between adjacent leaf slots
 
-#### Performance Settings
-
-- **Enable Hybrid Renderer** - Use Canvas background + SVG interaction layer for large graphs
-- **Hybrid node threshold** - Node count threshold to switch to Hybrid mode
-- **Enable viewport culling** - Only render nodes near viewport for large graphs
-- **Culling node threshold** - Node count threshold to enable culling
-
-#### Export Settings
-
-- **Default export format** - SVG or PNG
-
 #### Advanced Settings
 
+- **Show missing notebook warnings** - Mark notebook nodes with broken links
 - **Auto-save** - Automatically save mindmap file after edits
 - **Auto-save delay** - Time to wait after input stops before auto-saving
-- **Language** - Interface language (auto detects from browser, Chinese, English)
-
-#### Debug Settings
-
-- **Show debug info** - Display zoom, node count, and other debug info
-- **Show missing notebook warnings** - Mark notebook nodes with broken links
+- **Language** - Interface language (auto, Chinese, English)
 
 ### File Format
 
@@ -469,53 +391,7 @@ This plugin does not send analytics, telemetry, or user content to remote server
 
 ### Development
 
-```bash
-# Install dependencies
-npm install
-
-# Development mode (watch file changes)
-npm run dev
-
-# Build
-npm run build
-
-# Run tests
-npm run test
-
-# Test watch mode
-npm run test:watch
-```
-
-### Development Notes
-
-#### Focus Competition Issue
-
-**Problem**: When double-clicking a node to edit its title, the inline editing input closes immediately, appearing as if "double-click has no effect".
-
-**Root Cause**: Not that the double-click event didn't fire, but that the delayed "focus canvas" calls triggered by the first two clicks stole the focus from the newly opened input field.
-
-Event chain:
-1. First click on node → triggers selection → `handleNodeSelection()` queues `requestAnimationFrame(() => focusCanvas())`
-2. Second click on node → queues another `focusCanvas()`
-3. Then `dblclick` fires → inline input field is created and `focus()` is called
-4. The two queued `requestAnimationFrame` callbacks execute immediately → focus switches back to canvas
-5. Input field receives `blur` → `InlineTitleEditor`'s `blur` logic calls `commit()` and closes
-6. Result: User sees "double-click has no effect"
-
-**Solution**: When calling `focusCanvas()`, check if the current active element is the inline editing input (`.mindmap-inline-title-input`). If it is, don't steal the focus.
-
-Related code locations:
-- `src/view/mindmap-view.ts`: `focusCanvasUnlessInlineEditorActive()` method
-- `src/view/mindmap-interactions.ts`: Focus management in `handleNodeSelection()`
-- `src/renderer/shared-mindmap-renderer-base.ts`: D3 zoom's `dblclick.zoom` disabled
-
-**Note**: If you encounter similar "interactive element closes immediately after opening" issues, first check if there's delayed focus stealing logic.
-
-### Tech Stack
-
-- TypeScript
-- D3.js - Layout and rendering
-- Obsidian API
+See [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ### License
 

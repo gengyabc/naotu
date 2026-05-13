@@ -8,8 +8,11 @@ import { TreeLayoutEngine } from "./tree-layout";
 export interface CreateLocalKnowledgeMapOptions {
   app: App;
   file: TFile;
-  maxNodes: number;
 }
+
+const AUTO_RELATED_FILE_BUDGET_FLOOR = 24;
+const AUTO_RELATED_FILE_BUDGET_SCALE = 8;
+const AUTO_RELATED_FILE_BUDGET_CEILING = 120;
 
 export function createLocalKnowledgeMap(options: CreateLocalKnowledgeMapOptions): MindmapDocument {
   const nodes: MindmapNode[] = [];
@@ -35,7 +38,7 @@ export function createLocalKnowledgeMap(options: CreateLocalKnowledgeMapOptions)
 
   const outlinks = getOutgoingLinks(options.app, options.file);
   const backlinks = getBacklinks(options.app, options.file);
-  const relatedFiles = uniqueFiles([...outlinks, ...backlinks]).slice(0, Math.max(1, options.maxNodes - 1));
+  const { relatedFiles, totalRelatedFiles } = chooseRelatedFiles(options.app, options.file, outlinks, backlinks);
 
   const nodeIdByPath = new Map<string, string>();
   for (const file of relatedFiles) {
@@ -82,7 +85,7 @@ export function createLocalKnowledgeMap(options: CreateLocalKnowledgeMapOptions)
   return new TreeLayoutEngine().layout(
     {
       version: 1,
-      title: `${options.file.basename} Local Knowledge Map`,
+      title: createLocalKnowledgeMapTitle(options.file.basename, relatedFiles.length, totalRelatedFiles),
       layoutMode: "tree-mirror",
       viewport: { x: 400, y: 300, zoom: 1 },
       nodes,
@@ -117,6 +120,82 @@ function getBacklinks(app: App, file: TFile): TFile[] {
     if (source instanceof TFile) result.push(source);
   }
   return uniqueFiles(result);
+}
+
+function chooseRelatedFiles(
+  app: App,
+  file: TFile,
+  outlinks: TFile[],
+  backlinks: TFile[],
+): { relatedFiles: TFile[]; totalRelatedFiles: number } {
+  const outlinkPaths = new Set(outlinks.map((item) => item.path));
+  const backlinkPaths = new Set(backlinks.map((item) => item.path));
+  const relatedFiles = uniqueFiles([...outlinks, ...backlinks]);
+  const budget = computeAutomaticRelatedFileBudget(relatedFiles.length);
+
+  return {
+    relatedFiles: relatedFiles
+      .sort((left, right) => compareRelatedFiles(app, file, left, right, outlinkPaths, backlinkPaths))
+      .slice(0, budget),
+    totalRelatedFiles: relatedFiles.length,
+  };
+}
+
+function createLocalKnowledgeMapTitle(fileBasename: string, visibleRelatedFiles: number, totalRelatedFiles: number): string {
+  const baseTitle = `${fileBasename} Local Knowledge Map`;
+  if (visibleRelatedFiles >= totalRelatedFiles) return baseTitle;
+  return `${baseTitle} [truncated ${visibleRelatedFiles}/${totalRelatedFiles}]`;
+}
+
+function computeAutomaticRelatedFileBudget(totalRelatedFiles: number): number {
+  if (totalRelatedFiles <= 0) return 0;
+  const scaledBudget = Math.round(Math.sqrt(totalRelatedFiles) * AUTO_RELATED_FILE_BUDGET_SCALE);
+  const boundedBudget = Math.max(
+    AUTO_RELATED_FILE_BUDGET_FLOOR,
+    Math.min(AUTO_RELATED_FILE_BUDGET_CEILING, scaledBudget),
+  );
+  return Math.min(totalRelatedFiles, boundedBudget);
+}
+
+function compareRelatedFiles(
+  app: App,
+  centerFile: TFile,
+  left: TFile,
+  right: TFile,
+  outlinkPaths: Set<string>,
+  backlinkPaths: Set<string>,
+): number {
+  const scoreDiff = scoreRelatedFile(app, centerFile, right, outlinkPaths, backlinkPaths)
+    - scoreRelatedFile(app, centerFile, left, outlinkPaths, backlinkPaths);
+  if (scoreDiff !== 0) return scoreDiff;
+
+  const titleDiff = left.basename.localeCompare(right.basename, "en");
+  if (titleDiff !== 0) return titleDiff;
+  return left.path.localeCompare(right.path, "en");
+}
+
+function scoreRelatedFile(
+  app: App,
+  centerFile: TFile,
+  relatedFile: TFile,
+  outlinkPaths: Set<string>,
+  backlinkPaths: Set<string>,
+): number {
+  let score = 0;
+
+  if (outlinkPaths.has(relatedFile.path)) score += 100;
+  if (backlinkPaths.has(relatedFile.path)) score += 50;
+
+  score += getResolvedLinkWeight(app, centerFile.path, relatedFile.path) * 10;
+  score += getResolvedLinkWeight(app, relatedFile.path, centerFile.path) * 5;
+
+  return score;
+}
+
+function getResolvedLinkWeight(app: App, sourcePath: string, targetPath: string): number {
+  const targets = app.metadataCache.resolvedLinks?.[sourcePath];
+  const weight = targets?.[targetPath];
+  return typeof weight === "number" && Number.isFinite(weight) ? weight : 0;
 }
 
 function uniqueFiles(files: TFile[]): TFile[] {

@@ -69,17 +69,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
-
-    new Setting(containerEl)
-      .setName(t("settings.maxBacklinkNodes"))
-      .setDesc(t("settings.maxBacklinkNodesDesc"))
-      .addText((text) =>
-        text.setValue(String(this.plugin.settings.maxBacklinkMapNodes)).onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.maxBacklinkMapNodes = Number.isFinite(parsed) ? Math.max(10, parsed) : 80;
-          await this.plugin.saveSettings();
-        }),
-      );
   }
 
   private renderRenderingSettings(containerEl: HTMLElement): void {

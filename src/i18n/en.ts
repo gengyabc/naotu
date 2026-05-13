@@ -77,8 +77,6 @@ export const en = {
     import: "Import",
     importHeadings: "Import headings as notebook nodes",
     importHeadingsDesc: "When generating mindmaps from Markdown, bind each heading node to its corresponding heading.",
-    maxBacklinkNodes: "Max backlinks map nodes",
-    maxBacklinkNodesDesc: "Prevent generating overly large local knowledge maps.",
     rendering: "Rendering",
     showMinimap: "Show minimap",
     showMinimapDesc: "Display thumbnail navigation in top-right corner.",

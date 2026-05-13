@@ -30,6 +30,7 @@ Run a single test: `npx vitest run src/test/<file>.test.ts`
 - After any `npm run dev` session or incremental edit, run `tsc --noEmit` before considering the work stable.
 - Prefer small diffs that keep domain logic in `src/core/` testable. Avoid adding new behavior directly into view/render wiring when it can live in a pure helper.
 - Do not close a bugfix after only reproducing it manually. Capture the solved case in a test so the same issue does not re-enter through a later diff.
+- **When a bug is hard to solve, check [DEVELOPMENT.md](./DEVELOPMENT.md) for similar past issues and their solutions.**
 
 Manual checks for cross-feature UI changes:
 

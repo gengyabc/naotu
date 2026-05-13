@@ -77,8 +77,6 @@ export const zh = {
     import: "Import",
     importHeadings: "导入 headings 为 notebook 节点",
     importHeadingsDesc: "从 Markdown 标题生成脑图时，是否让每个 heading 节点绑定到对应 heading。",
-    maxBacklinkNodes: "Backlinks map 最大节点数",
-    maxBacklinkNodesDesc: "防止一次生成太大的局部知识地图。",
     rendering: "Rendering",
     showMinimap: "显示小地图",
     showMinimapDesc: "在右上角显示 minimap。",

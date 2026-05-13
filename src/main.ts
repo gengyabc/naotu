@@ -168,7 +168,6 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     const doc = createLocalKnowledgeMap({
       app: this.app,
       file,
-      maxNodes: this.settings.maxBacklinkMapNodes,
     });
 
     const path = file.parent?.path
