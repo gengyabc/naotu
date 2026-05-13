@@ -3,13 +3,14 @@ import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport
 import type { ProjectedNode } from "../types/mindmap";
 
 describe("shouldCullProjection", () => {
-  it("respects the feature toggle", () => {
-    expect(shouldCullProjection(1000, { enableViewportCulling: false, cullingNodeThreshold: 1 })).toBe(false);
+  it("does not cull when node count is below threshold", () => {
+    expect(shouldCullProjection(500)).toBe(false);
+    expect(shouldCullProjection(100)).toBe(false);
   });
 
-  it("uses the configured threshold", () => {
-    expect(shouldCullProjection(500, { enableViewportCulling: true, cullingNodeThreshold: 500 })).toBe(false);
-    expect(shouldCullProjection(501, { enableViewportCulling: true, cullingNodeThreshold: 500 })).toBe(true);
+  it("culls when node count exceeds threshold", () => {
+    expect(shouldCullProjection(501)).toBe(true);
+    expect(shouldCullProjection(1000)).toBe(true);
   });
 
   it("culls using screen-space rects after semantic zoom projection", () => {

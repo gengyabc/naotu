@@ -42,8 +42,10 @@ export function cullProjectionToViewport(
   return { nodes: visibleNodes, edges: visibleEdges };
 }
 
-export function shouldCullProjection(nodeCount: number, settings: Pick<SemanticMindmapSettings, "enableViewportCulling" | "cullingNodeThreshold">): boolean {
-  return settings.enableViewportCulling && nodeCount > settings.cullingNodeThreshold;
+export function shouldCullProjection(nodeCount: number, _settings?: Pick<SemanticMindmapSettings, never>): boolean {
+  // 基于节点数自动启用：超过阈值时自动启用视口裁剪
+  const CULLING_NODE_THRESHOLD = 500;
+  return nodeCount > CULLING_NODE_THRESHOLD;
 }
 
 function rectIntersects(a: Rect, b: Rect): boolean {

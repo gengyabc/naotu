@@ -7,7 +7,6 @@ import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
 import type { MindmapDocument, ProjectedNode, Rect } from "../types/mindmap";
 import type { SemanticMindmapSettings } from "../types/settings";
-import { PerformanceDebugOverlay } from "../ui/performance-debug-overlay";
 
 type RenderStats = {
   mode: "svg" | "hybrid";
@@ -48,61 +47,24 @@ type MindmapRendererCoordinatorOptions = {
 };
 
 export class MindmapRendererCoordinator {
+  private container: HTMLDivElement | null = null;
   private renderer: RendererAdapter | null = null;
-  private debugOverlay: PerformanceDebugOverlay | null = null;
   private minimap: MinimapRenderer | null = null;
   private searchResultIds = new Set<string>();
   private missingNotebookNodeIds = new Set<string>();
+  private averageRenderDurationMs = 0;
+  private degradedForSession = false;
+  private renderMode: "svg" | "hybrid" | null = null;
 
   constructor(private options: MindmapRendererCoordinatorOptions) {}
 
   mount(container: HTMLDivElement): void {
+    this.container = container;
+    this.averageRenderDurationMs = 0;
+    this.degradedForSession = false;
     this.dispose();
 
-    if (this.options.getSettings().showDebugOverlay) {
-      this.debugOverlay = new PerformanceDebugOverlay(container);
-    }
-
-    const doc = this.options.getDocument();
-    const renderMode = chooseRenderMode({
-      nodeCount: doc.nodes.length,
-      edgeCount: doc.edges.length,
-      settings: this.options.getSettings(),
-    });
-    const RendererClass = renderMode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
-
-    this.renderer = new RendererClass({
-      app: this.options.app,
-      component: this.options.component,
-      container,
-      sourcePath: this.options.getSourcePath(),
-      getDocument: this.options.getDocument,
-      getSelectedNodeIds: this.options.getSelectedNodeIds,
-      getDragNodeIds: this.options.getDragNodeIds,
-      onViewportChange: this.options.onViewportChange,
-      onZoomInput: this.options.onZoomInput,
-      onSelectNode: this.options.onSelectNode,
-      onToggleTree: this.options.onToggleTree,
-      onOpenNotebook: this.options.onOpenNotebook,
-      onInlineTextCommit: this.options.onInlineTextCommit,
-      onContextMenu: this.options.onContextMenu,
-      onEdgeContextMenu: this.options.onEdgeContextMenu,
-      onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,
-      onNodesMove: this.options.onNodesMove,
-      onNodeDragEnd: this.options.onNodeDragEnd,
-      onNotebookResizeStart: this.options.onNotebookResizeStart,
-      onNotebookResize: this.options.onNotebookResize,
-      onNotebookResizeEnd: this.options.onNotebookResizeEnd,
-      onBoxSelect: this.options.onBoxSelect,
-      onClearSelection: this.options.onClearSelection,
-      getSettings: this.options.getSettings,
-      onRenderStats: (stats) => this.handleRenderStats(container, stats),
-    });
-
-    this.renderer.mount();
-    this.renderer.setSearchResultIds(this.searchResultIds);
-    this.renderer.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
-    this.renderer.render();
+    this.mountRenderer(this.chooseMode(), true);
 
     if (this.options.getSettings().showMinimap) {
       this.minimap = new MinimapRenderer(container, (x, y) => {
@@ -115,8 +77,7 @@ export class MindmapRendererCoordinator {
   dispose(): void {
     this.renderer?.unmount();
     this.renderer = null;
-    this.debugOverlay?.remove();
-    this.debugOverlay = null;
+    this.renderMode = null;
     this.minimap?.remove();
     this.minimap = null;
   }
@@ -167,22 +128,74 @@ export class MindmapRendererCoordinator {
     return this.renderer?.getViewportWorldRect?.();
   }
 
-  private handleRenderStats(container: HTMLDivElement, stats: RenderStats): void {
-    this.debugOverlay?.update({
-      sample: {
-        timestamp: Date.now(),
-        mode: stats.mode,
-        durationMs: stats.durationMs,
-        nodeCount: stats.totalNodes,
-        edgeCount: stats.totalEdges,
-        renderedNodeCount: stats.renderedNodes,
-        renderedEdgeCount: stats.renderedEdges,
-      },
-      averageDuration: stats.averageDurationMs,
-      isSlow: stats.isSlow,
-    });
-
+  private handleRenderStats(_container: HTMLDivElement, stats: RenderStats): void {
+    this.averageRenderDurationMs = stats.averageDurationMs;
+    if (stats.isSlow) {
+      this.degradedForSession = true;
+    }
+    const nextMode = this.chooseMode();
+    if (this.container && this.renderMode !== nextMode) {
+      this.mountRenderer(nextMode, false);
+    }
     this.updateMinimap();
+  }
+
+  private chooseMode(): "svg" | "hybrid" {
+    if (this.degradedForSession) {
+      return "hybrid";
+    }
+
+    const doc = this.options.getDocument();
+    return chooseRenderMode({
+      nodeCount: doc.nodes.length,
+      edgeCount: doc.edges.length,
+      settings: this.options.getSettings(),
+      averageRenderDurationMs: this.averageRenderDurationMs,
+    });
+  }
+
+  private mountRenderer(mode: "svg" | "hybrid", isInitialMount: boolean): void {
+    const container = this.container;
+    if (!container) return;
+
+    this.renderer?.unmount();
+
+    const RendererClass = mode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
+    this.renderer = new RendererClass({
+      app: this.options.app,
+      component: this.options.component,
+      container,
+      sourcePath: this.options.getSourcePath(),
+      getDocument: this.options.getDocument,
+      getSelectedNodeIds: this.options.getSelectedNodeIds,
+      getDragNodeIds: this.options.getDragNodeIds,
+      onViewportChange: this.options.onViewportChange,
+      onZoomInput: this.options.onZoomInput,
+      onSelectNode: this.options.onSelectNode,
+      onToggleTree: this.options.onToggleTree,
+      onOpenNotebook: this.options.onOpenNotebook,
+      onInlineTextCommit: this.options.onInlineTextCommit,
+      onContextMenu: this.options.onContextMenu,
+      onEdgeContextMenu: this.options.onEdgeContextMenu,
+      onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,
+      onNodesMove: this.options.onNodesMove,
+      onNodeDragEnd: this.options.onNodeDragEnd,
+      onNotebookResizeStart: this.options.onNotebookResizeStart,
+      onNotebookResize: this.options.onNotebookResize,
+      onNotebookResizeEnd: this.options.onNotebookResizeEnd,
+      onBoxSelect: this.options.onBoxSelect,
+      onClearSelection: this.options.onClearSelection,
+      getSettings: this.options.getSettings,
+      onRenderStats: (stats) => this.handleRenderStats(container, stats),
+    });
+    this.renderMode = mode;
+
+    this.renderer.mount();
+    this.renderer.setSearchResultIds(this.searchResultIds);
+    this.renderer.setMissingNotebookNodeIds?.(this.missingNotebookNodeIds);
+    if (isInitialMount) {
+      this.renderer.render();
+    }
   }
 
   private updateMinimap(): void {

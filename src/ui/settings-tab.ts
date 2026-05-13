@@ -20,9 +20,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
     this.renderNotebookSettings(containerEl);
     this.renderImportSettings(containerEl);
     this.renderRenderingSettings(containerEl);
-    this.renderPerformanceSettings(containerEl);
-    this.renderExportSettings(containerEl);
-    this.renderDebugSettings(containerEl);
     this.renderAdvancedSettings(containerEl);
   }
 
@@ -99,21 +96,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName(t("settings.defaultRenderMode"))
-      .setDesc(t("settings.defaultRenderModeDesc"))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("auto", "Auto")
-          .addOption("svg", "SVG")
-          .addOption("hybrid", "Hybrid")
-          .setValue(this.plugin.settings.defaultRenderMode)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultRenderMode = value as "auto" | "svg" | "hybrid";
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
       .setName(t("settings.zoomSpeed"))
       .setDesc(t("settings.zoomSpeedDesc"))
       .addText((text) =>
@@ -149,82 +131,8 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
       );
   }
 
-  private renderPerformanceSettings(containerEl: HTMLElement): void {
-    this.createSection(containerEl, t("settings.performance"));
-
-    new Setting(containerEl)
-      .setName(t("settings.enableHybrid"))
-      .setDesc(t("settings.enableHybridDesc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enableHybridRenderer).onChange(async (value) => {
-          this.plugin.settings.enableHybridRenderer = value;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.hybridThreshold"))
-      .setDesc(t("settings.hybridThresholdDesc"))
-      .addText((text) =>
-        text.setValue(String(this.plugin.settings.hybridNodeThreshold)).onChange(async (value) => {
-          const n = Number.parseInt(value, 10);
-          this.plugin.settings.hybridNodeThreshold = Number.isFinite(n) ? Math.max(100, n) : 1200;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.enableCulling"))
-      .setDesc(t("settings.enableCullingDesc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enableViewportCulling).onChange(async (value) => {
-          this.plugin.settings.enableViewportCulling = value;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName(t("settings.cullingThreshold"))
-      .setDesc(t("settings.cullingThresholdDesc"))
-      .addText((text) =>
-        text.setValue(String(this.plugin.settings.cullingNodeThreshold)).onChange(async (value) => {
-          const n = Number.parseInt(value, 10);
-          this.plugin.settings.cullingNodeThreshold = Number.isFinite(n) ? Math.max(100, n) : 500;
-          await this.plugin.saveSettings();
-        }),
-      );
-  }
-
-  private renderExportSettings(containerEl: HTMLElement): void {
-    this.createSection(containerEl, t("settings.export"));
-
-    new Setting(containerEl)
-      .setName(t("settings.defaultExportFormat"))
-      .setDesc(t("settings.defaultExportFormatDesc"))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("svg", "SVG")
-          .addOption("png", "PNG")
-          .setValue(this.plugin.settings.defaultExportFormat)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultExportFormat = value as "svg" | "png";
-            await this.plugin.saveSettings();
-          }),
-      );
-  }
-
-  private renderDebugSettings(containerEl: HTMLElement): void {
-    this.createSection(containerEl, t("settings.debug"));
-
-    new Setting(containerEl)
-      .setName(t("settings.showDebug"))
-      .setDesc(t("settings.showDebugDesc"))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.showDebugOverlay).onChange(async (value) => {
-          this.plugin.settings.showDebugOverlay = value;
-          await this.plugin.saveSettings();
-        }),
-      );
+  private renderAdvancedSettings(containerEl: HTMLElement): void {
+    this.createSection(containerEl, t("settings.advanced"));
 
     new Setting(containerEl)
       .setName(t("settings.showMissingNotebook"))
@@ -235,10 +143,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
-  }
-
-  private renderAdvancedSettings(containerEl: HTMLElement): void {
-    this.createSection(containerEl, t("settings.advanced"));
 
     new Setting(containerEl)
       .setName(t("settings.autoSave"))

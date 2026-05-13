@@ -387,7 +387,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
     let renderNodes = projection.nodes;
     let renderEdges = projection.edges;
-    if (shouldCullProjection(doc.nodes.length, this.options.getSettings())) {
+    if (shouldCullProjection(doc.nodes.length)) {
       const rect = this.options.container.getBoundingClientRect();
       const culled = cullProjectionToViewport(
         projection.nodes,

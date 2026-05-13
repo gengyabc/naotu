@@ -285,7 +285,6 @@ MindCanvas is a zoomable mindmap for Obsidian that helps you organize ideas, not
 - **Multiple Layout Modes** - Mirror tree, right tree, free layout
 - **Markdown Heading Import** - Generate mindmaps from Markdown file heading structure
 - **Local Knowledge Map** - Generate knowledge graphs based on backlinks/outlinks of current file
-- **SVG/PNG Export** - Export high-quality vector or raster images (settings available, export feature in development)
 - **Toolbar** - Full toolbar buttons for undo, redo, layout switching, search, and more
 - **Minimap** - Thumbnail navigation in top-right corner
 - **Keyboard Navigation** - Navigate between nodes with arrow keys

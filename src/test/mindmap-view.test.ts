@@ -103,22 +103,11 @@ const hoisted = vi.hoisted(() => {
     }
   }
 
-  class FakePerformanceDebugOverlay {
-    static instances: FakePerformanceDebugOverlay[] = [];
-    update = vi.fn();
-    remove = vi.fn();
-
-    constructor(public container: HTMLElement) {
-      FakePerformanceDebugOverlay.instances.push(this);
-    }
-  }
-
   return {
     FakeSvgRenderer,
     FakeHybridRenderer,
     FakeFileBindingSuggestModal,
     FakeMinimapRenderer,
-    FakePerformanceDebugOverlay,
   };
 });
 
@@ -132,10 +121,6 @@ vi.mock("../renderer/hybrid-mindmap-renderer", () => ({
 
 vi.mock("../renderer/minimap-renderer", () => ({
   MinimapRenderer: hoisted.FakeMinimapRenderer,
-}));
-
-vi.mock("../ui/performance-debug-overlay", () => ({
-  PerformanceDebugOverlay: hoisted.FakePerformanceDebugOverlay,
 }));
 
 vi.mock("../ui/file-suggest-modal", () => ({
@@ -268,10 +253,7 @@ function createHarness(args: { document?: MindmapDocument } = {}) {
   const plugin = {
     settings: {
       ...DEFAULT_SETTINGS,
-      defaultRenderMode: "svg",
-      enableHybridRenderer: false,
       showMinimap: false,
-      showDebugOverlay: false,
       autoSave: true,
       autoSaveDelayMs: 25,
     },
@@ -342,7 +324,6 @@ describe("MindmapView", () => {
     hoisted.FakeSvgRenderer.instances = [];
     hoisted.FakeHybridRenderer.instances = [];
     hoisted.FakeMinimapRenderer.instances = [];
-    hoisted.FakePerformanceDebugOverlay.instances = [];
     hoisted.FakeFileBindingSuggestModal.lastInstance = null;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
@@ -738,6 +719,7 @@ describe("MindmapView", () => {
 
   it("creates, opens, and disconnects notebook-backed nodes through notebook actions", async () => {
     const harness = createHarness();
+    harness.plugin.settings.notebookTemplate = "Title: {{title}}\n";
     await harness.view.setFile(harness.sourceFile);
 
     await (harness.view as any).createNotebookForTextNode("child");
@@ -745,6 +727,7 @@ describe("MindmapView", () => {
     const createdNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(createdNode?.kind).toBe("notebook");
     expect(createdNode?.notebook?.path).toBe("notebooks/Child.md");
+    expect(harness.vault.create).toHaveBeenCalledWith("notebooks/Child.md", "Title: Child\n");
 
     await (harness.view as any).handleOpenNotebook("child");
     const openedLeaf = harness.workspace.getLeaf.mock.results.at(-1)?.value as { lastOpenedFile?: TFile } | undefined;
@@ -834,10 +817,27 @@ describe("MindmapView", () => {
     expect(getDirtyState(harness.view)).toBe("dirty");
   });
 
-  it("chooses the hybrid renderer when hybrid mode is enabled", async () => {
+  it("chooses the hybrid renderer when node count exceeds threshold", async () => {
     const harness = createHarness();
-    harness.plugin.settings.defaultRenderMode = "hybrid";
-    harness.plugin.settings.enableHybridRenderer = true;
+    // 创建一个大文档，节点数超过 1200 的阈值
+    const largeDoc = createSmallTestDocument();
+    for (let i = 0; i < 1300; i++) {
+      largeDoc.nodes.push({
+        id: `node-${i}`,
+        title: `Node ${i}`,
+        x: i * 10,
+        y: i * 10,
+        kind: "text",
+        depth: 1,
+        isRoot: false,
+        parentId: "root",
+        children: [],
+        childrenExpanded: true,
+      } as any);
+    }
+
+    // 通过修改文件内容来让 view 加载大文档
+    harness.vault.modify(harness.sourceFile, JSON.stringify(largeDoc));
 
     await harness.view.setFile(harness.sourceFile);
 
@@ -845,19 +845,55 @@ describe("MindmapView", () => {
     expect(hoisted.FakeSvgRenderer.instances).toHaveLength(0);
   });
 
-  it("keeps minimap and debug overlay hooks wired through render stats", async () => {
+  it("switches to the hybrid renderer after slow render stats", async () => {
+    const harness = createHarness();
+
+    await harness.view.setFile(harness.sourceFile);
+
+    const renderer = harness.getRenderer();
+    renderer.options.onRenderStats({
+      mode: "svg",
+      zoom: 1,
+      totalNodes: 2,
+      renderedNodes: 2,
+      totalEdges: 1,
+      renderedEdges: 1,
+      durationMs: 40,
+      averageDurationMs: 40,
+      isSlow: true,
+    });
+
+    expect(renderer.unmount).toHaveBeenCalledTimes(1);
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+
+    const hybridRenderer = harness.getRenderer();
+    hybridRenderer.options.onRenderStats({
+      mode: "hybrid",
+      zoom: 1,
+      totalNodes: 2,
+      renderedNodes: 2,
+      totalEdges: 1,
+      renderedEdges: 1,
+      durationMs: 8,
+      averageDurationMs: 8,
+      isSlow: false,
+    });
+
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+  });
+
+  it("keeps minimap hooks wired through render stats", async () => {
     const harness = createHarness();
     harness.plugin.settings.showMinimap = true;
-    harness.plugin.settings.showDebugOverlay = true;
 
     await harness.view.setFile(harness.sourceFile);
     const renderer = harness.getRenderer();
     const minimap = hoisted.FakeMinimapRenderer.instances.at(-1);
-    const overlay = hoisted.FakePerformanceDebugOverlay.instances.at(-1);
 
     expect(hoisted.FakeMinimapRenderer.instances).toHaveLength(1);
     expect(minimap).toBeDefined();
-    expect(overlay).toBeDefined();
 
     renderer.options.onRenderStats({
       mode: "svg",
@@ -871,7 +907,6 @@ describe("MindmapView", () => {
       isSlow: false,
     });
 
-    expect(overlay?.update).toHaveBeenCalledTimes(1);
     expect(minimap?.render).toHaveBeenCalled();
 
     minimap?.onJumpToWorldPoint(320, 180);
