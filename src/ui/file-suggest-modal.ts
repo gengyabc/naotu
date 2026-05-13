@@ -1,13 +1,10 @@
 import { App, FuzzySuggestModal, TFile } from "obsidian";
+import { getActiveDocument } from "../core/dom";
 import { getSupportedFileNodeTargetKind } from "../core/file-node-support";
 import type { NotebookTargetKind } from "../types/mindmap";
 import { t } from "../i18n";
 
 type FileBindingFilterState = Record<NotebookTargetKind, boolean>;
-
-function getActiveDocument(): Document {
-  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
-}
 
 function getFilterLabels(): Record<NotebookTargetKind, string> {
   return {

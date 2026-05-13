@@ -1,4 +1,5 @@
 import { shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
+import { getActiveDocument, isNodeLike, setDynamicCssProps } from "../core/dom";
 import { t } from "../i18n";
 
 // padding 8px * 2 + border 1px * 2 = 18, rounded up for scrollbars
@@ -13,10 +14,6 @@ function getMeasureCtx(ownerDocument: Document): CanvasRenderingContext2D | null
   const next = ownerDocument.createElement("canvas").getContext("2d");
   measureCtxByDocument.set(ownerDocument, next);
   return next;
-}
-
-function getActiveDocument(): Document {
-  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
 }
 
 function measureTextWidth(text: string, fontFamily: string, fontSize: number, ownerDocument: Document): number {
@@ -61,7 +58,7 @@ export class InlineTitleEditor {
     textarea.className = "mindmap-inline-title-input";
     if (this.options.isBold) textarea.classList.add("is-bold");
     textarea.value = this.options.value;
-    textarea.setCssProps({
+    setDynamicCssProps(textarea, {
       left: `${this.options.x}px`,
       top: `${this.options.y}px`,
       "min-height": `${this.options.height}px`,
@@ -98,7 +95,7 @@ export class InlineTitleEditor {
     // 点击编辑器外部时自动提交
     const onClickOutside = (event: MouseEvent) => {
       if (!this.textarea) return;
-      if (!this.textarea.contains(event.target as Node)) {
+      if (!isNodeLike(event.target) || !this.textarea.contains(event.target)) {
         void this.commit();
       }
     };
@@ -134,11 +131,11 @@ export class InlineTitleEditor {
     const minWidth = this.options.width;
     const newWidth = Math.max(minWidth, Math.min(neededWidth, this.maxWidth));
 
-    this.textarea.setCssProps({ width: `${newWidth}px`, height: "auto" });
+    setDynamicCssProps(this.textarea, { width: `${newWidth}px`, height: "auto" });
 
     const scrollHeight = this.textarea.scrollHeight;
     const minHeight = this.options.height;
-    this.textarea.setCssProps({ height: `${Math.max(scrollHeight, minHeight)}px` });
+    setDynamicCssProps(this.textarea, { height: `${Math.max(scrollHeight, minHeight)}px` });
   }
 
   private checkLengthWarning(): void {
@@ -159,7 +156,7 @@ export class InlineTitleEditor {
     const warning = this.ownerDocument.createElement("div");
     warning.className = "mindmap-inline-title-warning";
     warning.textContent = t("renderer.longContentWarning");
-    warning.setCssProps({
+    setDynamicCssProps(warning, {
       left: `${this.options.x}px`,
       top: `${this.options.y + this.textarea.offsetHeight + 4}px`,
       width: `${this.textarea.offsetWidth}px`,

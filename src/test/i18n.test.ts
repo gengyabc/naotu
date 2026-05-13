@@ -130,10 +130,10 @@ describe("i18n", () => {
     });
 
     it("returns english node titles by default", () => {
-      expect(t("nodeTitles.centralTopic")).toBe("Central Topic");
+      expect(t("nodeTitles.centralTopic")).toBe("Central topic");
       expect(t("nodeTitles.newChildNode")).toBe("New node");
       expect(t("nodeTitles.untitledNode")).toBe("Untitled node");
-      expect(t("nodeTitles.untitledMindmap")).toBe("Untitled Mindmap");
+      expect(t("nodeTitles.untitledMindmap")).toBe("Untitled mindmap");
       expect(t("nodeTitles.untitled")).toBe("Untitled");
     });
 

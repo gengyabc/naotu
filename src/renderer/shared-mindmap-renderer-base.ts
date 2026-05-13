@@ -12,6 +12,7 @@ import { renderProjectedEdges } from "./projected-edge-renderer";
 import { canInlineEditNodeTitle, renderProjectedNodes } from "./projected-node-renderer";
 import type { RendererAdapter } from "./renderer-adapter";
 import { InlineTitleEditor } from "./inline-title-editor";
+import { isElementLike } from "../core/dom";
 
 export type MindmapRendererOptions = {
   app: App;
@@ -436,9 +437,9 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   };
 
   private bindBoxSelect(): void {
-    this.svg.on("mousedown.boxselect", (event) => {
+    this.svg.on("mousedown.boxselect", (event: MouseEvent) => {
       if (!event.shiftKey) return;
-      if ((event.target as Element).closest(".mindmap-node")) return;
+      if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
 
       event.preventDefault();
 
@@ -448,7 +449,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       this.selectionStartWorld = { x, y };
     });
 
-    this.svg.on("mousemove.boxselect", (event) => {
+    this.svg.on("mousemove.boxselect", (event: MouseEvent) => {
       if (!this.selecting || !this.selectionStartWorld) return;
 
       const transform = d3.zoomTransform(this.svg.node()!);
@@ -472,7 +473,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
         .attr("height", height);
     });
 
-    this.svg.on("mouseup.boxselect", (event) => {
+    this.svg.on("mouseup.boxselect", (event: MouseEvent) => {
       if (!this.selecting || !this.selectionStartWorld) return;
 
       const transform = d3.zoomTransform(this.svg.node()!);
@@ -492,7 +493,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
     this.panTouchCapture = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
-      if ((event.target as Element).closest(".mindmap-node")) return;
+      if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -527,7 +528,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.svg.on("mousedown.custompan", (event: MouseEvent) => {
       if (event.button !== 0) return;
       if (event.shiftKey) return;
-      if ((event.target as Element).closest(".mindmap-node")) return;
+      if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
 
       event.preventDefault();
       this.panActive = true;
@@ -599,13 +600,13 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   }
 
   private bindFocusRestore(): void {
-    this.svg.on("click.focus", (event) => {
+    this.svg.on("click.focus", (event: MouseEvent) => {
       this.options.container.ownerDocument.defaultView?.requestAnimationFrame(() => {
         const active = this.options.container.ownerDocument?.activeElement;
         if (active instanceof HTMLElement && active.classList.contains("mindmap-inline-title-input")) return;
         this.options.container.focus();
       });
-      if (!(event.target as Element).closest(".mindmap-node")) {
+      if (!isElementLike(event.target) || !event.target.closest(".mindmap-node")) {
         this.options.onClearSelection();
       }
     });

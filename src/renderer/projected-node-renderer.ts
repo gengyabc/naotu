@@ -16,9 +16,10 @@ import {
   NOTEBOOK_MIN_CUSTOM_WIDTH,
   clampNotebookAspectRatioSize,
 } from "../core/notebook-size";
+import { isElementLike } from "../core/dom";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
-import { layoutText, truncateTextForNotebook, layoutDescription } from "../core/text-layout";
+import { truncateTextForNotebook, layoutDescription } from "../core/text-layout";
 import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
@@ -65,7 +66,7 @@ function getNotebookDescription(args: {
   if (cached !== undefined) return cached;
 
   const fileCache = args.app.metadataCache.getFileCache(file);
-  const description = fileCache?.frontmatter?.description;
+  const description: unknown = fileCache?.frontmatter?.description;
   const result = typeof description === "string" ? description : null;
   descriptionCache.set(cacheKey, result);
   return result;
@@ -91,9 +92,7 @@ export function clampNotebookResizeSize(
 }
 
 export function shouldStartNodeDrag(target: EventTarget | null): boolean {
-  const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
-  return !(typeof elementTarget?.closest === "function" &&
-    elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
+  return !(isElementLike(target) && target.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle"));
 }
 
 const TITLE_HITBOX_INSET_X = 8;
@@ -101,11 +100,10 @@ const TITLE_HITBOX_INSET_Y = 6;
 const TITLE_HITBOX_MIN_HEIGHT = 32;
 
 export function shouldStartInlineEditForDblClick(target: EventTarget | null, nodeKind: ProjectedNode["kind"]): boolean {
-  const elementTarget = target as unknown as { closest?: (selector: string) => unknown } | null;
-  if (typeof elementTarget?.closest !== "function") return false;
-  if (elementTarget.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle")) return false;
+  if (!isElementLike(target)) return false;
+  if (target.closest(".mindmap-node-open-notebook, .mindmap-node-resize-handle, .mindmap-node-tree-toggle")) return false;
   if (nodeKind === "text") return true;
-  return Boolean(elementTarget.closest(".mindmap-node-title, .mindmap-node-title-hitbox"));
+  return Boolean(target.closest(".mindmap-node-title, .mindmap-node-title-hitbox"));
 }
 
 export function canInlineEditNodeTitle(node: Pick<ProjectedNode, "kind" | "notebook">): boolean {
@@ -199,7 +197,7 @@ export function renderProjectedNodes(args: {
   const dragBehavior = d3
     .drag<SVGGElement, ProjectedNode>()
     .filter((event) => canDragNodes(args.layoutMode) && shouldStartNodeDrag(event.target))
-    .on("start", (event, node) => {
+    .on("start", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
       event.sourceEvent?.stopPropagation();
       args.onDragStateChange?.(true);
       args.onBeforeNodeDragStart(node);
@@ -210,7 +208,7 @@ export function renderProjectedNodes(args: {
         args.onSelectNode(node.id, "replace");
       }
     })
-    .on("drag", (event, node) => {
+    .on("drag", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
       const movingIds = activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id];
       const projectedMap = new Map(args.nodes.map((item) => [item.id, item]));
       const delta = screenDragDeltaToWorldDelta({ dx: event.dx, dy: event.dy });
@@ -228,18 +226,18 @@ export function renderProjectedNodes(args: {
 
       args.onNodesMove({ node, moves });
     })
-    .on("end", (_event, node) => {
+    .on("end", (_event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
       dragDrafts.clear();
       activeDragNodeIds = [];
       args.onDragStateChange?.(false);
       args.onNodeDragEnd({ node });
     });
 
-  const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event, node) => {
+  const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
     event.sourceEvent?.stopPropagation();
     resizeDrafts.set(node.id, { width: node.displayWidth, height: node.displayHeight, axis: "width" });
     args.onNotebookResizeStart(node.id);
-  }).on("drag", (event, node) => {
+  }).on("drag", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
     const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight, axis: "width" as const };
     const next = clampNotebookResizeSize(
       currentDraft.width + event.dx,
@@ -249,7 +247,7 @@ export function renderProjectedNodes(args: {
     );
     resizeDrafts.set(node.id, { ...next, axis: currentDraft.axis });
     args.onNotebookResize({ id: node.id, width: next.width, height: next.height });
-  }).on("end", (_event, node) => {
+  }).on("end", (_event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
     const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight, axis: "width" as const };
     const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height, node.aspectRatio);
     resizeDrafts.delete(node.id);
@@ -257,14 +255,14 @@ export function renderProjectedNodes(args: {
   });
 
   merged
-    .on("click", (event, node) => {
+    .on("click", (event: MouseEvent, node) => {
       event.stopPropagation();
 
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
       else if (event.shiftKey) args.onSelectNode(node.id, "add");
       else args.onSelectNode(node.id, "replace");
     })
-    .on("dblclick", (event, node) => {
+    .on("dblclick", (event: MouseEvent, node) => {
       if (shouldOpenEmbeddedFileOnDoubleClick(node)) {
         event.preventDefault();
         event.stopPropagation();
@@ -283,7 +281,7 @@ export function renderProjectedNodes(args: {
     })
     .on("mouseover", (_event, node) => args.onHoverNode(node.id))
     .on("mouseleave", () => args.onLeaveNode())
-    .on("contextmenu", (event, node) => {
+    .on("contextmenu", (event: MouseEvent, node) => {
       event.preventDefault();
       event.stopPropagation();
       args.onContextMenu(node.id, event.clientX, event.clientY);
@@ -461,10 +459,10 @@ export function renderProjectedNodes(args: {
       .select<SVGGElement>("g.mindmap-node-open-notebook")
       .style("display", node.showOpenNotebookButton && !showEmbeddedFilePreview ? "" : "none")
       .style("cursor", "pointer")
-      .on("pointerdown", (event) => {
+      .on("pointerdown", (event: PointerEvent) => {
         event.stopPropagation();
       })
-      .on("click", (event) => {
+      .on("click", (event: MouseEvent) => {
         event.stopPropagation();
         args.onOpenNotebook(node.id);
       })
@@ -487,10 +485,10 @@ export function renderProjectedNodes(args: {
       .select<SVGGElement>("g.mindmap-node-tree-toggle")
       .style("display", node.hasChildren ? "" : "none")
       .style("cursor", "pointer")
-      .on("pointerdown", (event) => {
+      .on("pointerdown", (event: PointerEvent) => {
         event.stopPropagation();
       })
-      .on("click", (event) => {
+      .on("click", (event: MouseEvent) => {
         event.stopPropagation();
         args.onToggleTree(node.id, node.childrenExpanded);
       });
@@ -527,10 +525,10 @@ export function renderProjectedNodes(args: {
         `translate(${node.displayWidth - NOTEBOOK_RESIZE_HANDLE_SIZE - NOTEBOOK_RESIZE_HANDLE_INSET}, ${node.displayHeight - NOTEBOOK_RESIZE_HANDLE_SIZE - NOTEBOOK_RESIZE_HANDLE_INSET})`,
       )
       .style("display", node.showResizeHandle ? "" : "none")
-      .on("pointerdown", (event) => {
+      .on("pointerdown", (event: PointerEvent) => {
         event.stopPropagation();
       })
-      .on("click", (event) => {
+      .on("click", (event: MouseEvent) => {
         event.stopPropagation();
       })
       .call(resizeBehavior)

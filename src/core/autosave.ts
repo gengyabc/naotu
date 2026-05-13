@@ -1,3 +1,5 @@
+import { getActiveWindow } from "./dom";
+
 export class DebouncedAutosave {
   private timer: ReturnType<Window["setTimeout"]> | null = null;
 
@@ -33,8 +35,20 @@ export class DebouncedAutosave {
 }
 
 function getTimerWindow(): Pick<Window, "setTimeout" | "clearTimeout"> {
-  if (typeof window !== "undefined" && typeof window.setTimeout === "function" && typeof window.clearTimeout === "function") {
-    return window;
+  try {
+    const activeWin = getActiveWindow();
+    if (activeWin && typeof activeWin.setTimeout === "function" && typeof activeWin.clearTimeout === "function") {
+      return activeWin;
+    }
+  } catch {
+    // activeWindow may not be available in test environment
+  }
+
+  if (typeof globalThis.setTimeout === "function" && typeof globalThis.clearTimeout === "function") {
+    return {
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
+    };
   }
 
   return {

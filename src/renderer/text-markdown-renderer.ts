@@ -1,8 +1,5 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
-
-function getActiveDocument(): Document {
-  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
-}
+import { getActiveDocument } from "../core/dom";
 
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 

@@ -49,10 +49,10 @@ export const en = {
   },
 
   settings: {
-    title: "MindCanvas Settings",
+    title: "MindCanvas settings",
     help: "Help",
     helpDesc: "A text node is just a sentence, used for mindmap structure. A notebook node binds to an Obsidian note, used for knowledge exploration.",
-    mainActions: "Main Actions",
+    mainActions: "Main actions",
     semanticZoom: "Semantic Zoom",
     semanticZoomDesc: "Zoom changes information granularity instead of simply scaling text. Zoom out for structure, zoom in for content.",
     shortcuts: {
@@ -134,10 +134,10 @@ export const en = {
   },
 
   nodeTitles: {
-    centralTopic: "Central Topic",
+    centralTopic: "Central topic",
     newChildNode: "New node",
     untitledNode: "Untitled node",
-    untitledMindmap: "Untitled Mindmap",
+    untitledMindmap: "Untitled mindmap",
     untitled: "Untitled",
   },
 

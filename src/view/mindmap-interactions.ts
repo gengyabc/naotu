@@ -1,4 +1,5 @@
 import { findNearestNodeInDirection, findRootNodeId, type Direction } from "../core/keyboard-navigation";
+import { getActiveWindow } from "../core/dom";
 import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 import { searchNodes } from "../core/search";
 import { SelectionState } from "../core/selection";
@@ -182,7 +183,7 @@ export class MindmapInteractions {
     if (mode === "toggle") this.toggleSelection(id);
     if (mode === "add") this.addSelection(id);
     this.options.setLastFocusNodeId(id);
-    const ownerWindow = (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
+    const ownerWindow = getActiveWindow();
     if (typeof ownerWindow.requestAnimationFrame === "function") {
       ownerWindow.requestAnimationFrame(() => this.options.focusCanvas());
     } else {

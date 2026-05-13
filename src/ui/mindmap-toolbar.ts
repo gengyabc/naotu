@@ -1,6 +1,7 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 import { setIcon } from "obsidian";
+import { getActiveDocument, getActiveWindow, setDynamicCssProps } from "../core/dom";
 import { getModifierKey } from "../core/platform";
 import { t } from "../i18n";
 
@@ -62,14 +63,6 @@ type SvgSpec = {
   tag: "path" | "circle" | "line" | "polyline";
   attrs: Record<string, string>;
 };
-
-function getActiveDocument(): Document {
-  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
-}
-
-function getActiveWindow(): Window {
-  return (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
-}
 
 const CUSTOM_TOOLBAR_ICONS: Partial<Record<ToolbarIconId, SvgSpec[]>> = {
   "layout-mirror": [
@@ -156,7 +149,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
   ownerWindow.addEventListener("resize", onScrollOrResize);
 
   const createButtonWithTooltip = (iconId: ToolbarIconId, label: string, shortcut?: string): HTMLButtonElement => {
-    const button = toolbar.createEl("button");
+    const button = toolbar.createEl("button", { attr: { "aria-label": label, "data-tooltip-position": "top" } });
     button.append(createToolbarIcon(ownerDocument, iconId));
     button.createSpan({ cls: "toolbar-button-text", text: label });
 
@@ -170,7 +163,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
 
     const positionTooltip = () => {
       const rect = button.getBoundingClientRect();
-      tooltip.setCssProps({
+      setDynamicCssProps(tooltip, {
         "--mindmap-tooltip-top": `${rect.bottom + 6}px`,
         "--mindmap-tooltip-left": `${rect.left + rect.width / 2}px`,
       });

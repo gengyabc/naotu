@@ -1,4 +1,5 @@
 import { Menu, setIcon } from "obsidian";
+import { isNodeLike, setDynamicCssProps } from "../core/dom";
 import { t } from "../i18n";
 import { isMacOS } from "../core/platform";
 
@@ -46,7 +47,7 @@ class MindmapContextMenu {
   private containerEl: HTMLDivElement | null = null;
   private onDocumentPointerDown = (event: Event): void => {
     const target = event.target;
-    if (!(target instanceof Node)) {
+    if (!isNodeLike(target)) {
       this.close();
       return;
     }
@@ -143,7 +144,7 @@ class MindmapContextMenu {
     const left = Math.max(margin, Math.min(x, maxX));
     const top = Math.max(margin, Math.min(y, maxY));
 
-    this.containerEl.setCssProps({ left: `${left}px`, top: `${top}px` });
+    setDynamicCssProps(this.containerEl, { left: `${left}px`, top: `${top}px` });
   }
 }
 

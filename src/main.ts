@@ -26,7 +26,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     this.registerView(VIEW_TYPE_MINDMAP, (leaf: WorkspaceLeaf) => new MindmapView(leaf, this));
     this.registerExtensions(["naotu"], VIEW_TYPE_MINDMAP);
 
-    this.addRibbonIcon("git-fork", t("ribbon.createMindmap"), async () => {
+    this.addRibbonIcon("brain-circuit", t("ribbon.createMindmap"), async () => {
       const file = await this.createMindmapFile();
       await this.openMindmapFile(file);
     });
@@ -70,7 +70,7 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const data = await this.loadData() as unknown;
+    const data: unknown = await this.loadData();
     const saved = data && typeof data === "object" ? data : {};
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }

@@ -1,5 +1,5 @@
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
-import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
+import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import { buildHierarchy } from "./hierarchy";
 import { createId } from "./id";
 import { t } from "../i18n";

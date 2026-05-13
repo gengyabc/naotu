@@ -46,7 +46,7 @@ export function renderProjectedEdges(args: {
         pathEl.style("--branch-color-border", edge.branchColorBorder);
       }
     })
-    .on("contextmenu", (event, edge) => {
+    .on("contextmenu", (event: MouseEvent, edge) => {
       event.preventDefault();
       event.stopPropagation();
       args.onEdgeContextMenu?.(edge.id, event.clientX, event.clientY);

@@ -18,6 +18,7 @@ interface FakeWrapper {
   classList: { toggle: (token: string, force?: boolean) => void };
   dataset: Record<string, string>;
   style: { pointerEvents?: string };
+   styleText?: string;
   children?: unknown[];
   scrollTop: number;
   clientWidth: number;
@@ -31,6 +32,9 @@ interface FakeWrapper {
   appendChild: (child: unknown) => void;
   addEventListener: (type: string, listener: EventListener) => void;
   querySelectorAll: (selector: string) => HTMLElement[];
+  getAttribute: (name: string) => string | null;
+  setAttribute: (name: string, value: string) => void;
+  removeAttribute: (name: string) => void;
 }
 
 interface FakeForeignObject {
@@ -40,6 +44,7 @@ interface FakeForeignObject {
 }
 
 function createWrapper(): FakeWrapper {
+  const attributes = new Map<string, string>();
   const wrapper: FakeWrapper = {
     className: "",
     classList: {
@@ -71,8 +76,37 @@ function createWrapper(): FakeWrapper {
     }),
     addEventListener: vi.fn(),
     querySelectorAll: () => [],
+    getAttribute: vi.fn((name: string) => attributes.get(name) ?? null),
+    setAttribute: vi.fn((name: string, value: string) => {
+      attributes.set(name, value);
+      if (name !== "style") return;
+      wrapper.styleText = value;
+      for (const declaration of value.split(";")) {
+        const separatorIndex = declaration.indexOf(":");
+        if (separatorIndex <= 0) continue;
+        const key = declaration.slice(0, separatorIndex).trim();
+        const styleValue = declaration.slice(separatorIndex + 1).trim();
+        if (key === "pointer-events") wrapper.style.pointerEvents = styleValue;
+        (wrapper.style as Record<string, string | undefined>)[key] = styleValue;
+      }
+    }),
+    removeAttribute: vi.fn((name: string) => {
+      attributes.delete(name);
+      if (name === "style") {
+        wrapper.styleText = "";
+        wrapper.style = {};
+      }
+    }),
   };
   return wrapper;
+}
+
+function stubActiveDocument(wrapper: FakeWrapper): void {
+  const stubDocument = {
+    createElement: vi.fn(() => wrapper),
+  };
+  vi.stubGlobal("document", stubDocument);
+  vi.stubGlobal("activeDocument", stubDocument);
 }
 
 function createFile(path: string, basename: string): TFile {
@@ -118,9 +152,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -176,9 +208,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -239,9 +269,7 @@ describe("renderNotebookPreview", () => {
     });
 
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -290,9 +318,7 @@ describe("renderNotebookPreview", () => {
     });
 
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -342,9 +368,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     const addedChildren: Component[] = [];
 
@@ -410,9 +434,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const notebookFile = createFile("notebooks/华强集团.md", "华强集团");
@@ -463,9 +485,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = {
@@ -530,9 +550,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -595,9 +613,7 @@ describe("renderNotebookPreview", () => {
     });
 
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -648,9 +664,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const imageFile = createFile("assets/photo.png", "photo");
@@ -680,7 +694,8 @@ describe("renderNotebookPreview", () => {
 
       expect(wrapper.renderedMarkdown).toBe("![[assets/photo.png|200x120]]");
       expect(wrapper.renderedSourcePath).toBe("maps/source.naotu");
-      expect(wrapper.setCssProps).toHaveBeenCalledWith({ "pointer-events": "none" });
+      expect(wrapper.className).toContain("is-embedded-file");
+      expect(wrapper.className).not.toContain("is-interactive");
 
       component.unload();
     } finally {
@@ -742,9 +757,7 @@ describe("renderNotebookPreview", () => {
     const originalDocument = globalThis.document;
     const originalResizeObserver = globalThis.ResizeObserver;
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(cb, 0));
 
@@ -777,10 +790,8 @@ describe("renderNotebookPreview", () => {
       expect(wrapper.renderedMarkdown).toBe("![[whiteboards/diagram.excalidraw.md|200x120]]");
       expect(resizeObservers.length).toBeGreaterThan(0);
       expect(resizeObservers.at(-1)?.observe).toHaveBeenCalledWith(wrapper);
-      expect(wrapper.setCssProps).toHaveBeenCalledWith(expect.objectContaining({
-        "--mindmap-embed-width": "200px",
-        "--mindmap-embed-height": "100px",
-      }));
+      expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-width: 200px");
+      expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-height: 100px");
       expect(embedClassCalls).toContain("mindmap-embedded-preview-content");
       expect(imageClassCalls).toContain("mindmap-embedded-preview-media");
 
@@ -790,10 +801,8 @@ describe("renderNotebookPreview", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(wrapper.setCssProps).toHaveBeenCalledWith(expect.objectContaining({
-        "--mindmap-embed-width": "260px",
-        "--mindmap-embed-height": "180px",
-      }));
+      expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-width: 260px");
+      expect(wrapper.getAttribute("style")).toContain("--mindmap-embed-height: 180px");
       expect(imageElement.removeAttribute).toHaveBeenCalledWith("width");
       expect(imageElement.removeAttribute).toHaveBeenCalledWith("height");
 
@@ -828,9 +837,7 @@ describe("renderNotebookPreview", () => {
     const createSVG = vi.fn().mockResolvedValue(svg);
     const reset = vi.fn();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const excalidrawFile = createFile("whiteboards/diagram.excalidraw.md", "diagram.excalidraw");
@@ -901,9 +908,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     type RenderedSvg = {
       classList: { add: ReturnType<typeof vi.fn> };
@@ -1006,9 +1011,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     type RenderedSvg = {
       classList: { add: ReturnType<typeof vi.fn> };
@@ -1111,9 +1114,7 @@ describe("renderNotebookPreview", () => {
 
     const originalDocument = globalThis.document;
     const originalMutationObserver = globalThis.MutationObserver;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
     vi.stubGlobal("MutationObserver", FakeMutationObserver);
 
     try {
@@ -1169,9 +1170,7 @@ describe("renderNotebookPreview", () => {
 
     const wrapper = createWrapper();
     const originalDocument = globalThis.document;
-    vi.stubGlobal("document", {
-      createElement: vi.fn(() => wrapper),
-    });
+    stubActiveDocument(wrapper);
 
     try {
       const app = createApp(read);
@@ -1189,7 +1188,7 @@ describe("renderNotebookPreview", () => {
         component,
       });
 
-      expect(wrapper.setCssProps).toHaveBeenCalledWith({ "pointer-events": "auto" });
+      expect(wrapper.className).toContain("is-interactive");
 
       component.unload();
     } finally {

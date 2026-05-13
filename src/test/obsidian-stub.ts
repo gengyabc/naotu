@@ -634,6 +634,14 @@ if (typeof globalThis.window === "undefined") {
   (globalThis as unknown as { window: typeof fakeWindow }).window = fakeWindow;
 }
 
+if (typeof (globalThis as { activeWindow?: unknown }).activeWindow === "undefined") {
+  (globalThis as unknown as { activeWindow: typeof fakeWindow }).activeWindow = fakeWindow;
+}
+
+if (typeof (globalThis as { activeDocument?: unknown }).activeDocument === "undefined") {
+  (globalThis as unknown as { activeDocument: typeof fakeDocument }).activeDocument = fakeDocument;
+}
+
 if (typeof globalThis.getComputedStyle === "undefined") {
   (globalThis as unknown as { getComputedStyle: (el: Element) => { getPropertyValue: (prop: string) => string } }).getComputedStyle = () => ({
     getPropertyValue: (prop: string) => {

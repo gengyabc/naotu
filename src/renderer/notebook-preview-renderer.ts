@@ -2,6 +2,7 @@ import { App, Component, MarkdownRenderer } from "obsidian";
 import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 import { buildEmbeddedPreviewMarkdown } from "../core/file-node-support";
+import { getActiveDocument, getActiveWindow, setDynamicCssProps } from "../core/dom";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { t } from "../i18n";
 
@@ -92,14 +93,6 @@ async function renderExcalidrawPreview(args: {
   return svg;
 }
 
-function getActiveDocument(): Document {
-  return (typeof window !== "undefined" && window.activeDocument) ? window.activeDocument : document;
-}
-
-function getActiveWindow(): Window {
-  return (typeof window !== "undefined" && window.activeWindow) ? window.activeWindow : window;
-}
-
 function setEmbeddedWrapperState(
   wrapper: HTMLDivElement,
   embedded: boolean,
@@ -128,11 +121,16 @@ function normalizeEmbeddedPreviewOutput(
 ): void {
   if (targetKind === "markdown") return;
 
+  const queryAll = (selector: string): HTMLElement[] => {
+    if (typeof wrapper.querySelectorAll !== "function") return [];
+    return Array.from(wrapper.querySelectorAll<HTMLElement>(selector));
+  };
+
   const width = Math.max(0, Math.round(wrapper.clientWidth));
   const height = Math.max(0, Math.round(wrapper.clientHeight));
   const widthValue = width > 0 ? `${width}px` : "100%";
   const heightValue = height > 0 ? `${height}px` : "100%";
-  wrapper.setCssProps({
+  setDynamicCssProps(wrapper, {
     "--mindmap-embed-width": widthValue,
     "--mindmap-embed-height": heightValue,
   });
@@ -143,17 +141,17 @@ function normalizeEmbeddedPreviewOutput(
     ".media-embed",
     ".image-embed",
   ];
-  wrapper.querySelectorAll<HTMLElement>(baseSelectors.join(", ")).forEach((element) => {
+  queryAll(baseSelectors.join(", ")).forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-content");
   });
 
   if (targetKind !== "excalidraw") return;
 
-  wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
+  queryAll("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-content");
   });
 
-  wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
+  queryAll("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
     element.classList?.add("mindmap-embedded-preview-media");
     element.removeAttribute("width");
     element.removeAttribute("height");
@@ -226,7 +224,6 @@ export async function renderNotebookPreview(args: {
   bindEmbeddedPreviewObserver(wrapper, args.targetKind ?? "markdown");
   const isInteractive = (args.targetKind ?? "markdown") === "markdown";
   wrapper.classList.toggle("is-interactive", isInteractive);
-  wrapper.setCssProps({ "pointer-events": isInteractive ? "auto" : "none" });
   if (!wheelBindingByElement.has(wrapper)) {
     wrapper.addEventListener("wheel", (event) => {
       if (shouldKeepWheelWithinPreview(wrapper, event.deltaY)) {
