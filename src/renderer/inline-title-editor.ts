@@ -30,6 +30,7 @@ export class InlineTitleEditor {
   private warning: HTMLDivElement | null = null;
   private maxWidth: number;
   private fontFamily: string;
+  private _cleanupClickOutside: (() => void) | null = null;
 
   constructor(private options: InlineTitleEditorOptions) {
     const fontFace = getComputedStyle(document.documentElement).getPropertyValue("--font-interface").trim() || "sans-serif";
@@ -76,6 +77,20 @@ export class InlineTitleEditor {
     textarea.addEventListener("blur", () => {
       void this.commit();
     });
+
+    // 点击编辑器外部时自动提交
+    const onClickOutside = (event: MouseEvent) => {
+      if (!this.textarea) return;
+      if (!this.textarea.contains(event.target as Node)) {
+        void this.commit();
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside, { capture: true });
+    // 在提交或取消时移除监听器
+    const cleanup = () => {
+      document.removeEventListener("mousedown", onClickOutside, { capture: true });
+    };
+    this._cleanupClickOutside = cleanup;
 
     this.autoResize();
     this.checkLengthWarning();
@@ -162,6 +177,8 @@ export class InlineTitleEditor {
   }
 
   close(): void {
+    this._cleanupClickOutside?.();
+    this._cleanupClickOutside = null;
     this.textarea?.remove();
     this.textarea = null;
     this.warning?.remove();
