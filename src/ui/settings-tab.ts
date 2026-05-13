@@ -17,7 +17,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: t("settings.title") });
 
-    this.renderHelpSettings(containerEl);
     this.renderNotebookSettings(containerEl);
     this.renderImportSettings(containerEl);
     this.renderRenderingSettings(containerEl);
