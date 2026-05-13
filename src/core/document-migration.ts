@@ -1,5 +1,6 @@
 import type { MindmapDocument, MindmapNode } from "../types/mindmap";
 import { runMigrations } from "../migrations/migration-runner";
+import { t } from "../i18n";
 
 export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocument {
   const migrated = runMigrations(input);
@@ -8,7 +9,7 @@ export function migrateDocument(input: Partial<MindmapDocument>): MindmapDocumen
 
   return {
     version: 1,
-    title: doc.title ?? "Untitled Mindmap",
+    title: doc.title ?? t("nodeTitles.untitledMindmap"),
     layoutMode:
       rawLayoutMode === "radial" || rawLayoutMode == null
         ? "tree-mirror"

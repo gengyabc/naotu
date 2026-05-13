@@ -1,4 +1,5 @@
 import { App, FuzzySuggestModal, TFile } from "obsidian";
+import { t } from "../i18n";
 
 export class MindmapFileSuggestModal extends FuzzySuggestModal<TFile> {
   constructor(
@@ -6,7 +7,7 @@ export class MindmapFileSuggestModal extends FuzzySuggestModal<TFile> {
     private onChoose: (file: TFile) => void,
   ) {
     super(app);
-    this.setPlaceholder("选择一个脑图文件...");
+    this.setPlaceholder(t("filePicker.openMindmapPlaceholder"));
   }
 
   getItems(): TFile[] {

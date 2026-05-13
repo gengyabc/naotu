@@ -4,7 +4,6 @@ import {
   VIEW_TYPE_MINDMAP,
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
-  DEFAULT_TEXT_NODE_TITLE,
 } from "../constants";
 import { MindmapDocumentStore } from "../core/document-store";
 import { SelectionState } from "../core/selection";
@@ -29,6 +28,7 @@ import { MindmapInteractions } from "./mindmap-interactions";
 import { MindmapNotebookActions } from "./mindmap-notebook-actions";
 import { MindmapRendererCoordinator } from "./mindmap-renderer-coordinator";
 import { MindmapTreeActions, isTreeLayoutMode } from "./mindmap-tree-actions";
+import { subscribeLocale, t } from "../i18n";
 
 export class MindmapView extends FileView {
   private store: MindmapDocumentStore;
@@ -46,6 +46,7 @@ export class MindmapView extends FileView {
   private unsubscribeHistory: (() => void) | null = null;
   private treeDragStartPosition: { x: number; y: number } | null = null;
   private notebookResizeSession: { id: string } | null = null;
+  private unsubscribeLocale: (() => void) | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -60,7 +61,7 @@ export class MindmapView extends FileView {
         enabled: this.plugin.settings.autoSave,
         delayMs: this.plugin.settings.autoSaveDelayMs,
       }),
-      onSaveError: (error) => showErrorNotice(error, "保存失败"),
+      onSaveError: (error) => showErrorNotice(error, "notices.saveFailed"),
     });
     this.notebookService = new NotebookService(
       this.app,
@@ -224,7 +225,7 @@ export class MindmapView extends FileView {
   }
 
   getDisplayText(): string {
-    return this.getOpenFile()?.basename ?? "Semantic Mindmap";
+    return this.getOpenFile()?.basename ?? t("app.displayText");
   }
 
   getOpenFile(): TFile | null {
@@ -243,7 +244,7 @@ export class MindmapView extends FileView {
     if (!filePath || typeof filePath !== "string") return;
     const f = this.app.vault.getAbstractFileByPath(filePath);
     if (!(f instanceof TFile)) {
-      new Notice(`Mindmap file not found: ${filePath}`);
+      new Notice(t("notices.fileNotFound", { path: filePath }));
       return;
     }
     this.sourceFile = f;
@@ -296,7 +297,7 @@ export class MindmapView extends FileView {
     this.notebookActions.refreshMissingNotebookLinks();
     const loadError = this.store.getLoadError();
     this.editSession.setDirtyState(loadError ? "error" : "saved");
-    if (loadError) showErrorNotice(loadError, "无法打开脑图文件");
+    if (loadError) showErrorNotice(loadError, "notices.openFailed");
     this.renderView();
   }
 
@@ -305,6 +306,11 @@ export class MindmapView extends FileView {
     this.contentEl.empty();
     this.contentEl.addClass("semantic-mindmap-view");
     this.renderView();
+
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = subscribeLocale(() => {
+      this.renderView();
+    });
   }
 
   async onClose(): Promise<void> {
@@ -316,6 +322,8 @@ export class MindmapView extends FileView {
     this.unsubscribeDirtyState = null;
     this.unsubscribeHistory?.();
     this.unsubscribeHistory = null;
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = null;
   }
 
   async refreshNotebookLinks(): Promise<void> {
@@ -329,7 +337,7 @@ export class MindmapView extends FileView {
       if (this.editSession.getDirtyState() === "saving") return;
       if (this.editSession.getDirtyState() === "dirty") {
         this.editSession.setDirtyState("error");
-        new Notice("脑图文件已在外部更新，当前视图有未保存更改。请重新打开文件以解决冲突。", 6000);
+        new Notice(t("notices.externalConflict"), 6000);
         return;
       }
 
@@ -340,7 +348,7 @@ export class MindmapView extends FileView {
       this.notebookActions.refreshMissingNotebookLinks();
       const loadError = this.store.getLoadError();
       this.editSession.setDirtyState(loadError ? "error" : "saved");
-      if (loadError) showErrorNotice(loadError, "无法重新加载脑图文件");
+      if (loadError) showErrorNotice(loadError, "notices.reloadFailed");
       this.rendererCoordinator.render();
       return;
     }
@@ -633,12 +641,12 @@ export class MindmapView extends FileView {
 
   private getDirtyStateLabel(state: DirtyState): string {
     return state === "saved"
-      ? "Saved"
+      ? t("status.saved")
       : state === "dirty"
-        ? "Unsaved"
+        ? t("status.unsaved")
         : state === "saving"
-          ? "Saving..."
-          : "Save error";
+          ? t("status.saving")
+          : t("status.saveError");
   }
 
   private handleCanvasKeydown(event: KeyboardEvent): void {
@@ -675,6 +683,33 @@ export class MindmapView extends FileView {
 
   handleLayoutSettingsChanged(): void {
     this.treeActions.handleLayoutSettingsChanged();
+  }
+
+  refreshUI(): void {
+    this.toolbar?.destroy();
+    this.toolbar = createMindmapToolbar(this.contentEl, {
+      layoutMode: this.store.getDocument().layoutMode,
+      searchQuery: this.interactions.getSearchQuery(),
+      saveStatus: this.getDirtyStateLabel(this.editSession.getDirtyState()),
+      onChangeLayoutMode: (mode) => this.applyTreeLayoutMode(mode),
+      onOpenMindmap: () => this.plugin.openMindmapFileSelector(),
+      onSearchChange: (query) => this.updateSearch(query),
+      onSearchSubmit: () => this.focusFirstSearchResult(),
+      onUndo: () => this.undo(),
+      onRedo: () => this.redo(),
+      onSelectRoot: () => this.selectRootNode(),
+      onFitRoot: () => this.fitRoot(),
+      onZoomIn: () => this.zoomIn(),
+      onZoomOut: () => this.zoomOut(),
+      onAddChild: () => this.addChildNode(),
+      onAddSibling: () => this.addSiblingNode(),
+      onToggleExpand: () => this.toggleSelectedTree(),
+      onEdit: () => this.editSelectedNode(),
+    }, this.canvasEl ?? undefined);
+    this.toolbar.setCanUndo(this.editSession.canUndo());
+    this.toolbar.setCanRedo(this.editSession.canRedo());
+    this.updateToolbarButtonStates();
+    this.toolbar.setSaveStatus(this.getDirtyStateLabel(this.editSession.getDirtyState()));
   }
 
   private openEdgeContextMenu(edgeId: string, x: number, y: number): void {

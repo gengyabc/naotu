@@ -3,12 +3,14 @@ import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 import { buildEmbeddedPreviewMarkdown } from "../core/file-node-support";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
+import { t } from "../i18n";
 
 const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 const wheelBindingByElement = new WeakSet<HTMLDivElement>();
 const scrollBindingByElement = new WeakSet<HTMLDivElement>();
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 const embeddedObserverByElement = new WeakMap<HTMLDivElement, MutationObserver>();
+const embeddedResizeObserverByElement = new WeakMap<HTMLDivElement, ResizeObserver>();
 
 interface PreviewRenderState {
   app: App;
@@ -62,6 +64,11 @@ function normalizeEmbeddedPreviewOutput(
 ): void {
   if (targetKind === "markdown") return;
 
+  const width = Math.max(0, Math.round(wrapper.clientWidth));
+  const height = Math.max(0, Math.round(wrapper.clientHeight));
+  const widthValue = width > 0 ? `${width}px` : "100%";
+  const heightValue = height > 0 ? `${height}px` : "100%";
+
   const baseSelectors = [
     ".internal-embed",
     ".markdown-embed",
@@ -69,10 +76,12 @@ function normalizeEmbeddedPreviewOutput(
     ".image-embed",
   ];
   wrapper.querySelectorAll<HTMLElement>(baseSelectors.join(", ")).forEach((element) => {
-    element.style.setProperty("width", "100%", "important");
-    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("width", widthValue, "important");
+    element.style.setProperty("height", heightValue, "important");
     element.style.setProperty("max-width", "none", "important");
     element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("min-width", "0", "important");
+    element.style.setProperty("min-height", "0", "important");
     element.style.setProperty("margin", "0", "important");
     element.style.setProperty("padding", "0", "important");
   });
@@ -80,24 +89,26 @@ function normalizeEmbeddedPreviewOutput(
   if (targetKind !== "excalidraw") return;
 
   wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'], [class*=' excalidraw-svg']").forEach((element) => {
-    element.style.setProperty("width", "100%", "important");
-    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("width", widthValue, "important");
+    element.style.setProperty("height", heightValue, "important");
     element.style.setProperty("max-width", "none", "important");
     element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("min-width", "0", "important");
+    element.style.setProperty("min-height", "0", "important");
     element.style.setProperty("margin", "0", "important");
     element.style.setProperty("padding", "0", "important");
   });
 
   wrapper.querySelectorAll<HTMLElement>("[class^='excalidraw-svg'] img, [class*=' excalidraw-svg'] img, svg.excalidraw-svg, img.excalidraw-svg").forEach((element) => {
-    element.style.setProperty("width", "100%", "important");
-    element.style.setProperty("height", "100%", "important");
+    element.style.setProperty("width", widthValue, "important");
+    element.style.setProperty("height", heightValue, "important");
     element.style.setProperty("max-width", "none", "important");
     element.style.setProperty("max-height", "none", "important");
+    element.style.setProperty("min-width", "0", "important");
+    element.style.setProperty("min-height", "0", "important");
     element.style.setProperty("display", "block", "important");
-    if (element instanceof SVGElement) {
-      element.removeAttribute("width");
-      element.removeAttribute("height");
-    }
+    element.removeAttribute("width");
+    element.removeAttribute("height");
   });
 }
 
@@ -107,15 +118,33 @@ function bindEmbeddedPreviewObserver(
 ): void {
   embeddedObserverByElement.get(wrapper)?.disconnect();
   embeddedObserverByElement.delete(wrapper);
+  embeddedResizeObserverByElement.get(wrapper)?.disconnect();
+  embeddedResizeObserverByElement.delete(wrapper);
 
   normalizeEmbeddedPreviewOutput(wrapper, targetKind);
-  if (targetKind === "markdown" || typeof MutationObserver === "undefined") return;
+  if (targetKind === "markdown") return;
 
-  const observer = new MutationObserver(() => {
-    normalizeEmbeddedPreviewOutput(wrapper, targetKind);
-  });
-  observer.observe(wrapper, { childList: true, subtree: true, attributes: true });
-  embeddedObserverByElement.set(wrapper, observer);
+  if (typeof MutationObserver !== "undefined") {
+    const observer = new MutationObserver(() => {
+      normalizeEmbeddedPreviewOutput(wrapper, targetKind);
+    });
+    observer.observe(wrapper, { childList: true, subtree: true, attributes: true });
+    embeddedObserverByElement.set(wrapper, observer);
+  }
+
+  if (typeof ResizeObserver !== "undefined") {
+    let resizeRafId = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      if (typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(resizeRafId);
+      }
+      resizeRafId = requestAnimationFrame(() => {
+        normalizeEmbeddedPreviewOutput(wrapper, targetKind);
+      });
+    });
+    resizeObserver.observe(wrapper);
+    embeddedResizeObserverByElement.set(wrapper, resizeObserver);
+  }
 
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => normalizeEmbeddedPreviewOutput(wrapper, targetKind));
@@ -221,7 +250,7 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
       });
       if (!resolved) {
         renderedKeyByElement.delete(foreignObject);
-        wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+        wrapper.createDiv({ cls: "mindmap-preview-empty", text: t("renderer.cannotPreviewNotebook") });
         return;
       }
 
@@ -252,7 +281,7 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
     });
     if (!result) {
       renderedKeyByElement.delete(foreignObject);
-      wrapper.createDiv({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+      wrapper.createDiv({ cls: "mindmap-preview-empty", text: t("renderer.cannotPreviewNotebook") });
       return;
     }
 

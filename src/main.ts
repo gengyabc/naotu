@@ -11,19 +11,22 @@ import { SemanticMindmapSettingTab } from "./ui/settings-tab";
 import { MindmapView } from "./view/mindmap-view";
 
 import { MindmapFileSuggestModal } from "./ui/mindmap-file-suggest-modal";
+import { setLocale, t } from "./i18n";
 
 export default class SemanticZoomMindmapPlugin extends Plugin {
   settings!: SemanticMindmapSettings;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    setLocale(this.settings.language);
+
     assertNoTelemetry();
     this.addSettingTab(new SemanticMindmapSettingTab(this.app, this));
 
     this.registerView(VIEW_TYPE_MINDMAP, (leaf: WorkspaceLeaf) => new MindmapView(leaf, this));
     this.registerExtensions(["naotu"], VIEW_TYPE_MINDMAP);
 
-    this.addRibbonIcon("git-fork", "创建语义缩放脑图", async () => {
+    this.addRibbonIcon("git-fork", t("ribbon.createMindmap"), async () => {
       const file = await this.createMindmapFile();
       await this.openMindmapFile(file);
     });
@@ -86,11 +89,11 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     const content = JSON.stringify(
       {
         version: 1,
-        title: "Untitled Mindmap",
+        title: t("nodeTitles.untitledMindmap"),
         layoutMode: "tree-mirror",
         viewport: { x: 400, y: 300, zoom: 1 },
         nodes: [
-          { id: "root", kind: "text", title: "中心主题", x: 0, y: 0, width: 180, height: 56, treeControl: "auto" },
+          { id: "root", kind: "text", title: t("nodeTitles.centralTopic"), x: 0, y: 0, width: 180, height: 56, treeControl: "auto" },
         ],
         edges: [],
       },
@@ -198,6 +201,16 @@ export default class SemanticZoomMindmapPlugin extends Plugin {
     for (const leaf of leaves) {
       const view = leaf.view;
       if (view instanceof MindmapView) view.handleLayoutSettingsChanged();
+    }
+  }
+
+  refreshViews(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MINDMAP);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof MindmapView) {
+        view.refreshUI();
+      }
     }
   }
 }

@@ -1,15 +1,25 @@
 import { App, normalizePath, TFile } from "obsidian";
 import type { EdgeRelation, EdgeType, MindmapDocument, MindmapNode, TreeControl } from "../types/mindmap";
 import { DEFAULT_MINDMAP_DOCUMENT } from "../constants";
+import { ExternalConflictError } from "./external-conflict-error";
 import { migrateDocument } from "./document-migration";
 import { createId } from "./id";
 import { buildHierarchy } from "./hierarchy";
 import { toggleTreeControlFromCurrentState } from "./tree-control";
 import { getSubtreeNodeIds, findParentId } from "./tree-editing";
+import { t } from "../i18n";
+
+function createLocalizedDocument(): MindmapDocument {
+  const doc = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
+  doc.title = t("nodeTitles.untitledMindmap");
+  const root = doc.nodes.find((node) => node.id === "root");
+  if (root) root.title = t("nodeTitles.centralTopic");
+  return doc;
+}
 
 export class MindmapDocumentStore {
   private file: TFile | null = null;
-  private doc: MindmapDocument = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
+  private doc: MindmapDocument = createLocalizedDocument();
   private loadError: Error | null = null;
   private listeners = new Set<() => void>();
   private lastSyncedRaw: string | null = null;
@@ -52,7 +62,7 @@ export class MindmapDocumentStore {
       this.doc = migrateDocument(JSON.parse(raw));
       this.loadError = null;
     } catch (error) {
-      this.doc = structuredClone(DEFAULT_MINDMAP_DOCUMENT);
+      this.doc = createLocalizedDocument();
       this.loadError = error instanceof Error ? error : new Error("Failed to load mindmap document.");
     }
 
@@ -61,7 +71,7 @@ export class MindmapDocumentStore {
 
   async createFile(path: string): Promise<TFile> {
     const normalized = normalizePath(path.endsWith(".naotu") ? path : `${path}.naotu`);
-    const file = await this.app.vault.create(normalized, JSON.stringify(DEFAULT_MINDMAP_DOCUMENT, null, 2));
+    const file = await this.app.vault.create(normalized, JSON.stringify(createLocalizedDocument(), null, 2));
     await this.openFile(file);
     return file;
   }
@@ -72,7 +82,7 @@ export class MindmapDocumentStore {
 
     const currentRaw = await this.app.vault.read(this.file);
     if (this.lastSyncedRaw !== null && currentRaw !== this.lastSyncedRaw) {
-      throw new Error("脑图文件已在外部修改，请重新打开后再保存。");
+      throw new ExternalConflictError();
     }
 
     const nextRaw = JSON.stringify(this.doc, null, 2);

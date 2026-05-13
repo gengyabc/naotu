@@ -1,4 +1,5 @@
 import { Menu } from "obsidian";
+import { t } from "../i18n";
 
 import type { NodeKind } from "../types/mindmap";
 
@@ -172,27 +173,27 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): {
   const menu = new MindmapContextMenu();
 
   if (options.nodeKind === "notebook") {
-    menu.addItem("转为普通节点", "unlink", () => options.onConvertNotebookToText());
+    menu.addItem(t("contextMenu.convertToText"), "unlink", () => options.onConvertNotebookToText());
   }
 
   if (options.nodeKind === "text") {
-    menu.addItem("创建 notebook", "plus", () => options.onCreateNotebook());
-    menu.addItem("选择已有文件...", "file", () => options.onBindExistingNotebook());
+    menu.addItem(t("contextMenu.createNotebook"), "plus", () => options.onCreateNotebook());
+    menu.addItem(t("contextMenu.bindExistingFile"), "file", () => options.onBindExistingNotebook());
   }
 
   if (options.nodeKind === "notebook") {
-    menu.addItem("重新选择文件...", "search", () => options.onRebindNotebook());
+    menu.addItem(t("contextMenu.rebindFile"), "search", () => options.onRebindNotebook());
   }
 
   menu.addSeparator();
-  const delLabel = isMac ? "⌫" : "Del";
-  menu.addItem("删除（保留子节点）", "trash", () => options.onDeleteNode("promote"), delLabel);
-  menu.addItem("删除（含子节点）", "trash", () => options.onDeleteNode("recursive"), isMac ? "⇧⌫" : "Shift+Del");
+  const delLabel = isMac ? "\u232B" : "Del";
+  menu.addItem(t("contextMenu.deleteKeepChildren"), "trash", () => options.onDeleteNode("promote"), delLabel);
+  menu.addItem(t("contextMenu.deleteWithChildren"), "trash", () => options.onDeleteNode("recursive"), isMac ? "\u21E7\u232B" : "Shift+Del");
   return menu;
 }
 
 export function createEdgeContextMenu(options: MindmapEdgeContextMenuOptions): { showAtPosition(position: { x: number; y: number }): void } {
   const menu = new MindmapContextMenu();
-  menu.addItem("删除连线", "trash", () => options.onDeleteEdge());
+  menu.addItem(t("contextMenu.deleteEdge"), "trash", () => options.onDeleteEdge());
   return menu;
 }

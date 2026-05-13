@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { ExternalConflictError } from "../core/external-conflict-error";
 import { MindmapDocumentStore } from "../core/document-store";
 
 describe("MindmapDocumentStore", () => {
@@ -52,7 +53,7 @@ describe("MindmapDocumentStore", () => {
       edges: [],
     });
 
-    await expect(store.save()).rejects.toThrow("脑图文件已在外部修改");
+    await expect(store.save()).rejects.toThrow(ExternalConflictError);
     expect(modify).not.toHaveBeenCalled();
   });
 

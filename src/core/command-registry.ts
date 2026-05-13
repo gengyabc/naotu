@@ -1,10 +1,11 @@
 import { TFile } from "obsidian";
 import type SemanticZoomMindmapPlugin from "../main";
+import { t } from "../i18n";
 
 export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void {
   plugin.addCommand({
     id: "create-semantic-zoom-mindmap",
-    name: "创建语义缩放脑图",
+    name: t("commands.createMindmap"),
     callback: async () => {
       const file = await plugin.createMindmapFile();
       await plugin.openMindmapFile(file);
@@ -13,7 +14,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "open-mindmap-file",
-    name: "打开脑图文件",
+    name: t("commands.openMindmap"),
     callback: () => {
       plugin.openMindmapFileSelector();
     },
@@ -21,7 +22,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "open-current-mindmap",
-    name: "打开当前 .naotu",
+    name: t("commands.openCurrentMindmap"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
       const canRun = Boolean(file && file.extension === "naotu");
@@ -35,7 +36,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "create-mindmap-from-current-markdown-headings",
-    name: "从当前 Markdown 标题创建脑图",
+    name: t("commands.createFromMarkdown"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
       const canRun = Boolean(file && file.extension === "md");
@@ -49,7 +50,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "create-local-knowledge-map-from-current-file",
-    name: "从当前文件创建本地知识图谱",
+    name: t("commands.createLocalKnowledgeMap"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
       const canRun = Boolean(file && file.extension === "md");
@@ -63,7 +64,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "create-sample-mindmap-100",
-    name: "创建示例脑图（100 节点）",
+    name: t("commands.sampleMindmap100"),
     callback: async () => {
       await plugin.createSampleMindmapFile(100);
     },
@@ -71,7 +72,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "create-sample-mindmap-1000",
-    name: "创建示例脑图（1000 节点）",
+    name: t("commands.sampleMindmap1000"),
     callback: async () => {
       await plugin.createSampleMindmapFile(1000);
     },
@@ -79,7 +80,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
 
   plugin.addCommand({
     id: "create-sample-mindmap-3000",
-    name: "创建示例脑图（3000 节点）",
+    name: t("commands.sampleMindmap3000"),
     callback: async () => {
       await plugin.createSampleMindmapFile(3000);
     },

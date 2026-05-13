@@ -1,9 +1,10 @@
 import { App, normalizePath, TFile, TFolder } from "obsidian";
 import type { MindmapNode } from "../types/mindmap";
-import { DEFAULT_NOTEBOOK_FOLDER, UNTITLED_NODE_TITLE } from "../constants";
+import { DEFAULT_NOTEBOOK_FOLDER } from "../constants";
 import { parseObsidianLink, resolveObsidianLinkFile } from "./obsidian-link";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getFileNodeTitle } from "./file-node-support";
+import { t } from "../i18n";
 
 export class NotebookService {
   constructor(
@@ -16,7 +17,7 @@ export class NotebookService {
     node: MindmapNode,
     sourcePath: string,
   ): Promise<{ file: TFile; patch: Partial<MindmapNode> }> {
-    const title = sanitizeFilename(node.title || UNTITLED_NODE_TITLE);
+    const title = sanitizeFilename(node.title || t("nodeTitles.untitledNode"));
     await this.ensureNotebookFolder();
     const existing = this.getNotebookFileInConfiguredFolder(title);
 
@@ -68,11 +69,11 @@ export class NotebookService {
 
     const parsed = parseObsidianLink(node.notebook.link);
     if (!parsed || parsed.targetType !== "file") {
-      throw new Error("该 notebook 节点绑定到 heading/block，不能通过脑图重命名。");
+      throw new Error(t("notices.notebookBoundToHeading"));
     }
 
     const file = this.resolveNotebookFile(node, sourcePath);
-    if (!file) throw new Error("找不到对应 notebook 文件。");
+    if (!file) throw new Error(t("notices.notebookFileNotFound"));
 
     const cleanTitle = sanitizeFilename(nextTitle);
     const parentPath = file.parent?.path ?? "";
@@ -139,7 +140,7 @@ export class NotebookService {
     const normalized = normalizePath(this.getNotebookFolder());
     const existing = this.app.vault.getAbstractFileByPath(normalized);
     if (existing instanceof TFolder) return;
-    if (existing) throw new Error(`${normalized} 已存在，但不是文件夹。`);
+    if (existing) throw new Error(t("notices.folderExistsNotFolder", { path: normalized }));
     await this.app.vault.createFolder(normalized);
   }
 

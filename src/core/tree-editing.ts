@@ -1,13 +1,14 @@
-import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, DEFAULT_TEXT_NODE_TITLE } from "../constants";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../constants";
 import type { MindmapDocument, MindmapEdge, MindmapNode } from "../types/mindmap";
 import { buildHierarchy } from "./hierarchy";
 import { createId } from "./id";
+import { t } from "../i18n";
 
 export function createTextNodeNearParent(parent: MindmapNode): MindmapNode {
   return {
     id: createId("node"),
     kind: "text",
-    title: DEFAULT_TEXT_NODE_TITLE,
+    title: t("nodeTitles.newChildNode"),
     x: parent.x + 220,
     y: parent.y + 80,
     width: DEFAULT_NODE_WIDTH,

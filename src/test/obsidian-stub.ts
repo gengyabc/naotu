@@ -69,6 +69,25 @@ export class FakeElement {
     return child;
   }
 
+  insertBefore(newNode: FakeElement, referenceNode: FakeElement | null): FakeElement {
+    newNode.parentElement = this;
+    if (!referenceNode) {
+      this.children.push(newNode);
+      return newNode;
+    }
+
+    const index = this.children.indexOf(referenceNode);
+    if (index < 0) {
+      this.children.push(newNode);
+      return newNode;
+    }
+
+    const existingIndex = this.children.indexOf(newNode);
+    if (existingIndex >= 0) this.children.splice(existingIndex, 1);
+    this.children.splice(index, 0, newNode);
+    return newNode;
+  }
+
   appendText(text: string): void {
     this.children.push(new FakeElement("#text", { text }));
   }

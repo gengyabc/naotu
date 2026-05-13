@@ -1,4 +1,5 @@
 import { layoutText, shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
+import { t } from "../i18n";
 
 // padding 8px * 2 + border 1px * 2 = 18, rounded up for scrollbars
 const TEXTAREA_CHROME_HORIZONTAL = 20;
@@ -126,7 +127,7 @@ export class InlineTitleEditor {
 
     const warning = document.createElement("div");
     warning.className = "mindmap-inline-title-warning";
-    warning.textContent = "内容较多，建议转为笔记节点";
+    warning.textContent = t("renderer.longContentWarning");
     warning.style.left = `${this.options.x}px`;
     warning.style.top = `${this.options.y + this.textarea.offsetHeight + 4}px`;
     warning.style.width = `${this.textarea.offsetWidth}px`;

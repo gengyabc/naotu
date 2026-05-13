@@ -1,6 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeAll, afterAll } from "vitest";
 import { createMindmapToolbar } from "../ui/mindmap-toolbar";
 import { FakeElement } from "./obsidian-stub";
+import { setLocale } from "../i18n";
+
+beforeAll(() => {
+  setLocale("zh");
+});
+
+afterAll(() => {
+  setLocale("en");
+});
 
 class FakeEvent {
   defaultPrevented = false;
@@ -129,5 +138,39 @@ describe("createMindmapToolbar", () => {
     expect(getButton(container, "兄弟节点").disabled).toBe(true);
     expect(getButton(container, "切换折叠").disabled).toBe(false);
     expect(getButton(container, "编辑").disabled).toBe(true);
+  });
+
+  it("renders english labels when locale is en", () => {
+    setLocale("en");
+
+    const container = new FakeElement("div");
+    createMindmapToolbar(container as never, {
+      layoutMode: "tree-mirror",
+      searchQuery: "",
+      saveStatus: "Saved",
+      onChangeLayoutMode: vi.fn(),
+      onOpenMindmap: vi.fn(),
+      onSearchChange: vi.fn(),
+      onSearchSubmit: vi.fn(),
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
+      onSelectRoot: vi.fn(),
+      onFitRoot: vi.fn(),
+      onZoomIn: vi.fn(),
+      onZoomOut: vi.fn(),
+      onAddChild: vi.fn(),
+      onAddSibling: vi.fn(),
+      onToggleExpand: vi.fn(),
+      onEdit: vi.fn(),
+    });
+
+    getButton(container, "Undo");
+    getButton(container, "Redo");
+    getButton(container, "Root");
+    getButton(container, "Open");
+    getButton(container, "Mirror tree");
+    getButton(container, "Child");
+
+    setLocale("zh");
   });
 });

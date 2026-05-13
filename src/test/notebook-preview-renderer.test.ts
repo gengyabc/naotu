@@ -1,8 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeAll, afterAll } from "vitest";
 import { TFile, Component } from "obsidian";
 
 import { globalPreviewCache } from "../core/preview-cache";
 import { getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-preview-renderer";
+import { setLocale, t } from "../i18n";
+
+beforeAll(() => {
+  setLocale("zh");
+});
+
+afterAll(() => {
+  setLocale("en");
+});
 
 interface FakeWrapper {
   className: string;
@@ -10,6 +19,7 @@ interface FakeWrapper {
   dataset: Record<string, string>;
   style: { pointerEvents?: string };
   scrollTop: number;
+  clientWidth: number;
   clientHeight: number;
   scrollHeight: number;
   renderedMarkdown?: string;
@@ -17,7 +27,7 @@ interface FakeWrapper {
   empty: () => void;
   createDiv: (args: { cls: string; text: string }) => void;
   addEventListener: (type: string, listener: EventListener) => void;
-  querySelectorAll: () => HTMLElement[];
+  querySelectorAll: (selector: string) => HTMLElement[];
 }
 
 interface FakeForeignObject {
@@ -41,6 +51,7 @@ function createWrapper(): FakeWrapper {
     dataset: {},
     style: {},
     scrollTop: 20,
+    clientWidth: 200,
     clientHeight: 100,
     scrollHeight: 300,
     empty: vi.fn(),
@@ -469,7 +480,7 @@ describe("renderNotebookPreview", () => {
         component,
       });
 
-      expect(wrapper.createDiv).toHaveBeenCalledWith({ cls: "mindmap-preview-empty", text: "无法预览 notebook" });
+      expect(wrapper.createDiv).toHaveBeenCalledWith({ cls: "mindmap-preview-empty", text: t("renderer.cannotPreviewNotebook") });
 
       await renderNotebookPreview({
         app,
@@ -669,6 +680,121 @@ describe("renderNotebookPreview", () => {
     } finally {
       vi.unstubAllGlobals();
       if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("reapplies excalidraw sizing when the preview wrapper is resized", async () => {
+    globalPreviewCache.clear();
+
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const embedStyleCalls: string[] = [];
+    const imageStyleCalls: string[] = [];
+    const embedElement = {
+      style: {
+        setProperty: vi.fn((name: string, value: string) => {
+          if (name === "width" || name === "height") embedStyleCalls.push(`${name}:${value}`);
+        }),
+      },
+    };
+    const imageElement = {
+      style: {
+        setProperty: vi.fn((name: string, value: string) => {
+          if (name === "width" || name === "height") imageStyleCalls.push(`${name}:${value}`);
+        }),
+      },
+      removeAttribute: vi.fn(),
+    };
+    wrapper.querySelectorAll = vi.fn((selector: string) => {
+      if (selector.includes(".internal-embed")) return [embedElement as unknown as HTMLElement];
+      if (selector.includes("img.excalidraw-svg") || selector.includes("svg.excalidraw-svg")) {
+        return [imageElement as unknown as HTMLElement];
+      }
+      if (selector.includes("excalidraw-svg")) return [embedElement as unknown as HTMLElement];
+      return [];
+    });
+
+    const resizeObservers: Array<{ callback: ResizeObserverCallback; observe: ReturnType<typeof vi.fn> }> = [];
+    class FakeResizeObserver {
+      observe = vi.fn();
+      disconnect = vi.fn();
+
+      constructor(callback: ResizeObserverCallback) {
+        resizeObservers.push({ callback, observe: this.observe });
+      }
+    }
+
+    const originalDocument = globalThis.document;
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => wrapper),
+    });
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(cb, 0));
+
+    try {
+      const excalidrawFile = createFile("whiteboards/diagram.excalidraw.md", "diagram.excalidraw");
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(excalidrawFile),
+          read: vi.fn(),
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi.fn().mockReturnValue(excalidrawFile),
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[diagram.excalidraw.md]]",
+        sourcePath: "maps/source.naotu",
+        targetKind: "excalidraw",
+        previewWidth: 200,
+        previewHeight: 120,
+        component,
+      });
+
+      expect(wrapper.renderedMarkdown).toBe("![[whiteboards/diagram.excalidraw.md|200x120]]");
+      expect(resizeObservers.length).toBeGreaterThan(0);
+      expect(resizeObservers.at(-1)?.observe).toHaveBeenCalledWith(wrapper);
+      expect(embedStyleCalls).toContain("width:200px");
+      expect(embedStyleCalls).toContain("height:100px");
+      expect(imageStyleCalls).toContain("width:200px");
+      expect(imageStyleCalls).toContain("height:100px");
+
+      wrapper.clientWidth = 260;
+      wrapper.clientHeight = 180;
+      resizeObservers.at(-1)?.callback([] as ResizeObserverEntry[], {} as ResizeObserver);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(embedStyleCalls).toContain("width:260px");
+      expect(embedStyleCalls).toContain("height:180px");
+      expect(imageStyleCalls).toContain("width:260px");
+      expect(imageStyleCalls).toContain("height:180px");
+      expect(imageElement.removeAttribute).toHaveBeenCalledWith("width");
+      expect(imageElement.removeAttribute).toHaveBeenCalledWith("height");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+      if (originalResizeObserver) vi.stubGlobal("ResizeObserver", originalResizeObserver);
+      if (originalRequestAnimationFrame) vi.stubGlobal("requestAnimationFrame", originalRequestAnimationFrame);
     }
   });
 

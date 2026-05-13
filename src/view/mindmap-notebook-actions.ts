@@ -1,4 +1,5 @@
 import { App, TFile } from "obsidian";
+import { t } from "../i18n";
 
 import { findMissingNotebookLinks } from "../core/missing-link-detector";
 import { NotebookService } from "../core/notebook-service";
@@ -121,7 +122,7 @@ export class MindmapNotebookActions {
       this.refreshMissingNotebookLinks();
       this.focusNotebookNode(id);
     } catch (error) {
-      showErrorNotice(error, "无法创建 notebook");
+      showErrorNotice(error, "notices.createNotebookFailed");
     }
   }
 
@@ -131,7 +132,7 @@ export class MindmapNotebookActions {
 
     const file = this.options.notebookService.resolveNotebookFile(node, this.options.getSourcePath());
     if (!file) {
-      showErrorNotice(new Error("找不到 notebook 文件"), "无法打开 notebook");
+      showErrorNotice(new Error(t("notices.openNotebookFailed")), "notices.openNotebookFailed");
       return;
     }
 
@@ -150,7 +151,7 @@ export class MindmapNotebookActions {
         this.options.store.patchNode(id, patch);
       }, { commitHistory: false });
     } catch (error) {
-      showErrorNotice(error, "无法重命名 notebook");
+      showErrorNotice(error, "notices.renameNotebookFailed");
     }
   }
 
@@ -185,7 +186,7 @@ export class MindmapNotebookActions {
     const node = this.findNode(id);
     if (!node || node.kind !== "notebook") return;
 
-    const confirmed = window.confirm("此操作会将该节点转为普通节点，并断开与 notebook 的连接。原 notebook 文件不会删除。是否继续？");
+    const confirmed = window.confirm(t("contextMenu.confirmConvertToText"));
     if (!confirmed) return;
 
     this.options.applyDocumentChange(() => {
@@ -200,7 +201,7 @@ export class MindmapNotebookActions {
 
     this.options.commitHistory();
     const freshFile = this.options.app.vault.getAbstractFileByPath(file.path);
-    if (!(freshFile instanceof TFile)) throw new Error("找不到文件，无法绑定");
+    if (!(freshFile instanceof TFile)) throw new Error(t("notices.fileNotFoundForBinding"));
 
     const basePatch = this.options.notebookService.bindExistingFileNode(freshFile, targetKind);
     const patch = await this.applyFileNodeSizing(basePatch, freshFile, targetKind);

@@ -1,14 +1,17 @@
 import { App, FuzzySuggestModal, TFile } from "obsidian";
 import { getSupportedFileNodeTargetKind } from "../core/file-node-support";
 import type { NotebookTargetKind } from "../types/mindmap";
+import { t } from "../i18n";
 
 type FileBindingFilterState = Record<NotebookTargetKind, boolean>;
 
-const FILE_BINDING_FILTER_LABELS: Record<NotebookTargetKind, string> = {
-  markdown: "Notebook",
-  image: "图片",
-  excalidraw: "Excalidraw",
-};
+function getFilterLabels(): Record<NotebookTargetKind, string> {
+  return {
+    markdown: "Notebook",
+    image: t("filePicker.image"),
+    excalidraw: "Excalidraw",
+  };
+}
 
 export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
   private filters: FileBindingFilterState = {
@@ -24,7 +27,7 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
     private onChoose: (file: TFile, targetKind: NotebookTargetKind) => void,
   ) {
     super(app);
-    this.setPlaceholder("选择已有文件...");
+    this.setPlaceholder(t("filePicker.bindExistingPlaceholder"));
   }
 
   open(): this {
@@ -77,7 +80,8 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
     const container = document.createElement("div");
     container.className = "mindmap-file-binding-filters";
 
-    for (const kind of Object.keys(FILE_BINDING_FILTER_LABELS) as NotebookTargetKind[]) {
+    const labels = getFilterLabels();
+    for (const kind of Object.keys(labels) as NotebookTargetKind[]) {
       const label = document.createElement("label");
       label.className = "mindmap-file-binding-filter";
 
@@ -89,7 +93,7 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
       });
 
       const text = document.createElement("span");
-      text.textContent = FILE_BINDING_FILTER_LABELS[kind];
+      text.textContent = labels[kind];
 
       label.appendChild(checkbox);
       label.appendChild(text);

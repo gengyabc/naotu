@@ -1,10 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, beforeAll, afterAll } from "vitest";
 import { Menu, Notice, TFile, WorkspaceLeaf } from "obsidian";
 
 import { DEFAULT_SETTINGS } from "../types/settings";
 import { MindmapView } from "../view/mindmap-view";
 import type { MindmapDocument, ProjectedNode } from "../types/mindmap";
 import { createNotebookFile, createSmallTestDocument, createSourceMindmapFile } from "./test-fixtures";
+import { setLocale } from "../i18n";
+
+beforeAll(() => {
+  setLocale("zh");
+});
+
+afterAll(() => {
+  setLocale("en");
+});
 
 const hoisted = vi.hoisted(() => {
   class BaseFakeRenderer {
@@ -433,6 +442,22 @@ describe("MindmapView", () => {
     const nodeCountBeforeDelete = getDocument(harness.view).nodes.length;
     (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: "Delete", target: harness.view.contentEl as never }));
     expect(getDocument(harness.view).nodes.length).toBe(nodeCountBeforeDelete - 1);
+  });
+
+  it("keeps the toolbar before the canvas when refreshed", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+
+    const contentEl = harness.view.contentEl as unknown as { children: Array<{ classNames: Set<string> }> };
+    expect(contentEl.children[0]?.classNames.has("semantic-mindmap-toolbar")).toBe(true);
+    expect(contentEl.children[1]?.classNames.has("semantic-mindmap-canvas")).toBe(true);
+
+    (harness.view as any).refreshUI();
+
+    const toolbarCount = contentEl.children.filter((child) => child.classNames.has("semantic-mindmap-toolbar")).length;
+    expect(toolbarCount).toBe(1);
+    expect(contentEl.children[0]?.classNames.has("semantic-mindmap-toolbar")).toBe(true);
+    expect(contentEl.children[1]?.classNames.has("semantic-mindmap-canvas")).toBe(true);
   });
 
   it("undoes and redoes document edits through keyboard shortcuts", async () => {

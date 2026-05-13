@@ -1,5 +1,7 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
+import { t } from "../i18n";
+
 export interface MindmapToolbar {
   destroy(): void;
   setLayoutMode(mode: LayoutMode): void;
@@ -100,8 +102,11 @@ function getModifierKey(): string {
   return isMacOS() ? "Cmd" : "Ctrl";
 }
 
-export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions): MindmapToolbar {
+export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions, beforeElement?: HTMLElement): MindmapToolbar {
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });
+  if (beforeElement && toolbar.parentElement === container) {
+    container.insertBefore(toolbar, beforeElement);
+  }
   const modKey = getModifierKey();
   const tooltipElements: HTMLElement[] = [];
   const positionFns: (() => void)[] = [];
@@ -171,53 +176,53 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     return button;
   };
 
-  const openButton = createButtonWithTooltip("folder-open", "打开");
+  const openButton = createButtonWithTooltip("folder-open", t("toolbar.open"));
   openButton.onclick = () => options.onOpenMindmap();
 
-  const undoButton = createButtonWithTooltip("undo", "撤销", `${modKey} Z`);
+  const undoButton = createButtonWithTooltip("undo", t("toolbar.undo"), `${modKey} Z`);
   undoButton.onclick = () => options.onUndo();
 
-  const redoButton = createButtonWithTooltip("redo", "重做", `${modKey} Shift Z`);
+  const redoButton = createButtonWithTooltip("redo", t("toolbar.redo"), `${modKey} Shift Z`);
   redoButton.onclick = () => options.onRedo();
 
-  const selectRootButton = createButtonWithTooltip("home", "根节点", "Home");
+  const selectRootButton = createButtonWithTooltip("home", t("toolbar.root"), "Home");
   selectRootButton.onclick = () => options.onSelectRoot();
 
-  const fitRootButton = createButtonWithTooltip("target", "适应", `${modKey} 0`);
+  const fitRootButton = createButtonWithTooltip("target", t("toolbar.fit"), `${modKey} 0`);
   fitRootButton.onclick = () => options.onFitRoot();
 
-  const zoomOutButton = createButtonWithTooltip("zoom-out", "缩小", `${modKey} -`);
+  const zoomOutButton = createButtonWithTooltip("zoom-out", t("toolbar.zoomOut"), `${modKey} -`);
   zoomOutButton.onclick = () => options.onZoomOut();
 
-  const zoomInButton = createButtonWithTooltip("zoom-in", "放大", `${modKey} =`);
+  const zoomInButton = createButtonWithTooltip("zoom-in", t("toolbar.zoomIn"), `${modKey} =`);
   zoomInButton.onclick = () => options.onZoomIn();
 
-  const addChildButton = createButtonWithTooltip("plus", "子节点", "Tab");
+  const addChildButton = createButtonWithTooltip("plus", t("toolbar.child"), "Tab");
   addChildButton.onclick = () => options.onAddChild();
 
-  const addSiblingButton = createButtonWithTooltip("git-branch", "兄弟节点", "Enter");
+  const addSiblingButton = createButtonWithTooltip("git-branch", t("toolbar.sibling"), "Enter");
   addSiblingButton.onclick = () => options.onAddSibling();
 
-  const toggleExpandButton = createButtonWithTooltip("chevrons-up-down", "切换折叠", "Space");
+  const toggleExpandButton = createButtonWithTooltip("chevrons-up-down", t("toolbar.toggleExpand"), "Space");
   toggleExpandButton.onclick = () => options.onToggleExpand();
 
-  const editButton = createButtonWithTooltip("pencil", "编辑", "F2");
+  const editButton = createButtonWithTooltip("pencil", t("toolbar.edit"), "F2");
   editButton.onclick = () => options.onEdit();
 
-  const mirrorLayoutButton = createButtonWithTooltip("layout-mirror", "镜像树");
+  const mirrorLayoutButton = createButtonWithTooltip("layout-mirror", t("toolbar.mirrorTree"));
   mirrorLayoutButton.onclick = () => options.onChangeLayoutMode("tree-mirror");
 
-  const rightLayoutButton = createButtonWithTooltip("layout-right", "右向树");
+  const rightLayoutButton = createButtonWithTooltip("layout-right", t("toolbar.rightTree"));
   rightLayoutButton.onclick = () => options.onChangeLayoutMode("tree-right");
 
-  const freeLayoutButton = createButtonWithTooltip("layout-free", "自由布局");
+  const freeLayoutButton = createButtonWithTooltip("layout-free", t("toolbar.freeLayout"));
   freeLayoutButton.onclick = () => options.onChangeLayoutMode("free");
 
   const searchWrapper = toolbar.createDiv({ cls: "mindmap-search-wrapper" });
   searchWrapper.append(createToolbarIcon("search"));
   const searchInput = searchWrapper.createEl("input", {
     type: "text",
-    placeholder: "搜索节点...",
+    placeholder: t("toolbar.searchPlaceholder"),
   });
   searchInput.title = `${modKey} F`;
   searchInput.value = options.searchQuery;
@@ -267,6 +272,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
         window.removeEventListener("resize", onScrollOrResize);
       }
       tooltipElements.forEach((t) => t.remove());
+      toolbar.remove();
     },
     setLayoutMode,
     setSaveStatus(label): void {

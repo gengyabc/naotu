@@ -10,6 +10,7 @@ import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
 import { getFontSizeForDepth } from "../core/font-size";
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { renderTextAsMarkdown } from "./text-markdown-renderer";
+import { t } from "../i18n";
 import {
   NOTEBOOK_MIN_CUSTOM_HEIGHT,
   NOTEBOOK_MIN_CUSTOM_WIDTH,
@@ -388,11 +389,16 @@ export function renderProjectedNodes(args: {
     } else if (!hideNotebookTextForPreview) {
       const truncatedTitle = truncateTextForNotebook(node.title, node.displayWidth - 24, visual.titleFontSize);
       titleText
+        .style("display", "")
         .attr("x", 12)
         .attr("y", 26)
         .style("font-size", `${visual.titleFontSize}px`)
         .text(truncatedTitle);
       
+      textForeignObject.style("display", "none");
+      textForeignObject.selectAll("*").remove();
+    } else {
+      titleText.style("display", "none");
       textForeignObject.style("display", "none");
       textForeignObject.selectAll("*").remove();
     }
@@ -474,7 +480,7 @@ export function renderProjectedNodes(args: {
           .select<SVGTextElement>("text.mindmap-node-open-notebook-text")
           .attr("x", 24)
           .attr("y", 48)
-          .text(isEmbeddedFileNodeTargetKind(targetKind) ? "Open file" : "Open md");
+          .text(isEmbeddedFileNodeTargetKind(targetKind) ? t("renderer.openFile") : t("renderer.openMd"));
       });
 
     const treeToggleGroup = group

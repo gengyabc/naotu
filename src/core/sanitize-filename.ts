@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 export function sanitizeFilename(input: string): string {
   const cleaned = input
     .trim()
@@ -5,5 +7,5 @@ export function sanitizeFilename(input: string): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  return cleaned || "Untitled";
+  return cleaned || t("nodeTitles.untitled");
 }

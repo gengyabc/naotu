@@ -91,8 +91,8 @@ describe("TreeLayoutEngine", () => {
 
   it("uses rendered text width for short text node spacing", () => {
     const doc = createSmallTestDocument();
-    doc.nodes[0] = { ...doc.nodes[0]!, title: "中心主题" };
-    doc.nodes[1] = { ...doc.nodes[1]!, title: "新节点" };
+    doc.nodes[0] = { ...doc.nodes[0]!, title: "Central Topic" };
+    doc.nodes[1] = { ...doc.nodes[1]!, title: "New node" };
 
     const next = new TreeLayoutEngine().layout(doc, { mode: "tree-right", horizontalSpacing: 10, verticalSpacing: 80 }, "root");
     const root = next.nodes.find((node) => node.id === "root");
