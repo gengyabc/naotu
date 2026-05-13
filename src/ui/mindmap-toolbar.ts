@@ -1,6 +1,7 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 import { t } from "../i18n";
+import { getModifierKey } from "../core/platform";
 
 export interface MindmapToolbar {
   destroy(): void;
@@ -88,19 +89,7 @@ function createToolbarIcon(iconId: ToolbarIconId): SVGSVGElement {
   return svg;
 }
 
-function isMacOS(): boolean {
-  if ("userAgentData" in navigator) {
-    const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
-    if (uaData?.platform) {
-      return uaData.platform.toLowerCase().includes("mac");
-    }
-  }
-  return navigator.platform.toLowerCase().includes("mac");
-}
 
-function getModifierKey(): string {
-  return isMacOS() ? "Cmd" : "Ctrl";
-}
 
 export function createMindmapToolbar(container: HTMLElement, options: MindmapToolbarOptions, beforeElement?: HTMLElement): MindmapToolbar {
   const toolbar = container.createDiv({ cls: "semantic-mindmap-toolbar" });

@@ -1,9 +1,8 @@
 import { Menu } from "obsidian";
 import { t } from "../i18n";
+import { isMacOS } from "../core/platform";
 
 import type { NodeKind } from "../types/mindmap";
-
-const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 interface MindmapNodeContextMenuOptions {
   nodeKind: NodeKind;
@@ -186,9 +185,9 @@ export function createNodeContextMenu(options: MindmapNodeContextMenuOptions): {
   }
 
   menu.addSeparator();
-  const delLabel = isMac ? "\u232B" : "Del";
+  const delLabel = isMacOS() ? "\u232B" : "Del";
   menu.addItem(t("contextMenu.deleteKeepChildren"), "trash", () => options.onDeleteNode("promote"), delLabel);
-  menu.addItem(t("contextMenu.deleteWithChildren"), "trash", () => options.onDeleteNode("recursive"), isMac ? "\u21E7\u232B" : "Shift+Del");
+  menu.addItem(t("contextMenu.deleteWithChildren"), "trash", () => options.onDeleteNode("recursive"), isMacOS() ? "\u21E7\u232B" : "Shift+Del");
   return menu;
 }
 

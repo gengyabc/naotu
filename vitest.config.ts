@@ -7,4 +7,7 @@ export default defineConfig({
       obsidian: fileURLToPath(new URL("./src/test/obsidian-stub.ts", import.meta.url)),
     },
   },
+  test: {
+    setupFiles: ["./src/test/setup.ts"],
+  },
 });
