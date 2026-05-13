@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-semantic-zoom-mindmap",
+  "name": "obsidian-mindcanvas",
   "version": "0.1.0",
-  "description": "Semantic Zoom Mindmap plugin for Obsidian",
+  "description": "A mindmap that is really a map. 真正的思维投影。",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -14,7 +14,7 @@
     "mindmap",
     "semantic-zoom"
   ],
-  "author": "Your Name",
+  "author": "Geng",
   "license": "MIT",
   "devDependencies": {
     "@types/d3": "^7.4.3",
