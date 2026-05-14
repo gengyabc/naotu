@@ -35,13 +35,17 @@ function createIconSpan(ownerDocument: Document, icon: NonNullable<ContextMenuIt
   return iconEl;
 }
 
-let activeMenu: MindmapContextMenu | null = null;
-
 export function closeActiveContextMenu(): void {
-  activeMenu?.close();
+  MindmapContextMenu.closeActive();
 }
 
 class MindmapContextMenu {
+  private static activeMenu: MindmapContextMenu | null = null;
+
+  static closeActive(): void {
+    MindmapContextMenu.activeMenu?.close();
+  }
+
   items: ContextMenuItem[] = [];
   constructor(private ownerDocument: Document) {}
   private containerEl: HTMLDivElement | null = null;
@@ -69,8 +73,8 @@ class MindmapContextMenu {
   }
 
   showAtPosition(position: { x: number; y: number }): void {
-    activeMenu?.close();
-    activeMenu = this;
+    MindmapContextMenu.activeMenu?.close();
+    MindmapContextMenu.activeMenu = this;
     (Menu as unknown as { lastShown?: unknown }).lastShown = this;
 
     const containerEl = this.ownerDocument.createElement("div");
@@ -121,7 +125,7 @@ class MindmapContextMenu {
   }
 
   close(): void {
-    if (activeMenu === this) activeMenu = null;
+    if (MindmapContextMenu.activeMenu === this) MindmapContextMenu.activeMenu = null;
     if ((Menu as unknown as { lastShown?: unknown }).lastShown === this) {
       (Menu as unknown as { lastShown?: unknown }).lastShown = null;
     }
