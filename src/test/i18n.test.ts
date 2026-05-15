@@ -101,6 +101,7 @@ describe("i18n", () => {
   describe("t()", () => {
     it("returns english text by default", () => {
       expect(t("toolbar.open")).toBe("Open");
+      expect(t("renderer.openMd")).toBe("Open");
     });
 
     it("returns chinese text when locale is zh", () => {

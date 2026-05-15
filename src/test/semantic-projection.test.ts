@@ -407,6 +407,36 @@ describe("createSemanticProjection", () => {
     expect(child?.usesCustomSize).toBe(true);
   });
 
+  it("hides the open button for embedded file notebook nodes", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "![[assets/photo.png]]", path: "assets/photo.png", targetType: "file", targetKind: "image" },
+      link: "![[assets/photo.png]]",
+      customWidth: 520,
+      customHeight: 260,
+      aspectRatio: 2,
+    };
+
+    const projection = createSemanticProjection(
+      doc,
+      {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: [],
+      },
+      {
+        forcedDetailLevels: new Map([["child", 4]]),
+      },
+    );
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child?.detailLevel).toBe(4);
+    expect(child?.showOpenNotebookButton).toBe(false);
+    expect(child?.showResizeHandle).toBe(true);
+  });
+
   it("shows resize handle for selected notebooks before they reach expanded detail", () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
@@ -428,6 +458,7 @@ describe("createSemanticProjection", () => {
     expect(child).toBeDefined();
     expect(child!.detailLevel).toBe(3);
     expect(child!.usesCustomSize).toBe(false);
+    expect(child!.showOpenNotebookButton).toBe(true);
     expect(child!.showResizeHandle).toBe(true);
   });
 

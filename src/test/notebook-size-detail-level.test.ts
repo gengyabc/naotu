@@ -117,8 +117,9 @@ describe("notebook custom size detail level regression", () => {
   });
 
   it("snaps wheel resize between compact, summary, and expanded notebook sizes", () => {
-    expect(getNextMarkdownNotebookWheelSize({ width: 240, height: 96, direction: "grow" })).toEqual({ width: 360, height: 300 });
-    expect(getNextMarkdownNotebookWheelSize({ width: 240, height: 96, direction: "shrink" })).toEqual({ width: 190, height: 66 });
+    const summary = getDefaultMarkdownNotebookSize();
+    expect(getNextMarkdownNotebookWheelSize({ width: summary.width, height: summary.height, direction: "grow" })).toEqual({ width: 360, height: 300 });
+    expect(getNextMarkdownNotebookWheelSize({ width: summary.width, height: summary.height, direction: "shrink" })).toEqual({ width: 190, height: 66 });
     expect(getNextMarkdownNotebookWheelSize({ width: 420, height: 320, direction: "shrink" })).toEqual({ width: 360, height: 300 });
     expect(getNextMarkdownNotebookWheelSize({ width: 360, height: 300, direction: "grow" })).toBeNull();
     expect(getNextMarkdownNotebookWheelSize({ width: 190, height: 66, direction: "shrink" })).toBeNull();

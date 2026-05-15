@@ -34,7 +34,7 @@ function stopEventPropagation(event: unknown): void {
 
 const NOTEBOOK_OPEN_BUTTON_X = 12;
 const NOTEBOOK_OPEN_BUTTON_Y = 34;
-const NOTEBOOK_OPEN_BUTTON_WIDTH = 78;
+const NOTEBOOK_OPEN_BUTTON_WIDTH = 52;
 const NOTEBOOK_OPEN_BUTTON_HEIGHT = 20;
 const NOTEBOOK_PREVIEW_X = 8;
 const NOTEBOOK_PREVIEW_Y = 62;
@@ -46,6 +46,8 @@ const NOTEBOOK_RESIZE_HANDLE_SIZE = 12;
 const NOTEBOOK_RESIZE_HANDLE_INSET = 8;
 const BADGE_FONT_SIZE = 11;
 const BADGE_LINE_HEIGHT_FACTOR = 1.27;
+const NOTEBOOK_SUMMARY_TEXT_Y = 68;
+const NOTEBOOK_SUMMARY_MAX_LINES = 3;
 const SECONDARY_FONT_SIZE_OFFSET = -1;
 
 const descriptionCache = new Map<string, string | null>();
@@ -342,6 +344,7 @@ export function renderProjectedNodes(args: {
       targetKind,
       showPreview: visual.showPreview,
     });
+    const showOpenNotebookButton = node.showOpenNotebookButton && !showEmbeddedFilePreview;
     const hideNotebookTextForPreview = showEmbeddedFilePreview;
     const titleHitbox = group.select<SVGRectElement>("rect.mindmap-node-title-hitbox");
     let titleHitboxHeight = TITLE_HITBOX_MIN_HEIGHT;
@@ -434,7 +437,7 @@ export function renderProjectedNodes(args: {
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");
-    badgeText.attr("x", 12).attr("y", 72);
+    badgeText.attr("x", 12).attr("y", NOTEBOOK_SUMMARY_TEXT_Y);
 
     if (node.kind === "notebook" && visual.showSummary && !visual.showPreview && !isEmbeddedFileNodeTargetKind(targetKind)) {
       badgeText.style("display", "");
@@ -449,17 +452,17 @@ export function renderProjectedNodes(args: {
       if (description) {
         badgeText.selectAll("*").remove();
         const badgeLineHeightPx = Math.round(BADGE_FONT_SIZE * BADGE_LINE_HEIGHT_FACTOR);
-        const availableLines = Math.max(1, Math.floor((node.displayHeight - 72) / badgeLineHeightPx));
+        const availableLines = Math.max(1, Math.floor((node.displayHeight - NOTEBOOK_SUMMARY_TEXT_Y) / badgeLineHeightPx));
         const descLines = layoutDescription({
           text: description,
           maxWidth: node.displayWidth - 24,
           fontSize: BADGE_FONT_SIZE,
-          maxLines: Math.min(3, availableLines),
+          maxLines: Math.min(NOTEBOOK_SUMMARY_MAX_LINES, availableLines),
         });
         descLines.forEach((line, index) => {
           badgeText.append("tspan")
             .attr("x", 12)
-            .attr("y", 72 + index * badgeLineHeightPx)
+            .attr("y", NOTEBOOK_SUMMARY_TEXT_Y + index * badgeLineHeightPx)
             .text(line);
         });
       } else {
@@ -471,7 +474,7 @@ export function renderProjectedNodes(args: {
 
     group
       .select<SVGGElement>("g.mindmap-node-open-notebook")
-      .style("display", node.showOpenNotebookButton && !showEmbeddedFilePreview ? "" : "none")
+      .style("display", showOpenNotebookButton ? "" : "none")
       .style("cursor", "pointer")
       .on("pointerdown", (event: PointerEvent) => {
         event.stopPropagation();
@@ -490,9 +493,10 @@ export function renderProjectedNodes(args: {
 
         openGroup
           .select<SVGTextElement>("text.mindmap-node-open-notebook-text")
-          .attr("x", 24)
+          .attr("x", NOTEBOOK_OPEN_BUTTON_X + NOTEBOOK_OPEN_BUTTON_WIDTH / 2)
           .attr("y", 48)
-          .text(isEmbeddedFileNodeTargetKind(targetKind) ? t("renderer.openFile") : t("renderer.openMd"));
+          .attr("text-anchor", "middle")
+          .text(t("renderer.openMd"));
       });
 
     const treeToggleGroup = group

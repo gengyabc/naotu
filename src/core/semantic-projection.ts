@@ -234,7 +234,10 @@ export function createSemanticProjection(
       isSearchMatch: extra.searchResultIds?.has(node.id) ?? false,
       hasChildren: children.length > 0,
       childrenExpanded,
-      showOpenNotebookButton: node.kind === "notebook" && finalDetail >= 4 && Boolean(node.notebook?.link),
+      showOpenNotebookButton: node.kind === "notebook"
+        && !isEmbeddedFile
+        && finalDetail >= 3
+        && Boolean(node.notebook?.link),
       showResizeHandle: node.kind === "notebook" && (finalDetail >= 4 || usesCustomSize || (isSelected && finalDetail >= 2)),
       usesCustomSize,
       treeSide,

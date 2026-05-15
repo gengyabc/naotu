@@ -102,8 +102,7 @@ export const en = {
   },
 
   renderer: {
-    openMd: "Open Markdown note",
-    openFile: "Open file",
+    openMd: "Open",
     cannotPreviewNotebook: "Cannot preview notebook",
     longContentWarning: "Content is long. Consider converting to a notebook node.",
   },

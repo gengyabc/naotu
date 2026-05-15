@@ -102,8 +102,7 @@ export const zh = {
   },
 
   renderer: {
-    openMd: "打开 md",
-    openFile: "打开文件",
+    openMd: "打开",
     cannotPreviewNotebook: "无法预览 notebook",
     longContentWarning: "内容较多，建议转为笔记节点",
   },

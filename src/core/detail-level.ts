@@ -1,4 +1,10 @@
 import type { NodeDetailLevel, NodeKind } from "../types/mindmap";
+import {
+  NOTEBOOK_COMPACT_HEIGHT,
+  NOTEBOOK_COMPACT_WIDTH,
+  NOTEBOOK_SUMMARY_HEIGHT,
+  NOTEBOOK_SUMMARY_WIDTH,
+} from "./notebook-size";
 
 export interface DetailVisualSpec {
   width: number;
@@ -87,9 +93,25 @@ function getNotebookSpec(level: NodeDetailLevel): DetailVisualSpec {
     case 1:
       return { width: 180, height: 54, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
     case 2:
-      return { width: 190, height: 66, titleFontSize: 14, fontSize: 13, showSummary: false, showLink: false, showPreview: false };
+      return {
+        width: NOTEBOOK_COMPACT_WIDTH,
+        height: NOTEBOOK_COMPACT_HEIGHT,
+        titleFontSize: 14,
+        fontSize: 13,
+        showSummary: false,
+        showLink: false,
+        showPreview: false,
+      };
     case 3:
-      return { width: 240, height: 96, titleFontSize: 14, fontSize: 13, showSummary: true, showLink: false, showPreview: false };
+      return {
+        width: NOTEBOOK_SUMMARY_WIDTH,
+        height: NOTEBOOK_SUMMARY_HEIGHT,
+        titleFontSize: 14,
+        fontSize: 13,
+        showSummary: true,
+        showLink: false,
+        showPreview: false,
+      };
     case 4:
       return EXPANDED_NOTEBOOK_VISUAL;
     case 5:

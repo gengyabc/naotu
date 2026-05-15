@@ -2,15 +2,13 @@ import { decompressFromBase64 } from "lz-string";
 import { App, TFile } from "obsidian";
 import type { NotebookTargetKind } from "../types/mindmap";
 import {
-  NOTEBOOK_SUMMARY_HEIGHT,
-  NOTEBOOK_SUMMARY_WIDTH,
   NOTEBOOK_MIN_CUSTOM_WIDTH,
   NOTEBOOK_MIN_CUSTOM_HEIGHT,
   clampNotebookAspectRatioSize,
 } from "./notebook-size";
 
-const DEFAULT_EMBEDDED_WIDTH = NOTEBOOK_SUMMARY_WIDTH;
-const DEFAULT_EMBEDDED_HEIGHT = NOTEBOOK_SUMMARY_HEIGHT;
+const DEFAULT_EMBEDDED_WIDTH = 240;
+const DEFAULT_EMBEDDED_HEIGHT = 96;
 const INITIAL_EMBEDDED_MAX_WIDTH = 240;
 const INITIAL_EMBEDDED_MAX_HEIGHT = 180;
 const MEDIUM_EMBEDDED_MAX_WIDTH = 240;
