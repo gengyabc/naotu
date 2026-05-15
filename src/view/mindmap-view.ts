@@ -280,6 +280,7 @@ export class MindmapView extends FileView {
     try {
       await this.loadDocument(f, data);
     } catch {
+      // Silent fail - load errors are handled downstream
     }
   }
 

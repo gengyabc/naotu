@@ -42,7 +42,7 @@ export async function renderTextAsMarkdown(args: {
       args.sourcePath,
       child,
     );
-  } catch (error) {
+  } catch {
     cleanupForeignObject(args);
     wrapper.textContent = args.markdown;
   }
