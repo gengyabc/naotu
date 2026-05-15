@@ -278,14 +278,16 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
   setEmbeddedWrapperState(wrapper, (state.targetKind ?? "markdown") !== "markdown", state.targetKind);
   bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
 
-  const prev = childComponentByElement.get(foreignObject);
-  if (prev) {
-    state.component.removeChild(prev);
-    childComponentByElement.delete(foreignObject);
-  }
-
   const previousScrollTop = wrapper.scrollTop;
-  wrapper.empty();
+  const clearCommittedContent = (): void => {
+    const prev = childComponentByElement.get(foreignObject);
+    if (prev) {
+      state.component.removeChild(prev);
+      childComponentByElement.delete(foreignObject);
+    }
+    wrapper.empty();
+  };
+
   try {
     if ((state.targetKind ?? "markdown") !== "markdown") {
       const resolved = resolveObsidianLinkFile({
@@ -300,9 +302,6 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
         return;
       }
 
-      const child = new Component();
-      state.component.addChild(child);
-      childComponentByElement.set(foreignObject, child);
       state.requestedLines = maxLines;
       state.totalLines = maxLines;
 
@@ -313,6 +312,7 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
         });
         if (renderRunIdByElement.get(foreignObject) !== renderRunId) return;
         if (svg) {
+          clearCommittedContent();
           wrapper.appendChild(svg);
           bindEmbeddedPreviewObserver(wrapper, state.targetKind ?? "markdown");
           wrapper.scrollTop = previousScrollTop;
@@ -320,6 +320,10 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
         }
       }
 
+      clearCommittedContent();
+      const child = new Component();
+      state.component.addChild(child);
+      childComponentByElement.set(foreignObject, child);
       await MarkdownRenderer.render(
         state.app,
         buildEmbeddedPreviewMarkdown(resolved.path, state.previewWidth, state.previewHeight),
@@ -336,6 +340,7 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
       return;
     }
 
+    clearCommittedContent();
     const result = await readNotebookPreviewMarkdown({
       app: state.app,
       link: state.link,

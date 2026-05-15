@@ -63,7 +63,11 @@ function createWrapper(): FakeWrapper {
     clientHeight: 100,
     scrollHeight: 300,
     children: [],
-    empty: vi.fn(),
+    empty: vi.fn(() => {
+      wrapper.children = [];
+      wrapper.renderedMarkdown = undefined;
+      wrapper.renderedSourcePath = undefined;
+    }),
     setCssProps: vi.fn((props: Record<string, string>) => {
       for (const [key, value] of Object.entries(props)) {
         if (key === "pointer-events") wrapper.style.pointerEvents = value;
@@ -1129,6 +1133,106 @@ describe("renderNotebookPreview", () => {
       expect(createSVG).toHaveBeenCalledTimes(1);
       expect(wrapper.appendChild).toHaveBeenCalledTimes(1);
       expect(wrapper.appendChild).toHaveBeenCalledWith(svg);
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("keeps the previous excalidraw preview visible until a resize rerender completes", async () => {
+    globalPreviewCache.clear();
+
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    stubActiveDocument(wrapper);
+
+    type RenderedSvg = {
+      classList: { add: ReturnType<typeof vi.fn> };
+      removeAttribute: ReturnType<typeof vi.fn>;
+      style: { setProperty: ReturnType<typeof vi.fn> };
+    };
+    const firstSvg = {
+      classList: { add: vi.fn() },
+      removeAttribute: vi.fn(),
+      style: { setProperty: vi.fn() },
+    };
+    let resolveSecond!: (value: RenderedSvg) => void;
+    const secondSvg = {
+      classList: { add: vi.fn() },
+      removeAttribute: vi.fn(),
+      style: { setProperty: vi.fn() },
+    };
+    const secondPromise = new Promise<RenderedSvg>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const createSVG = vi.fn()
+      .mockResolvedValueOnce(firstSvg)
+      .mockImplementationOnce(() => secondPromise);
+
+    try {
+      const excalidrawFile = createFile("whiteboards/diagram.excalidraw.md", "diagram.excalidraw");
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(excalidrawFile),
+          read: vi.fn(),
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi.fn().mockReturnValue(excalidrawFile),
+        },
+        plugins: {
+          plugins: {
+            "obsidian-excalidraw-plugin": {
+              ea: { reset: vi.fn(), createSVG },
+            },
+          },
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[diagram.excalidraw.md]]",
+        sourcePath: "maps/source.naotu",
+        targetKind: "excalidraw",
+        previewWidth: 200,
+        previewHeight: 120,
+        component,
+      });
+
+      expect(wrapper.children).toEqual([firstSvg]);
+
+      const secondRender = renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[diagram.excalidraw.md]]",
+        sourcePath: "maps/source.naotu",
+        targetKind: "excalidraw",
+        previewWidth: 260,
+        previewHeight: 180,
+        component,
+      });
+
+      expect(wrapper.children).toEqual([firstSvg]);
+
+      resolveSecond(secondSvg);
+      await secondRender;
+
+      expect(wrapper.children).toEqual([secondSvg]);
 
       component.unload();
     } finally {
