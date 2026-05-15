@@ -2,15 +2,27 @@ import { decompressFromBase64 } from "lz-string";
 import { App, TFile } from "obsidian";
 import type { NotebookTargetKind } from "../types/mindmap";
 import {
+  NOTEBOOK_SUMMARY_HEIGHT,
+  NOTEBOOK_SUMMARY_WIDTH,
   NOTEBOOK_MIN_CUSTOM_WIDTH,
   NOTEBOOK_MIN_CUSTOM_HEIGHT,
   clampNotebookAspectRatioSize,
 } from "./notebook-size";
 
-const DEFAULT_EMBEDDED_WIDTH = 360;
-const DEFAULT_EMBEDDED_HEIGHT = 300;
+const DEFAULT_EMBEDDED_WIDTH = NOTEBOOK_SUMMARY_WIDTH;
+const DEFAULT_EMBEDDED_HEIGHT = NOTEBOOK_SUMMARY_HEIGHT;
+const INITIAL_EMBEDDED_MAX_WIDTH = 240;
+const INITIAL_EMBEDDED_MAX_HEIGHT = 180;
+const MEDIUM_EMBEDDED_MAX_WIDTH = 240;
+const MEDIUM_EMBEDDED_MAX_HEIGHT = 180;
+const LARGE_EMBEDDED_MAX_WIDTH = 360;
+const LARGE_EMBEDDED_MAX_HEIGHT = 300;
 const MAX_EMBEDDED_WIDTH = 600;
 const MAX_EMBEDDED_HEIGHT = 500;
+const LEGACY_DEFAULT_EMBEDDED_WIDTH = 360;
+const LEGACY_DEFAULT_EMBEDDED_HEIGHT = 300;
+
+type EmbeddedPresetSize = { width: number; height: number };
 
 export async function getFileDimensions(
   app: App,
@@ -194,6 +206,137 @@ export function calculateAspectRatioSize(
   };
 }
 
+export function calculateInitialEmbeddedSize(
+  originalWidth: number,
+  originalHeight: number,
+): { width: number; height: number; aspectRatio: number } {
+  const aspectRatio = originalWidth / originalHeight;
+  const downscale = Math.min(
+    1,
+    INITIAL_EMBEDDED_MAX_WIDTH / originalWidth,
+    INITIAL_EMBEDDED_MAX_HEIGHT / originalHeight,
+  );
+
+  return {
+    width: Math.max(1, Math.round(originalWidth * downscale)),
+    height: Math.max(1, Math.round(originalHeight * downscale)),
+    aspectRatio,
+  };
+}
+
+export function getNextEmbeddedNotebookWheelSize(args: {
+  width: number;
+  height: number;
+  direction: "grow" | "shrink";
+  aspectRatio?: number;
+}): { width: number; height: number } | null {
+  const presets = args.aspectRatio && args.aspectRatio > 0
+    ? getEmbeddedAspectRatioPresets(args.aspectRatio)
+    : getFallbackEmbeddedPresets();
+
+  if (args.direction === "grow") {
+    return presets.find((preset) => isStrictGrowPreset(args.width, args.height, preset)) ?? null;
+  }
+
+  for (let index = presets.length - 1; index >= 0; index -= 1) {
+    const preset = presets[index];
+    if (isStrictShrinkPreset(args.width, args.height, preset)) return preset;
+  }
+
+  return null;
+}
+
+export function clampEmbeddedNotebookSize(args: {
+  width: number;
+  height: number;
+  aspectRatio?: number;
+  axis?: "width" | "height";
+}): { width: number; height: number } {
+  if (!(args.aspectRatio && args.aspectRatio > 0)) {
+    return {
+      width: Math.max(DEFAULT_EMBEDDED_WIDTH, Math.round(args.width)),
+      height: Math.max(DEFAULT_EMBEDDED_HEIGHT, Math.round(args.height)),
+    };
+  }
+
+  const minSize = fitEmbeddedAspectRatioIntoBounds(
+    args.aspectRatio,
+    INITIAL_EMBEDDED_MAX_WIDTH,
+    INITIAL_EMBEDDED_MAX_HEIGHT,
+  );
+
+  if (args.axis === "height") {
+    let nextHeight = Math.max(minSize.height, Math.round(args.height));
+    let nextWidth = Math.round(nextHeight * args.aspectRatio);
+    if (nextWidth < minSize.width) {
+      nextWidth = minSize.width;
+      nextHeight = Math.max(minSize.height, Math.round(nextWidth / args.aspectRatio));
+    }
+    return { width: nextWidth, height: nextHeight };
+  }
+
+  let nextWidth = Math.max(minSize.width, Math.round(args.width));
+  let nextHeight = Math.round(nextWidth / args.aspectRatio);
+  if (nextHeight < minSize.height) {
+    nextHeight = minSize.height;
+    nextWidth = Math.max(minSize.width, Math.round(nextHeight * args.aspectRatio));
+  }
+  return { width: nextWidth, height: nextHeight };
+}
+
 export function getDefaultEmbeddedSize(): { width: number; height: number } {
   return { width: DEFAULT_EMBEDDED_WIDTH, height: DEFAULT_EMBEDDED_HEIGHT };
+}
+
+export function isLegacyDefaultEmbeddedSize(width?: number, height?: number): boolean {
+  return width === LEGACY_DEFAULT_EMBEDDED_WIDTH && height === LEGACY_DEFAULT_EMBEDDED_HEIGHT;
+}
+
+function fitEmbeddedAspectRatioIntoBounds(
+  aspectRatio: number,
+  maxWidth: number,
+  maxHeight: number,
+): EmbeddedPresetSize {
+  if (!(aspectRatio > 0)) {
+    return { width: maxWidth, height: maxHeight };
+  }
+
+  const width = Math.round(Math.min(maxWidth, maxHeight * aspectRatio));
+  const height = Math.round(width / aspectRatio);
+  return {
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+  };
+}
+
+function getEmbeddedAspectRatioPresets(aspectRatio: number): EmbeddedPresetSize[] {
+  return dedupePresetSizes([
+    fitEmbeddedAspectRatioIntoBounds(aspectRatio, INITIAL_EMBEDDED_MAX_WIDTH, INITIAL_EMBEDDED_MAX_HEIGHT),
+    fitEmbeddedAspectRatioIntoBounds(aspectRatio, MEDIUM_EMBEDDED_MAX_WIDTH, MEDIUM_EMBEDDED_MAX_HEIGHT),
+    fitEmbeddedAspectRatioIntoBounds(aspectRatio, LARGE_EMBEDDED_MAX_WIDTH, LARGE_EMBEDDED_MAX_HEIGHT),
+  ]);
+}
+
+function getFallbackEmbeddedPresets(): EmbeddedPresetSize[] {
+  return [
+    { width: DEFAULT_EMBEDDED_WIDTH, height: DEFAULT_EMBEDDED_HEIGHT },
+    { width: MEDIUM_EMBEDDED_MAX_WIDTH, height: MEDIUM_EMBEDDED_MAX_HEIGHT },
+    { width: LARGE_EMBEDDED_MAX_WIDTH, height: LARGE_EMBEDDED_MAX_HEIGHT },
+  ];
+}
+
+function dedupePresetSizes(presets: EmbeddedPresetSize[]): EmbeddedPresetSize[] {
+  return presets.filter((preset, index) => {
+    return presets.findIndex((candidate) => candidate.width === preset.width && candidate.height === preset.height) === index;
+  });
+}
+
+function isStrictGrowPreset(currentWidth: number, currentHeight: number, preset: EmbeddedPresetSize): boolean {
+  return (preset.width >= currentWidth && preset.height >= currentHeight)
+    && (preset.width > currentWidth || preset.height > currentHeight);
+}
+
+function isStrictShrinkPreset(currentWidth: number, currentHeight: number, preset: EmbeddedPresetSize): boolean {
+  return (preset.width <= currentWidth && preset.height <= currentHeight)
+    && (preset.width < currentWidth || preset.height < currentHeight);
 }

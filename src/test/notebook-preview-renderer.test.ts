@@ -352,6 +352,55 @@ describe("renderNotebookPreview", () => {
     expect(stopAtBottom).not.toHaveBeenCalled();
   });
 
+  it("lets modified wheel events bubble for canvas zoom", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nFresh content");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    let wheelListener: EventListener | undefined;
+    wrapper.addEventListener = vi.fn((type: string, listener: EventListener) => {
+      if (type === "wheel") wheelListener = listener;
+    });
+
+    const originalDocument = globalThis.document;
+    stubActiveDocument(wrapper);
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 120,
+        component,
+      });
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+
+    const stopPropagation = vi.fn();
+    wheelListener?.({ deltaY: 20, metaKey: true, stopPropagation } as unknown as Event);
+    expect(stopPropagation).not.toHaveBeenCalled();
+  });
+
   it("unloads previous child component before re-rendering", async () => {
     globalPreviewCache.clear();
 

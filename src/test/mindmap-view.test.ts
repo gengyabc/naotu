@@ -580,6 +580,34 @@ describe("MindmapView", () => {
     expect(renderer.fitRoot).toHaveBeenCalled();
   });
 
+  it("does not double-handle zoom shortcuts when capture and bubble both see the same event", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    let defaultPrevented = false;
+    const event = {
+      key: "-",
+      code: undefined,
+      metaKey: true,
+      ctrlKey: false,
+      shiftKey: false,
+      target: harness.view.contentEl as never,
+      get defaultPrevented() {
+        return defaultPrevented;
+      },
+      preventDefault: vi.fn(() => {
+        defaultPrevented = true;
+      }),
+    } as unknown as KeyboardEvent;
+
+    (harness.view as any).handleCanvasKeydown(event);
+    (harness.view as any).handleCanvasKeydown(event);
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(renderer.zoomBy).toHaveBeenCalledTimes(1);
+  });
+
   it("does not globally zoom out once subtree zoom is already showing only the selected node", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
@@ -658,7 +686,7 @@ describe("MindmapView", () => {
 
     const boundNode = getDocument(harness.view).nodes.find((node) => node.id === "child");
     expect(boundNode?.kind).toBe("notebook");
-    expect(renderer.forceDetailLevel).toHaveBeenCalledWith("child", 5);
+    expect(renderer.forceDetailLevel).not.toHaveBeenCalled();
 
     await (harness.view as any).handleInlineTextCommit("child", "Renamed Topic");
     expect(harness.fileManager.renameFile).toHaveBeenCalledWith(notebookFile, "notes/Renamed Topic.md");
@@ -692,8 +720,8 @@ describe("MindmapView", () => {
     expect(boundNode?.kind).toBe("notebook");
     expect(boundNode?.title).toBe("photo.png");
     expect(boundNode?.notebook?.targetKind).toBe("image");
-    expect(boundNode?.customWidth).toBe(360);
-    expect(boundNode?.customHeight).toBe(300);
+    expect(boundNode?.customWidth).toBe(240);
+    expect(boundNode?.customHeight).toBe(96);
   });
 
   it("binds excalidraw files through the shared file picker and applies preview sizing", async () => {
@@ -715,8 +743,8 @@ describe("MindmapView", () => {
     expect(boundNode?.kind).toBe("notebook");
     expect(boundNode?.title).toBe("diagram.excalidraw.md");
     expect(boundNode?.notebook?.targetKind).toBe("excalidraw");
-    expect(boundNode?.customWidth).toBe(360);
-    expect(boundNode?.customHeight).toBe(300);
+    expect(boundNode?.customWidth).toBe(240);
+    expect(boundNode?.customHeight).toBe(96);
   });
 
   it("creates, opens, and disconnects notebook-backed nodes through notebook actions", async () => {

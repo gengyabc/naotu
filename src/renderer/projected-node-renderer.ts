@@ -11,16 +11,16 @@ import { getFontSizeForDepth, getObsidianBaseFontSize } from "../core/font-size"
 import { renderNotebookPreview } from "./notebook-preview-renderer";
 import { renderTextAsMarkdown } from "./text-markdown-renderer";
 import { t } from "../i18n";
+import { clampEmbeddedNotebookSize } from "../core/file-dimensions";
 import {
-  NOTEBOOK_MIN_CUSTOM_HEIGHT,
-  NOTEBOOK_MIN_CUSTOM_WIDTH,
+  clampMarkdownNotebookSize,
   clampNotebookAspectRatioSize,
 } from "../core/notebook-size";
 import { isElementLike } from "../core/dom";
+import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
 import { truncateTextForNotebook, layoutDescription } from "../core/text-layout";
-import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 
 function getEventTarget(event: unknown): EventTarget | null {
   return event instanceof Event ? event.target : null;
@@ -90,15 +90,17 @@ export function clampNotebookResizeSize(
   width: number,
   height: number,
   aspectRatio?: number,
+  targetKind?: string,
   axis: "width" | "height" = "width",
 ): { width: number; height: number } {
+  if (isEmbeddedFileNodeTargetKind(targetKind)) {
+    return clampEmbeddedNotebookSize({ width, height, aspectRatio, axis });
+  }
+
   if (aspectRatio && aspectRatio > 0) {
     return clampNotebookAspectRatioSize(width, height, aspectRatio, axis);
   }
-  return {
-    width: Math.max(NOTEBOOK_MIN_CUSTOM_WIDTH, Math.round(width)),
-    height: Math.max(NOTEBOOK_MIN_CUSTOM_HEIGHT, Math.round(height)),
-  };
+  return clampMarkdownNotebookSize(width, height);
 }
 
 export function shouldStartNodeDrag(target: EventTarget | null): boolean {
@@ -253,13 +255,14 @@ export function renderProjectedNodes(args: {
       currentDraft.width + event.dx,
       currentDraft.height + event.dy,
       node.aspectRatio,
+      node.notebook?.targetKind,
       currentDraft.axis,
     );
     resizeDrafts.set(node.id, { ...next, axis: currentDraft.axis });
     args.onNotebookResize({ id: node.id, width: next.width, height: next.height });
   }).on("end", (_event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
     const currentDraft = resizeDrafts.get(node.id) ?? { width: node.displayWidth, height: node.displayHeight, axis: "width" as const };
-    const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height, node.aspectRatio);
+    const next = clampNotebookResizeSize(currentDraft.width, currentDraft.height, node.aspectRatio, node.notebook?.targetKind);
     resizeDrafts.delete(node.id);
     args.onNotebookResizeEnd({ id: node.id, width: next.width, height: next.height });
   });
@@ -344,6 +347,7 @@ export function renderProjectedNodes(args: {
     let titleHitboxHeight = TITLE_HITBOX_MIN_HEIGHT;
 
     group.attr("transform", `translate(${screen.x}, ${screen.y})`);
+    group.attr("data-node-id", node.id);
     group.classed("is-text", node.kind === "text");
     group.classed("is-notebook", node.kind === "notebook");
     group.classed("is-root", node.isRoot);

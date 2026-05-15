@@ -25,7 +25,7 @@ describe("projected node dragging", () => {
   });
 
   it("clamps notebook resize size to minimum bounds", () => {
-    expect(clampNotebookResizeSize(120, 90)).toEqual({ width: 200, height: 150 });
+    expect(clampNotebookResizeSize(120, 40)).toEqual({ width: 190, height: 66 });
   });
 
   it("rounds notebook resize size before persisting", () => {
@@ -33,18 +33,23 @@ describe("projected node dragging", () => {
   });
 
   it("preserves aspect ratio when resizing embedded file nodes", () => {
-    expect(clampNotebookResizeSize(300, 200, 1.5)).toEqual({ width: 300, height: 200 });
-    expect(clampNotebookResizeSize(600, 400, 2)).toEqual({ width: 600, height: 300 });
-    expect(clampNotebookResizeSize(400, 300, 1.33)).toEqual({ width: 400, height: 301 });
+    expect(clampNotebookResizeSize(300, 200, 1.5, "image")).toEqual({ width: 300, height: 200 });
+    expect(clampNotebookResizeSize(600, 400, 2, "image")).toEqual({ width: 600, height: 300 });
+    expect(clampNotebookResizeSize(400, 300, 1.33, "image")).toEqual({ width: 400, height: 301 });
   });
 
   it("can derive aspect-ratio resize from vertical drag intent", () => {
-    expect(clampNotebookResizeSize(300, 260, 2, "height")).toEqual({ width: 520, height: 260 });
-    expect(clampNotebookResizeSize(300, 100, 2, "height")).toEqual({ width: 300, height: 150 });
+    expect(clampNotebookResizeSize(300, 260, 2, "image", "height")).toEqual({ width: 520, height: 260 });
+    expect(clampNotebookResizeSize(300, 100, 2, "image", "height")).toEqual({ width: 240, height: 120 });
   });
 
   it("enforces minimum width when preserving aspect ratio", () => {
     expect(clampNotebookResizeSize(50, 100, 0.5)).toEqual({ width: 200, height: 400 });
+  });
+
+  it("keeps embedded drag resize aligned with the small embedded preset", () => {
+    expect(clampNotebookResizeSize(50, 100, 0.5, "image")).toEqual({ width: 90, height: 180 });
+    expect(clampNotebookResizeSize(120, 50, undefined, "image")).toEqual({ width: 240, height: 96 });
   });
 
   it("does not start node dragging from notebook controls", () => {

@@ -13,6 +13,9 @@ import { canInlineEditNodeTitle, renderProjectedNodes } from "./projected-node-r
 import type { RendererAdapter } from "./renderer-adapter";
 import { InlineTitleEditor } from "./inline-title-editor";
 import { isElementLike } from "../core/dom";
+import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
+import { getNextMarkdownNotebookWheelSize } from "../core/notebook-size";
+import { getNextEmbeddedNotebookWheelSize } from "../core/file-dimensions";
 
 export type MindmapRendererOptions = {
   app: App;
@@ -75,6 +78,13 @@ type SharedScene = {
   inlineEditorLayer: HTMLDivElement;
 };
 
+type WheelNotebookResizeSession = {
+  nodeId: string;
+  width: number;
+  height: number;
+  timeoutId: number;
+};
+
 export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
   protected overlayScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -92,6 +102,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected renderScheduled = false;
   protected lastProjectedNodes: ProjectedNode[] = [];
   protected missingNotebookNodeIds = new Set<string>();
+  private wheelNotebookResizeSession: WheelNotebookResizeSession | null = null;
   private panActive = false;
   private panPrev = { x: 0, y: 0 };
   private panSvgRect = { left: 0, top: 0 };
@@ -137,6 +148,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   }
 
   unmount(): void {
+    this.flushWheelNotebookResizeSession();
     this.svg.node()?.removeEventListener("wheel", this.handleWheelZoom);
     this.cleanupPanListeners();
     this.options.container.empty();
@@ -429,12 +441,80 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   }
 
   private handleWheelZoom = (event: WheelEvent): void => {
+    if (this.handleNotebookWheelResize(event)) {
+      event.preventDefault();
+      return;
+    }
+
     event.preventDefault();
     const zoomSpeed = this.options.getSettings().zoomSpeed;
     const factor = Math.exp(-event.deltaY * zoomSpeed);
     if (!Number.isFinite(factor) || factor === 1) return;
     this.handleZoomInput(factor);
   };
+
+  private handleNotebookWheelResize(event: WheelEvent): boolean {
+    if (event.metaKey || event.ctrlKey) return false;
+
+    const target = isElementLike(event.target) ? event.target : null;
+    const nodeId = target?.closest(".mindmap-node")?.getAttribute("data-node-id");
+    if (!nodeId) return false;
+
+    const node = this.lastProjectedNodes.find((item) => item.id === nodeId);
+    if (!node || node.kind !== "notebook") {
+      return false;
+    }
+
+    const direction = event.deltaY > 0 ? "grow" : event.deltaY < 0 ? "shrink" : null;
+    if (!direction) return true;
+
+    const nextSize = isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)
+      ? getNextEmbeddedNotebookWheelSize({
+          width: node.displayWidth,
+          height: node.displayHeight,
+          direction,
+          aspectRatio: node.aspectRatio,
+        })
+      : getNextMarkdownNotebookWheelSize({
+          width: node.displayWidth,
+          height: node.displayHeight,
+          direction,
+        });
+    if (!nextSize) return true;
+
+    const ownerWindow = this.options.container.ownerDocument.defaultView;
+    if (!ownerWindow) return true;
+
+    if (this.wheelNotebookResizeSession?.nodeId !== node.id) {
+      this.flushWheelNotebookResizeSession();
+      this.options.onNotebookResizeStart(node.id);
+    } else {
+      ownerWindow.clearTimeout(this.wheelNotebookResizeSession.timeoutId);
+    }
+
+    this.options.onNotebookResize({ id: node.id, width: nextSize.width, height: nextSize.height });
+    this.wheelNotebookResizeSession = {
+      nodeId: node.id,
+      width: nextSize.width,
+      height: nextSize.height,
+      timeoutId: ownerWindow.setTimeout(() => {
+        this.flushWheelNotebookResizeSession();
+      }, 180),
+    };
+    return true;
+  }
+
+  private flushWheelNotebookResizeSession(): void {
+    if (!this.wheelNotebookResizeSession) return;
+
+    this.options.container.ownerDocument.defaultView?.clearTimeout(this.wheelNotebookResizeSession.timeoutId);
+    this.options.onNotebookResizeEnd({
+      id: this.wheelNotebookResizeSession.nodeId,
+      width: this.wheelNotebookResizeSession.width,
+      height: this.wheelNotebookResizeSession.height,
+    });
+    this.wheelNotebookResizeSession = null;
+  }
 
   private bindBoxSelect(): void {
     this.svg.on("mousedown.boxselect", (event: MouseEvent) => {

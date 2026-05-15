@@ -398,6 +398,10 @@ export class MindmapView extends FileView {
     this.canvasEl = canvas;
     canvas.tabIndex = 0;
     setCanvasA11y(canvas);
+    canvas.addEventListener("keydown", (event) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      this.handleCanvasKeydown(event);
+    }, true);
     canvas.addEventListener("keydown", (event) => this.handleCanvasKeydown(event));
 
     this.rendererCoordinator.mount(canvas);

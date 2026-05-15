@@ -76,6 +76,8 @@ export class MindmapInteractions {
   }
 
   handleCanvasKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return;
+
     const target = event.target as HTMLElement | null;
     if (target?.closest("input, textarea")) return;
 

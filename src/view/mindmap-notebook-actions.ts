@@ -7,7 +7,12 @@ import type { MindmapDocument, MindmapNode, NotebookTargetKind } from "../types/
 import { showErrorNotice } from "../ui/error-notice";
 import { FileBindingSuggestModal } from "../ui/file-suggest-modal";
 import { getFileNodeTitle } from "../core/file-node-support";
-import { getFileDimensions, calculateAspectRatioSize, getDefaultEmbeddedSize } from "../core/file-dimensions";
+import {
+  getFileDimensions,
+  calculateInitialEmbeddedSize,
+  getDefaultEmbeddedSize,
+  isLegacyDefaultEmbeddedSize,
+} from "../core/file-dimensions";
 
 type NotebookChangeOptions = {
   commitHistory?: boolean;
@@ -82,8 +87,10 @@ export class MindmapNotebookActions {
       const dimensions = await getFileDimensions(this.options.app, file, targetKind);
       if (!dimensions) continue;
 
-      const sized = calculateAspectRatioSize(dimensions.width, dimensions.height);
-      const usesLegacyDefaultSize = node.customWidth === defaultSize.width && node.customHeight === defaultSize.height;
+      const sized = calculateInitialEmbeddedSize(dimensions.width, dimensions.height);
+      const usesLegacyDefaultSize =
+        (node.customWidth === defaultSize.width && node.customHeight === defaultSize.height)
+        || isLegacyDefaultEmbeddedSize(node.customWidth, node.customHeight);
       const needsAspectRatio = typeof node.aspectRatio !== "number" || node.aspectRatio <= 0;
       const needsSizeUpgrade = usesLegacyDefaultSize || (typeof node.customWidth !== "number" && typeof node.customHeight !== "number");
 
@@ -264,7 +271,6 @@ export class MindmapNotebookActions {
   private focusNotebookNode(id: string): void {
     this.options.setSelectionOnly(id);
     this.options.setLastFocusNodeId(id);
-    this.options.forceDetailLevel(id, 5);
     this.options.focusNode(id);
     this.options.render();
   }
@@ -289,7 +295,7 @@ export class MindmapNotebookActions {
       return { ...patch, customWidth: defaultSize.width, customHeight: defaultSize.height, aspectRatio: undefined };
     }
 
-    const sized = calculateAspectRatioSize(dimensions.width, dimensions.height);
+    const sized = calculateInitialEmbeddedSize(dimensions.width, dimensions.height);
     return { ...patch, customWidth: sized.width, customHeight: sized.height, aspectRatio: sized.aspectRatio };
   }
 }

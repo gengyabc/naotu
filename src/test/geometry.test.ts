@@ -16,6 +16,6 @@ describe("nodeWorldRect", () => {
         customHeight: 90,
         treeControl: "auto",
       }),
-    ).toEqual({ x: 300, y: 225, width: 200, height: 150 });
+    ).toEqual({ x: 305, y: 255, width: 190, height: 90 });
   });
 });

@@ -431,7 +431,7 @@ describe("createSemanticProjection", () => {
     expect(child!.showResizeHandle).toBe(true);
   });
 
-  it("does not show resize handle for selected notebooks below detail level 2", () => {
+  it("keeps selected markdown notebooks at summary detail even at low zoom", () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
     doc.nodes[1] = {
@@ -450,8 +450,8 @@ describe("createSemanticProjection", () => {
 
     const child = projection.nodes.find((node) => node.id === "child");
     expect(child).toBeDefined();
-    expect(child!.detailLevel).toBeLessThan(2);
-    expect(child!.showResizeHandle).toBe(false);
+    expect(child!.detailLevel).toBe(3);
+    expect(child!.showResizeHandle).toBe(true);
   });
 
   it("keeps embedded file notebooks at preview size after focus moves away", () => {
@@ -542,8 +542,8 @@ describe("createSemanticProjection", () => {
     );
 
     const child = projection.nodes.find((node) => node.id === "child");
-    expect(child?.displayWidth).toBe(200);
-    expect(child?.displayHeight).toBe(150);
+    expect(child?.displayWidth).toBe(190);
+    expect(child?.displayHeight).toBe(90);
   });
 
   it("settles expanded notebook overlaps out of screen space", () => {
@@ -1166,8 +1166,8 @@ describe("notebook focus policy in projection", () => {
     const childUnselected = unselected.nodes.find((n) => n.id === "child");
     const childSelected = selected.nodes.find((n) => n.id === "child");
 
-    expect(childUnselected?.detailLevel).toBe(0);
-    expect(childSelected?.detailLevel).toBe(0);
+    expect(childUnselected?.detailLevel).toBe(3);
+    expect(childSelected?.detailLevel).toBe(3);
     expect(childSelected?.displayWidth).toBe(childUnselected?.displayWidth);
     expect(childSelected?.displayHeight).toBe(childUnselected?.displayHeight);
   });
@@ -1235,7 +1235,7 @@ describe("notebook focus policy in projection", () => {
     });
     doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
 
-    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 0]]);
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 3]]);
     const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
     const projection = createSemanticProjection(doc, {
       zoom: 2,
@@ -1246,8 +1246,8 @@ describe("notebook focus policy in projection", () => {
     }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
 
     const child = projection.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBe(0);
-    expect(next.get("child")).toBe(0);
+    expect(child?.detailLevel).toBe(3);
+    expect(next.get("child")).toBe(3);
   });
 
   it("keeps notebook frozen detail on hover", () => {
@@ -1264,7 +1264,7 @@ describe("notebook focus policy in projection", () => {
     });
     doc.edges.push({ id: "edge-other", source: "root", target: "other", relation: "mindmap", type: "curve" });
 
-    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 1]]);
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 3]]);
     const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
     const projection = createSemanticProjection(doc, {
       zoom: 0.4,
@@ -1275,8 +1275,8 @@ describe("notebook focus policy in projection", () => {
     }, { prevFrozenNotebookLevels: prev, nextFrozenNotebookLevels: next });
 
     const child = projection.nodes.find((n) => n.id === "child");
-    expect(child?.detailLevel).toBe(1);
-    expect(next.get("child")).toBe(1);
+    expect(child?.detailLevel).toBe(3);
+    expect(next.get("child")).toBe(3);
   });
 
   it("maintains independent frozen levels for multiple notebooks", () => {
@@ -1312,7 +1312,7 @@ describe("notebook focus policy in projection", () => {
     });
     doc.edges.push({ id: "edge-nb2", source: "root", target: "nb2", relation: "mindmap", type: "curve" });
 
-    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 1], ["nb2", 4]]);
+    const prev = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>([["child", 3], ["nb2", 4]]);
     const next = new Map<string, 0 | 1 | 2 | 3 | 4 | 5>();
     const projection = createSemanticProjection(doc, {
       zoom: 2,
@@ -1323,7 +1323,7 @@ describe("notebook focus policy in projection", () => {
 
     const child = projection.nodes.find((n) => n.id === "child");
     const nb2 = projection.nodes.find((n) => n.id === "nb2");
-    expect(child?.detailLevel).toBe(1);
+    expect(child?.detailLevel).toBe(3);
     expect(nb2?.detailLevel).toBe(4);
   });
 

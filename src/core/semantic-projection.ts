@@ -166,6 +166,9 @@ export function createSemanticProjection(
 
       if (isRoot || isAncestorPath) afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 1));
       if (isHovered && node.kind !== "notebook") afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 2));
+      if (node.kind === "notebook" && !isEmbeddedFile) {
+        afterNotebookPolicy = clampDetailLevel(Math.max(afterNotebookPolicy, 3));
+      }
 
       if (node.kind === "notebook") {
         nextFrozenLevels.set(node.id, afterNotebookPolicy);

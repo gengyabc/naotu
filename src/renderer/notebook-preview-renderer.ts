@@ -224,7 +224,8 @@ export async function renderNotebookPreview(args: {
   const isInteractive = (args.targetKind ?? "markdown") === "markdown";
   wrapper.classList.toggle("is-interactive", isInteractive);
   if (!wheelBindingByElement.has(wrapper)) {
-    wrapper.addEventListener("wheel", (event) => {
+    wrapper.addEventListener("wheel", (event: WheelEvent) => {
+      if (event.metaKey || event.ctrlKey) return;
       if (shouldKeepWheelWithinPreview(wrapper, event.deltaY)) {
         event.stopPropagation();
       }

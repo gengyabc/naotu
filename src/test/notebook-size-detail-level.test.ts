@@ -1,8 +1,34 @@
 import { describe, expect, it } from "vitest";
+import {
+  getDefaultMarkdownNotebookSize,
+  getNextMarkdownNotebookWheelSize,
+} from "../core/notebook-size";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { createSmallTestDocument } from "./test-fixtures";
 
 describe("notebook custom size detail level regression", () => {
+  it("defaults markdown notebook nodes to summary size", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const projection = createSemanticProjection(doc, {
+      zoom: 0.2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+      selectedNodeIds: [],
+    });
+
+    const child = projection.nodes.find((node) => node.id === "child");
+    expect(child).toBeDefined();
+    expect(child!.detailLevel).toBe(3);
+    expect(child!.displayWidth).toBe(getDefaultMarkdownNotebookSize().width);
+    expect(child!.displayHeight).toBe(getDefaultMarkdownNotebookSize().height);
+  });
+
   it("uses custom size and shows handler when notebook is manually resized", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {
@@ -88,5 +114,13 @@ describe("notebook custom size detail level regression", () => {
     const manualChild = manualProjection.nodes.find((node) => node.id === "child");
     expect(manualChild!.displayWidth).toBe(zoomWidth);
     expect(manualChild!.displayHeight).toBe(zoomHeight);
+  });
+
+  it("snaps wheel resize between compact, summary, and expanded notebook sizes", () => {
+    expect(getNextMarkdownNotebookWheelSize({ width: 240, height: 96, direction: "grow" })).toEqual({ width: 360, height: 300 });
+    expect(getNextMarkdownNotebookWheelSize({ width: 240, height: 96, direction: "shrink" })).toEqual({ width: 190, height: 66 });
+    expect(getNextMarkdownNotebookWheelSize({ width: 420, height: 320, direction: "shrink" })).toEqual({ width: 360, height: 300 });
+    expect(getNextMarkdownNotebookWheelSize({ width: 360, height: 300, direction: "grow" })).toBeNull();
+    expect(getNextMarkdownNotebookWheelSize({ width: 190, height: 66, direction: "shrink" })).toBeNull();
   });
 });
