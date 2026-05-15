@@ -76,7 +76,7 @@ function getNotebookDescription(args: {
   if (cached !== undefined) return cached;
 
   const fileCache = args.app.metadataCache.getFileCache(file);
-  const description: unknown = fileCache?.frontmatter?.description;
+  const description: unknown = fileCache?.frontmatter?.description ?? fileCache?.frontmatter?.Description;
   const result = typeof description === "string" ? description : null;
   descriptionCache.set(cacheKey, result);
   return result;
