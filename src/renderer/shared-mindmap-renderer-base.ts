@@ -205,14 +205,17 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   }
 
   focusNode(id: string): void {
-    const node = this.options.getDocument().nodes.find((item) => item.id === id);
-    if (!node) return;
+    const projectedNode = this.lastProjectedNodes.find((item) => item.id === id);
+    const fallbackNode = projectedNode ? undefined : this.options.getDocument().nodes.find((item) => item.id === id);
+    if (!projectedNode && !fallbackNode) return;
 
     const rect = this.options.container.getBoundingClientRect();
     const current = d3.zoomTransform(this.svg.node()!);
     const k = Math.max(current.k, 1.2);
-    const x = rect.width / 2 - node.x * k;
-    const y = rect.height / 2 - node.y * k;
+    const nodeX = projectedNode?.worldX ?? fallbackNode!.x;
+    const nodeY = projectedNode?.worldY ?? fallbackNode!.y;
+    const x = rect.width / 2 - nodeX * k;
+    const y = rect.height / 2 - nodeY * k;
 
     this.svg.transition().duration(250).call((selection) => {
       this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(x, y).scale(k));
@@ -388,6 +391,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
         zoom: transform.k,
         viewportWorldRect: this.getViewportWorldRect(),
         selectedNodeIds: this.options.getSelectedNodeIds(),
+        treeVerticalSpacing: this.options.getSettings().layoutVerticalSpacing,
         hoveredNodeId: this.hoveredNodeId,
         lastFocusNodeId: this.lastFocusNodeId,
       },

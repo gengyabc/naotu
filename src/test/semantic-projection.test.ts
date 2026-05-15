@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { applyNotebookFocusPolicy } from "../core/semantic-zoom-policy";
 import { createSmallTestDocument } from "./test-fixtures";
-import { getLayoutNodeSize } from "../core/tree-layout";
+import { getLayoutNodeSize, TreeLayoutEngine } from "../core/tree-layout";
+import { DEFAULT_LAYOUT_HORIZONTAL_SPACING, DEFAULT_LAYOUT_VERTICAL_SPACING } from "../types/settings";
+import type { MindmapDocument } from "../types/mindmap";
 
 function toScreenRect(node: { projectedX: number; projectedY: number; displayWidth: number; displayHeight: number }, zoom: number, viewportX: number, viewportY: number) {
   return {
@@ -10,6 +12,139 @@ function toScreenRect(node: { projectedX: number; projectedY: number; displayWid
     top: node.projectedY * zoom - viewportY * zoom,
     right: node.projectedX * zoom - viewportX * zoom + node.displayWidth,
     bottom: node.projectedY * zoom - viewportY * zoom + node.displayHeight,
+  };
+}
+
+function toLayoutCenterY(
+  node: { projectedY: number; displayHeight: number },
+  zoom: number,
+  viewportY: number,
+  viewportHeight: number,
+): number {
+  const viewportCenterY = viewportY + viewportHeight / 2;
+  const projectedCenterY = node.projectedY + node.displayHeight / (2 * zoom);
+  return viewportCenterY + (projectedCenterY - viewportCenterY) * zoom;
+}
+
+function createTreeVisibilityTestDocument(layoutMode: "tree-right" | "tree-mirror"): MindmapDocument {
+  const doc: MindmapDocument = {
+    version: 1,
+    title: "Tree Visibility",
+    layoutMode,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      {
+        id: "root",
+        kind: "text",
+        title: "Root",
+        x: 0,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "manual-expanded",
+      },
+      {
+        id: "left",
+        kind: "text",
+        title: "Left",
+        x: -200,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "left-child",
+        kind: "text",
+        title: "Left Child",
+        x: -400,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "left-child-2",
+        kind: "text",
+        title: "Left Child 2",
+        x: -400,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "right-a",
+        kind: "text",
+        title: "Right A",
+        x: 200,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "right-a-child",
+        kind: "text",
+        title: "Right A Child",
+        x: 400,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "right-a-child-2",
+        kind: "text",
+        title: "Right A Child 2",
+        x: 400,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "auto",
+      },
+      {
+        id: "right-b",
+        kind: "text",
+        title: "Right B",
+        x: 200,
+        y: 0,
+        width: 180,
+        height: 56,
+        treeControl: "manual-expanded",
+      },
+    ],
+    edges: [
+      { id: "e1", source: "root", target: "left", relation: "mindmap", type: "curve" },
+      { id: "e2", source: "left", target: "left-child", relation: "mindmap", type: "curve" },
+      { id: "e2b", source: "left", target: "left-child-2", relation: "mindmap", type: "curve" },
+      { id: "e3", source: "root", target: "right-a", relation: "mindmap", type: "curve" },
+      { id: "e4", source: "right-a", target: "right-a-child", relation: "mindmap", type: "curve" },
+      { id: "e4b", source: "right-a", target: "right-a-child-2", relation: "mindmap", type: "curve" },
+      { id: "e5", source: "root", target: "right-b", relation: "mindmap", type: "curve" },
+    ],
+  };
+
+  return new TreeLayoutEngine().layout(doc, {
+    mode: layoutMode,
+    horizontalSpacing: DEFAULT_LAYOUT_HORIZONTAL_SPACING,
+    verticalSpacing: DEFAULT_LAYOUT_VERTICAL_SPACING,
+  });
+}
+
+function createProjectionContext(args: {
+  zoom: number;
+  viewportWorldRect?: { x: number; y: number; width: number; height: number };
+  selectedNodeIds?: string[];
+  lastFocusNodeId?: string;
+  treeVerticalSpacing?: number;
+}) {
+  return {
+    zoom: args.zoom,
+    viewportWorldRect: args.viewportWorldRect ?? { x: -1000, y: -1000, width: 2000, height: 2000 },
+    selectedNodeIds: args.selectedNodeIds ?? [],
+    treeVerticalSpacing: args.treeVerticalSpacing,
+    lastFocusNodeId: args.lastFocusNodeId,
   };
 }
 
@@ -53,6 +188,27 @@ describe("createSemanticProjection", () => {
         zoom: 1,
         viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
         selectedNodeIds: ["child"],
+      }),
+    ).not.toThrow();
+  });
+
+  it("handles cyclic hierarchies in tree layout without recursing forever", () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.edges.push({
+      id: "edge2",
+      source: "child",
+      target: "root",
+      relation: "mindmap",
+      type: "curve",
+    });
+
+    expect(() =>
+      createSemanticProjection(doc, {
+        zoom: 1,
+        viewportWorldRect: { x: -1000, y: -1000, width: 2000, height: 2000 },
+        selectedNodeIds: ["root"],
+        treeVerticalSpacing: DEFAULT_LAYOUT_VERTICAL_SPACING,
       }),
     ).not.toThrow();
   });
@@ -317,6 +473,97 @@ describe("createSemanticProjection", () => {
     });
 
     expect(projection.focusNodeId).toBe("root");
+  });
+
+  it("compacts same-side tree siblings when zoom hides a descendant branch", () => {
+    const doc = createTreeVisibilityTestDocument("tree-right");
+    const viewport = { x: -1000, y: -1000, width: 2000, height: 2000 };
+
+    const expanded = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+    const collapsed = createSemanticProjection(doc, {
+      zoom: 0.55,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const expandedA = expanded.nodes.find((node) => node.id === "right-a");
+    const expandedB = expanded.nodes.find((node) => node.id === "right-b");
+    const collapsedA = collapsed.nodes.find((node) => node.id === "right-a");
+    const collapsedB = collapsed.nodes.find((node) => node.id === "right-b");
+
+    expect(expanded.visibleNodeIds.has("right-a-child")).toBe(true);
+    expect(collapsed.visibleNodeIds.has("right-a-child")).toBe(false);
+
+    const expandedGap = toLayoutCenterY(expandedB!, 1, viewport.y, viewport.height) - toLayoutCenterY(expandedA!, 1, viewport.y, viewport.height);
+    const collapsedGap = toLayoutCenterY(collapsedB!, 0.55, viewport.y, viewport.height) - toLayoutCenterY(collapsedA!, 0.55, viewport.y, viewport.height);
+    expect(collapsedGap).toBeLessThan(expandedGap);
+  });
+
+  it("keeps the opposite mirror side stable when one side changes visibility", () => {
+    const doc = createTreeVisibilityTestDocument("tree-mirror");
+    const rightA = doc.nodes.find((node) => node.id === "right-a");
+    if (rightA) rightA.treeControl = "manual-expanded";
+    const viewport = { x: -1000, y: -1000, width: 2000, height: 2000 };
+
+    const expanded = createSemanticProjection(doc, {
+      zoom: 1,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+    const collapsed = createSemanticProjection(doc, {
+      zoom: 0.55,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+    });
+
+    const expandedRightB = expanded.nodes.find((node) => node.id === "right-b");
+    const collapsedRightB = collapsed.nodes.find((node) => node.id === "right-b");
+
+    expect(expanded.visibleNodeIds.has("left-child")).toBe(true);
+    expect(collapsed.visibleNodeIds.has("left-child")).toBe(false);
+
+    const expandedRightY = toLayoutCenterY(expandedRightB!, 1, viewport.y, viewport.height);
+    const collapsedRightY = toLayoutCenterY(collapsedRightB!, 0.55, viewport.y, viewport.height);
+
+    expect(collapsedRightY).toBeCloseTo(expandedRightY, 6);
+  });
+
+  it("uses the provided tree spacing for visible-only reflow", () => {
+    const doc = createTreeVisibilityTestDocument("tree-right");
+    const viewport = { x: -1000, y: -1000, width: 2000, height: 2000 };
+
+    const compact = createSemanticProjection(doc, createProjectionContext({
+      zoom: 0.55,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+      treeVerticalSpacing: 60,
+    }));
+    const roomy = createSemanticProjection(doc, createProjectionContext({
+      zoom: 0.55,
+      viewportWorldRect: viewport,
+      selectedNodeIds: ["root"],
+      lastFocusNodeId: "root",
+      treeVerticalSpacing: 140,
+    }));
+
+    const compactA = compact.nodes.find((node) => node.id === "right-a");
+    const compactB = compact.nodes.find((node) => node.id === "right-b");
+    const roomyA = roomy.nodes.find((node) => node.id === "right-a");
+    const roomyB = roomy.nodes.find((node) => node.id === "right-b");
+
+    const compactGap = toLayoutCenterY(compactB!, 0.55, viewport.y, viewport.height) - toLayoutCenterY(compactA!, 0.55, viewport.y, viewport.height);
+    const roomyGap = toLayoutCenterY(roomyB!, 0.55, viewport.y, viewport.height) - toLayoutCenterY(roomyA!, 0.55, viewport.y, viewport.height);
+
+    expect(roomyGap).toBeGreaterThan(compactGap);
   });
 
   it("applies forced detail during projection sizing", () => {

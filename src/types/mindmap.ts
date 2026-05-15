@@ -81,6 +81,7 @@ export interface ProjectionContext {
   zoom: number;
   viewportWorldRect: Rect;
   selectedNodeIds: string[];
+  treeVerticalSpacing?: number;
   hoveredNodeId?: string;
   lastFocusNodeId?: string;
 }

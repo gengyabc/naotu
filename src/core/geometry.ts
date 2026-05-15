@@ -1,4 +1,4 @@
-import type { MindmapNode, Rect } from "../types/mindmap";
+import type { MindmapNode, ProjectedNode, Rect } from "../types/mindmap";
 import { getStoredNodeSize } from "./notebook-size";
 
 export function normalizeRect(x1: number, y1: number, x2: number, y2: number): Rect {
@@ -21,5 +21,14 @@ export function nodeWorldRect(node: MindmapNode): Rect {
     y: node.y - size.height / 2,
     width: size.width,
     height: size.height,
+  };
+}
+
+export function projectedNodeWorldRect(node: ProjectedNode, zoom: number): Rect {
+  return {
+    x: node.worldX - node.displayWidth / (2 * zoom),
+    y: node.worldY - node.displayHeight / (2 * zoom),
+    width: node.displayWidth / zoom,
+    height: node.displayHeight / zoom,
   };
 }

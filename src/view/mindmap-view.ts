@@ -21,7 +21,7 @@ import {
   getMindmapChildIds,
 } from "../core/tree-editing";
 import { findRootNodeId } from "../core/keyboard-navigation";
-import { nodeWorldRect, rectIntersects } from "../core/geometry";
+import { nodeWorldRect, projectedNodeWorldRect, rectIntersects } from "../core/geometry";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
@@ -209,11 +209,17 @@ export class MindmapView extends FileView {
         this.handleNotebookResizeEnd(args);
       },
       onBoxSelect: (rect) => {
-        const ids = this.store
-          .getDocument()
-          .nodes
-          .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
-          .map((node) => node.id);
+        const zoom = this.store.getDocument().viewport.zoom;
+        const projectedNodes = this.rendererCoordinator.getLastProjectedNodes();
+        const ids = projectedNodes && projectedNodes.length > 0
+          ? projectedNodes
+            .filter((node) => rectIntersects(rect, projectedNodeWorldRect(node, zoom)))
+            .map((node) => node.id)
+          : this.store
+            .getDocument()
+            .nodes
+            .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
+            .map((node) => node.id);
 
         this.replaceSelection(ids);
         this.rendererCoordinator.render();

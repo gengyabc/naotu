@@ -19,6 +19,8 @@ import { getTextNodeDisplaySize } from "./text-layout";
 import { getFontSizeForDepth } from "./font-size";
 import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 import { computeBranchMeta } from "./branch-color";
+import { DEFAULT_LAYOUT_VERTICAL_SPACING } from "../types/settings";
+import { computeVisibleTreeWorldPositions } from "./visible-tree-world-positions";
 
 const TREE_SIDE_LEFT = -1;
 const TREE_SIDE_RIGHT = 1;
@@ -81,6 +83,15 @@ export function createSemanticProjection(
         const depth = hNode?.depth ?? 0;
         return [n.id, getLayoutNodeSize(n, depth)];
       }))
+    : undefined;
+  const projectedTreeWorldPositions = isTreeLayout
+    ? computeVisibleTreeWorldPositions({
+        doc,
+        hierarchy,
+        visibleNodeIds,
+        layoutSizeCache: layoutSizeCache ?? new Map(),
+        verticalSpacing: context.treeVerticalSpacing ?? DEFAULT_LAYOUT_VERTICAL_SPACING,
+      })
     : undefined;
 
   for (const node of doc.nodes) {
@@ -192,15 +203,19 @@ export function createSemanticProjection(
       }
     }
 
-    const projectedCenter = projectNodeCenter({ node, context });
+    const treeWorldPosition = projectedTreeWorldPositions?.get(node.id);
+    const worldPosition = treeWorldPosition ?? { x: node.x, y: node.y };
+    const rootWorldPosition = hierarchy.rootId ? projectedTreeWorldPositions?.get(hierarchy.rootId) ?? rootNode : rootNode;
+    const projectedCenter = projectNodeCenter({ node: worldPosition, context });
     const projectedPosition = projectNodeTopLeft({
       node,
+      worldPosition,
       projectedCenter,
       finalSize,
       context,
       isTreeLayout,
       isRoot,
-      rootNode,
+      rootWorldPosition,
       layoutSizeCache,
       depth,
     });
@@ -218,8 +233,8 @@ export function createSemanticProjection(
       kind: node.kind,
       title: node.title,
       notebook: node.notebook,
-      worldX: node.x,
-      worldY: node.y,
+      worldX: worldPosition.x,
+      worldY: worldPosition.y,
       projectedX: projectedPosition.x,
       projectedY: projectedPosition.y,
       displayWidth: finalSize.width,
@@ -341,28 +356,29 @@ function projectNodeCenter(args: {
 
 function projectNodeTopLeft(args: {
   node: MindmapNode;
+  worldPosition: { x: number; y: number };
   projectedCenter: { x: number; y: number };
   finalSize: { width: number; height: number };
   context: ProjectionContext;
   isTreeLayout: boolean;
   isRoot: boolean;
-  rootNode?: MindmapNode;
+  rootWorldPosition?: { x: number; y: number };
   layoutSizeCache?: Map<string, { width: number; height: number }>;
   depth?: number;
 }): { x: number; y: number } {
   const centeredX = args.projectedCenter.x - args.finalSize.width / (2 * args.context.zoom);
   const centeredY = args.projectedCenter.y - args.finalSize.height / (2 * args.context.zoom);
 
-  if (!args.isTreeLayout || args.isRoot || !args.rootNode) {
+  if (!args.isTreeLayout || args.isRoot || !args.rootWorldPosition) {
     return { x: centeredX, y: centeredY };
   }
 
-  if (args.node.x === args.rootNode.x) {
+  if (args.worldPosition.x === args.rootWorldPosition.x) {
     return { x: centeredX, y: centeredY };
   }
 
   const layoutSize = args.layoutSizeCache?.get(args.node.id) ?? getLayoutNodeSize(args.node, args.depth);
-  const side = args.node.x < args.rootNode.x ? TREE_SIDE_LEFT : TREE_SIDE_RIGHT;
+  const side = args.worldPosition.x < args.rootWorldPosition.x ? TREE_SIDE_LEFT : TREE_SIDE_RIGHT;
   const x = side === TREE_SIDE_RIGHT
     ? args.projectedCenter.x - layoutSize.width / (2 * args.context.zoom)
     : args.projectedCenter.x + layoutSize.width / (2 * args.context.zoom) - args.finalSize.width / args.context.zoom;
