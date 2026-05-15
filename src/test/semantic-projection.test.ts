@@ -1310,6 +1310,40 @@ describe("notebook focus policy in projection", () => {
     expect(next.get("child")).toBe(3);
   });
 
+  it("does not increase notebook size on hover when root remains focused", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      title: "Child",
+      x: 1000,
+      y: 0,
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file" },
+      link: "[[Child]]",
+    };
+
+    const baseProjection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 3000, height: 2000 },
+      selectedNodeIds: [],
+    });
+    const hoveredProjection = createSemanticProjection(doc, {
+      zoom: 2,
+      viewportWorldRect: { x: -1000, y: -1000, width: 3000, height: 2000 },
+      selectedNodeIds: [],
+      hoveredNodeId: "child",
+    });
+
+    const baseChild = baseProjection.nodes.find((node) => node.id === "child");
+    const hoveredChild = hoveredProjection.nodes.find((node) => node.id === "child");
+    expect(baseChild).toBeDefined();
+    expect(hoveredChild).toBeDefined();
+    expect(hoveredChild?.isHovered).toBe(true);
+    expect(hoveredChild?.detailLevel).toBe(baseChild?.detailLevel);
+    expect(hoveredChild?.displayWidth).toBe(baseChild?.displayWidth);
+    expect(hoveredChild?.displayHeight).toBe(baseChild?.displayHeight);
+  });
+
   it("maintains independent frozen levels for multiple notebooks", () => {
     const doc = createSmallTestDocument();
     doc.nodes[1] = {

@@ -93,6 +93,7 @@ export function createSemanticProjection(
     const isFocus = node.id === focusNodeId;
     const isSelected = context.selectedNodeIds.includes(node.id);
     const isHovered = context.hoveredNodeId === node.id;
+    const affectsDetailHover = node.kind === "notebook" ? false : isHovered;
     const isAncestorPath = focusPathSet.has(node.id) && !isFocus;
     const children = hierarchy.childrenById.get(node.id) ?? [];
 
@@ -111,7 +112,7 @@ export function createSemanticProjection(
         isRoot,
         isFocus,
         isSelected,
-        isHovered,
+        isHovered: affectsDetailHover,
         isAncestorPath,
         hasNotebook: Boolean(node.notebook),
         hasChildren: children.length > 0,
@@ -147,7 +148,7 @@ export function createSemanticProjection(
         isRoot,
         isFocus,
         isSelected,
-        isHovered,
+        isHovered: affectsDetailHover,
         isAncestorPath,
         hasNotebook: Boolean(node.notebook),
         hasChildren: children.length > 0,
