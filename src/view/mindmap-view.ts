@@ -7,6 +7,12 @@ import { MindmapDocumentStore } from "../core/document-store";
 import { SelectionState } from "../core/selection";
 import { NotebookService } from "../core/notebook-service";
 import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
+import { getNextEmbeddedNotebookWheelSize } from "../core/file-dimensions";
+import {
+  getDefaultMarkdownNotebookSize,
+  getNextMarkdownNotebookWheelSize,
+  getStoredNodeSize,
+} from "../core/notebook-size";
 import type { MindmapDocument } from "../types/mindmap";
 import {
   expandDraggedNodeMoves,
@@ -651,7 +657,59 @@ export class MindmapView extends FileView {
   }
 
   private handleCanvasKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return;
+
+    if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=" || event.code === "NumpadAdd")) {
+      if (this.handleSelectedNotebookShortcutResize("grow")) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if ((event.metaKey || event.ctrlKey) && (event.key === "-" || event.code === "NumpadSubtract")) {
+      if (this.handleSelectedNotebookShortcutResize("shrink")) {
+        event.preventDefault();
+        return;
+      }
+    }
+
     this.interactions.handleCanvasKeydown(event);
+  }
+
+  private handleSelectedNotebookShortcutResize(direction: "grow" | "shrink"): boolean {
+    const selectedIds = this.selection.getIds();
+    if (selectedIds.length !== 1) return false;
+
+    const selectedId = selectedIds[0];
+    const node = this.store.getDocument().nodes.find((item) => item.id === selectedId);
+    if (!node || node.kind !== "notebook") return false;
+
+    const projectedNode = this.rendererCoordinator.getLastProjectedNodes()?.find((item) => item.id === selectedId);
+    const storedSize = typeof node.customWidth === "number" && typeof node.customHeight === "number"
+      ? getStoredNodeSize(node)
+      : isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)
+        ? { width: node.width, height: node.height }
+        : getDefaultMarkdownNotebookSize();
+    const currentWidth = projectedNode?.displayWidth ?? storedSize.width;
+    const currentHeight = projectedNode?.displayHeight ?? storedSize.height;
+
+    const nextSize = isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)
+      ? getNextEmbeddedNotebookWheelSize({
+          width: currentWidth,
+          height: currentHeight,
+          direction,
+          aspectRatio: node.aspectRatio,
+        })
+      : getNextMarkdownNotebookWheelSize({
+          width: currentWidth,
+          height: currentHeight,
+          direction,
+        });
+    if (!nextSize) return true;
+
+    this.handleNotebookResizeStart(selectedId);
+    this.handleNotebookResizeEnd({ id: selectedId, width: nextSize.width, height: nextSize.height });
+    return true;
   }
 
   private setSelectionOnly(id: string): void {

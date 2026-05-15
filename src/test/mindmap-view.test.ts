@@ -608,6 +608,50 @@ describe("MindmapView", () => {
     expect(renderer.zoomBy).toHaveBeenCalledTimes(1);
   });
 
+  it("resizes a selected markdown notebook with cmd+- instead of globally zooming", async () => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    await (harness.view as any).notebookActions.bindExistingFileNode(
+      "child",
+      harness.addMarkdownFile("notes/Child.md", "# Child\n"),
+      "markdown",
+    );
+    (harness.view as any).setSelectionOnly("child");
+
+    const event = createKeyEvent({ key: "-", metaKey: true, target: harness.view.contentEl as never });
+    (harness.view as any).handleCanvasKeydown(event);
+
+    const node = getDocument(harness.view).nodes.find((item) => item.id === "child");
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(renderer.zoomBy).not.toHaveBeenCalled();
+    expect(node?.customWidth).toBe(190);
+    expect(node?.customHeight).toBe(66);
+    expect(getDirtyState(harness.view)).toBe("dirty");
+  });
+
+  it.each(["image", "excalidraw"] as const)("resizes a selected %s notebook with cmd+= instead of globally zooming", async (targetKind) => {
+    const harness = createHarness();
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+    const filePath = targetKind === "image" ? "assets/photo.png" : "whiteboards/diagram.excalidraw.md";
+    const file = harness.addMarkdownFile(filePath, "");
+
+    await (harness.view as any).notebookActions.bindExistingFileNode("child", file, targetKind);
+    (harness.view as any).setSelectionOnly("child");
+
+    const event = createKeyEvent({ key: "=", metaKey: true, target: harness.view.contentEl as never });
+    (harness.view as any).handleCanvasKeydown(event);
+
+    const node = getDocument(harness.view).nodes.find((item) => item.id === "child");
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(renderer.zoomBy).not.toHaveBeenCalled();
+    expect(node?.customWidth).toBe(240);
+    expect(node?.customHeight).toBe(180);
+    expect(getDirtyState(harness.view)).toBe("dirty");
+  });
+
   it("does not globally zoom out once subtree zoom is already showing only the selected node", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";
