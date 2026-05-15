@@ -4,7 +4,7 @@ import { t } from "../i18n";
 
 export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void {
   plugin.addCommand({
-    id: "create-semantic-zoom-mindmap",
+    id: "create-mindmap",
     name: t("commands.createMindmap"),
     callback: async () => {
       const file = await plugin.createMindmapFile();
@@ -21,7 +21,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "open-current-mindmap",
+    id: "open-current-file",
     name: t("commands.openCurrentMindmap"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
@@ -35,7 +35,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "create-mindmap-from-current-markdown-headings",
+    id: "import-current-markdown-headings",
     name: t("commands.createFromMarkdown"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
@@ -49,7 +49,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "create-local-knowledge-map-from-current-file",
+    id: "create-local-map-from-current-file",
     name: t("commands.createLocalKnowledgeMap"),
     checkCallback: (checking) => {
       const file = plugin.app.workspace.getActiveFile();
@@ -63,7 +63,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "create-sample-mindmap-100",
+    id: "create-sample-100",
     name: t("commands.sampleMindmap100"),
     callback: async () => {
       await plugin.createSampleMindmapFile(100);
@@ -71,7 +71,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "create-sample-mindmap-1000",
+    id: "create-sample-1000",
     name: t("commands.sampleMindmap1000"),
     callback: async () => {
       await plugin.createSampleMindmapFile(1000);
@@ -79,7 +79,7 @@ export function registerMindmapCommands(plugin: SemanticZoomMindmapPlugin): void
   });
 
   plugin.addCommand({
-    id: "create-sample-mindmap-3000",
+    id: "create-sample-3000",
     name: t("commands.sampleMindmap3000"),
     callback: async () => {
       await plugin.createSampleMindmapFile(3000);

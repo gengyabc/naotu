@@ -1,5 +1,5 @@
 import { shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
-import { getActiveDocument, isNodeLike, setDynamicCssProps } from "../core/dom";
+import { createOwnedDiv, createOwnedElement, getActiveDocument, isNodeLike, setDynamicCssProps } from "../core/dom";
 import { t } from "../i18n";
 
 // padding 8px * 2 + border 1px * 2 = 18, rounded up for scrollbars
@@ -11,7 +11,7 @@ function getMeasureCtx(ownerDocument: Document): CanvasRenderingContext2D | null
   const cached = measureCtxByDocument.get(ownerDocument);
   if (cached !== undefined) return cached;
 
-  const next = ownerDocument.createElement("canvas").getContext("2d");
+  const next = createOwnedElement(ownerDocument, "canvas").getContext("2d");
   measureCtxByDocument.set(ownerDocument, next);
   return next;
 }
@@ -54,8 +54,9 @@ export class InlineTitleEditor {
 
   open(): void {
     this.close();
-    const textarea = this.ownerDocument.createElement("textarea");
-    textarea.className = "mindmap-inline-title-input";
+    const textarea = createOwnedElement(this.ownerDocument, "textarea", {
+      cls: "mindmap-inline-title-input",
+    });
     if (this.options.isBold) textarea.classList.add("is-bold");
     textarea.value = this.options.value;
     setDynamicCssProps(textarea, {
@@ -153,9 +154,10 @@ export class InlineTitleEditor {
     if (this.warning) return;
     if (!this.textarea) return;
 
-    const warning = this.ownerDocument.createElement("div");
-    warning.className = "mindmap-inline-title-warning";
-    warning.textContent = t("renderer.longContentWarning");
+    const warning = createOwnedDiv(this.ownerDocument, {
+      cls: "mindmap-inline-title-warning",
+      text: t("renderer.longContentWarning"),
+    });
     setDynamicCssProps(warning, {
       left: `${this.options.x}px`,
       top: `${this.options.y + this.textarea.offsetHeight + 4}px`,

@@ -2,7 +2,7 @@ import { App, Component, MarkdownRenderer } from "obsidian";
 import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 import { buildEmbeddedPreviewMarkdown } from "../core/file-node-support";
-import { getActiveDocument, getActiveWindow, setDynamicCssProps } from "../core/dom";
+import { createOwnedDiv, getActiveDocument, getActiveWindow, setDynamicCssProps } from "../core/dom";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { t } from "../i18n";
 
@@ -215,8 +215,9 @@ export async function renderNotebookPreview(args: {
 
   let wrapper = args.foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
   if (!wrapper) {
-    wrapper = (args.foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
-    wrapper.className = "mindmap-preview-wrapper";
+    wrapper = createOwnedDiv(args.foreignObject.ownerDocument ?? getActiveDocument(), {
+      cls: "mindmap-preview-wrapper",
+    });
     args.foreignObject.appendChild(wrapper);
   }
   setEmbeddedWrapperState(wrapper, (args.targetKind ?? "markdown") !== "markdown", args.targetKind);
@@ -271,8 +272,9 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
 
   let wrapper = foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
   if (!wrapper) {
-    wrapper = (foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
-    wrapper.className = "mindmap-preview-wrapper";
+    wrapper = createOwnedDiv(foreignObject.ownerDocument ?? getActiveDocument(), {
+      cls: "mindmap-preview-wrapper",
+    });
     foreignObject.appendChild(wrapper);
   }
   setEmbeddedWrapperState(wrapper, (state.targetKind ?? "markdown") !== "markdown", state.targetKind);

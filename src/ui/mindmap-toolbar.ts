@@ -1,7 +1,14 @@
 type LayoutMode = "tree-mirror" | "tree-right" | "free";
 
 import { setIcon } from "obsidian";
-import { getActiveDocument, getActiveWindow, setDynamicCssProps } from "../core/dom";
+import {
+  createOwnedDiv,
+  createOwnedSpan,
+  createOwnedSvgElement,
+  getActiveDocument,
+  getActiveWindow,
+  setDynamicCssProps,
+} from "../core/dom";
 import { getModifierKey } from "../core/platform";
 import { t } from "../i18n";
 
@@ -97,8 +104,7 @@ const CUSTOM_TOOLBAR_ICONS: Partial<Record<ToolbarIconId, SvgSpec[]>> = {
 };
 
 function createCustomToolbarIcon(ownerDocument: Document, specs: SvgSpec[]): SVGSVGElement {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = ownerDocument.createElementNS(ns, "svg");
+  const svg = createOwnedSvgElement(ownerDocument, "svg") as SVGSVGElement;
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
@@ -108,7 +114,7 @@ function createCustomToolbarIcon(ownerDocument: Document, specs: SvgSpec[]): SVG
   svg.setAttribute("aria-hidden", "true");
 
   for (const spec of specs) {
-    const element = ownerDocument.createElementNS(ns, spec.tag);
+    const element = createOwnedSvgElement(ownerDocument, spec.tag);
     for (const [name, value] of Object.entries(spec.attrs)) {
       element.setAttribute(name, value);
     }
@@ -122,8 +128,7 @@ function createToolbarIcon(ownerDocument: Document, iconId: ToolbarIconId): HTML
   const customIcon = CUSTOM_TOOLBAR_ICONS[iconId];
   if (customIcon) return createCustomToolbarIcon(ownerDocument, customIcon);
 
-  const iconEl = ownerDocument.createElement("span");
-  iconEl.className = "semantic-mindmap-toolbar-icon";
+  const iconEl = createOwnedSpan(ownerDocument, { cls: "semantic-mindmap-toolbar-icon" });
   setIcon(iconEl, iconId);
   iconEl.setAttribute("aria-hidden", "true");
   return iconEl;
@@ -153,8 +158,7 @@ export function createMindmapToolbar(container: HTMLElement, options: MindmapToo
     button.append(createToolbarIcon(ownerDocument, iconId));
     button.createSpan({ cls: "toolbar-button-text", text: label });
 
-    const tooltip = ownerDocument.createElement("div");
-    tooltip.className = "semantic-mindmap-tooltip";
+    const tooltip = createOwnedDiv(ownerDocument, { cls: "semantic-mindmap-tooltip" });
     tooltip.setAttribute("aria-hidden", "true");
     tooltip.createSpan({ cls: "semantic-mindmap-tooltip-label", text: label });
     if (shortcut) tooltip.createSpan({ cls: "semantic-mindmap-tooltip-shortcut", text: shortcut });

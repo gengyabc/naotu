@@ -15,8 +15,6 @@ export class SemanticMindmapSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName(t("settings.title")).setHeading();
-
     this.renderNotebookSettings(containerEl);
     this.renderImportSettings(containerEl);
     this.renderRenderingSettings(containerEl);

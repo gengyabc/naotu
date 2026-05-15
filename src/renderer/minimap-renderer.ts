@@ -1,5 +1,6 @@
 import type { MindmapDocument, Rect } from "../types/mindmap";
 import { getStoredNodeSize } from "../core/notebook-size";
+import { getActiveWindow } from "../core/dom";
 
 export class MinimapRenderer {
   private canvas: HTMLCanvasElement;
@@ -27,7 +28,7 @@ export class MinimapRenderer {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getActiveWindow().devicePixelRatio || 1;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
 

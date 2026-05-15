@@ -1,5 +1,5 @@
 import { App, FuzzySuggestModal, TFile } from "obsidian";
-import { getActiveDocument } from "../core/dom";
+import { createOwnedDiv, createOwnedElement, createOwnedSpan, getActiveDocument } from "../core/dom";
 import { getSupportedFileNodeTargetKind } from "../core/file-node-support";
 import type { NotebookTargetKind } from "../types/mindmap";
 import { t } from "../i18n";
@@ -79,23 +79,19 @@ export class FileBindingSuggestModal extends FuzzySuggestModal<TFile> {
     const ownerDocument = filterHost.ownerDocument ?? getActiveDocument();
 
     this.filterContainer?.remove();
-    const container = ownerDocument.createElement("div");
-    container.className = "mindmap-file-binding-filters";
+    const container = createOwnedDiv(ownerDocument, { cls: "mindmap-file-binding-filters" });
 
     const labels = getFilterLabels();
     for (const kind of Object.keys(labels) as NotebookTargetKind[]) {
-      const label = ownerDocument.createElement("label");
-      label.className = "mindmap-file-binding-filter";
+      const label = createOwnedElement(ownerDocument, "label", { cls: "mindmap-file-binding-filter" });
 
-      const checkbox = ownerDocument.createElement("input");
-      checkbox.type = "checkbox";
+      const checkbox = createOwnedElement(ownerDocument, "input", { type: "checkbox" });
       checkbox.checked = this.filters[kind];
       checkbox.addEventListener("change", () => {
         this.setFilterEnabled(kind, checkbox.checked);
       });
 
-      const text = ownerDocument.createElement("span");
-      text.textContent = labels[kind];
+      const text = createOwnedSpan(ownerDocument, { text: labels[kind] });
 
       label.appendChild(checkbox);
       label.appendChild(text);

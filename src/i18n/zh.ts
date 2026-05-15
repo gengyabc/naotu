@@ -1,7 +1,7 @@
 export const zh = {
   app: {
     name: "MindCanvas",
-    displayText: "Semantic Mindmap",
+    displayText: "Semantic mindmap",
   },
 
   ribbon: {
@@ -49,7 +49,7 @@ export const zh = {
   },
 
   settings: {
-    title: "MindCanvas 设置",
+    title: "偏好设置",
     help: "帮助",
     helpDesc: "text 节点只是一句话，用于脑图结构表达。notebook 节点绑定 Obsidian 笔记，用于知识展开。",
     mainActions: "主要操作",

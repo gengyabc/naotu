@@ -261,8 +261,7 @@ export class MindmapView extends FileView {
   getViewData(): string {
     try {
       return JSON.stringify(this.store.getDocument(), null, 2);
-    } catch (error) {
-      console.error("[Naotu] Failed to serialize mindmap view data", error);
+    } catch {
       return "";
     }
   }
@@ -280,8 +279,7 @@ export class MindmapView extends FileView {
     if (!f) return;
     try {
       await this.loadDocument(f, data);
-    } catch (error) {
-      console.error("[Naotu] Failed to load mindmap view data", error);
+    } catch {
     }
   }
 

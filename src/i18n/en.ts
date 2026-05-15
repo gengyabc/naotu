@@ -1,15 +1,15 @@
 export const en = {
   app: {
     name: "MindCanvas",
-    displayText: "Semantic Mindmap",
+    displayText: "Semantic mindmap",
   },
 
   ribbon: {
-    createMindmap: "Create semantic zoom mindmap",
+    createMindmap: "Create mindmap",
   },
 
   commands: {
-    createMindmap: "Create semantic zoom mindmap",
+    createMindmap: "Create mindmap",
     openMindmap: "Open mindmap file",
     openCurrentMindmap: "Open current .naotu",
     createFromMarkdown: "Create mindmap from current markdown headings",
@@ -49,11 +49,11 @@ export const en = {
   },
 
   settings: {
-    title: "MindCanvas settings",
+    title: "Preferences",
     help: "Help",
     helpDesc: "A text node is just a sentence, used for mindmap structure. A notebook node binds to an Obsidian note, used for knowledge exploration.",
     mainActions: "Main actions",
-    semanticZoom: "Semantic Zoom",
+    semanticZoom: "Semantic zoom",
     semanticZoomDesc: "Zoom changes information granularity instead of simply scaling text. Zoom out for structure, zoom in for content.",
     shortcuts: {
       doubleClick: "Double-click node title: edit title",
@@ -70,9 +70,9 @@ export const en = {
       fitRoot: "Cmd/Ctrl + 0: go to root",
     },
     notebook: "Notebook",
-    notebookFolder: "Notebook Folder",
+    notebookFolder: "Notebook folder",
     notebookFolderDesc: "Folder for auto-created notes when converting text nodes to notebook nodes.",
-    notebookTemplate: "Notebook Template",
+    notebookTemplate: "Notebook template",
     notebookTemplateDesc: "Template for auto-created notebooks. Supports {{title}}.",
     import: "Import",
     importHeadings: "Import headings as notebook nodes",
@@ -102,7 +102,7 @@ export const en = {
   },
 
   renderer: {
-    openMd: "Open md",
+    openMd: "Open Markdown note",
     openFile: "Open file",
     cannotPreviewNotebook: "Cannot preview notebook",
     longContentWarning: "Content is long. Consider converting to a notebook node.",

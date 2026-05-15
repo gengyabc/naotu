@@ -1,5 +1,5 @@
 import { Menu, setIcon } from "obsidian";
-import { isNodeLike, setDynamicCssProps } from "../core/dom";
+import { createOwnedDiv, createOwnedElement, createOwnedSpan, isNodeLike, setDynamicCssProps } from "../core/dom";
 import { t } from "../i18n";
 import { isMacOS } from "../core/platform";
 
@@ -29,7 +29,7 @@ type ContextMenuItem = {
 };
 
 function createIconSpan(ownerDocument: Document, icon: NonNullable<ContextMenuItem["icon"]>): HTMLSpanElement {
-  const iconEl = ownerDocument.createElement("span");
+  const iconEl = createOwnedSpan(ownerDocument);
   setIcon(iconEl, icon);
   iconEl.setAttribute("aria-hidden", "true");
   return iconEl;
@@ -77,35 +77,30 @@ class MindmapContextMenu {
     MindmapContextMenu.activeMenu = this;
     (Menu as unknown as { lastShown?: unknown }).lastShown = this;
 
-    const containerEl = this.ownerDocument.createElement("div");
-    containerEl.className = "mindmap-context-menu";
+    const containerEl = createOwnedDiv(this.ownerDocument, { cls: "mindmap-context-menu" });
 
     for (const item of this.items) {
       if (item.separator) {
-        const separatorEl = this.ownerDocument.createElement("div");
-        separatorEl.className = "mindmap-context-menu-separator";
+        const separatorEl = createOwnedDiv(this.ownerDocument, { cls: "mindmap-context-menu-separator" });
         containerEl.append(separatorEl);
         continue;
       }
 
-      const buttonEl = this.ownerDocument.createElement("button");
+      const buttonEl = createOwnedElement(this.ownerDocument, "button", { cls: "mindmap-context-menu-item" });
       buttonEl.type = "button";
-      buttonEl.className = "mindmap-context-menu-item";
 
-      const iconEl = this.ownerDocument.createElement("span");
-      iconEl.className = "mindmap-context-menu-icon";
+      const iconEl = createOwnedSpan(this.ownerDocument, { cls: "mindmap-context-menu-icon" });
       if (item.icon) iconEl.append(createIconSpan(this.ownerDocument, item.icon));
 
-      const labelEl = this.ownerDocument.createElement("span");
-      labelEl.className = "mindmap-context-menu-label";
-      labelEl.textContent = item.title;
+      const labelEl = createOwnedSpan(this.ownerDocument, { cls: "mindmap-context-menu-label", text: item.title });
 
       buttonEl.append(iconEl, labelEl);
 
       if (item.shortcut) {
-        const shortcutEl = this.ownerDocument.createElement("span");
-        shortcutEl.className = "mindmap-context-menu-shortcut";
-        shortcutEl.textContent = item.shortcut;
+        const shortcutEl = createOwnedSpan(this.ownerDocument, {
+          cls: "mindmap-context-menu-shortcut",
+          text: item.shortcut,
+        });
         buttonEl.append(shortcutEl);
       }
 

@@ -1,5 +1,5 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
-import { getActiveDocument } from "../core/dom";
+import { createOwnedDiv, getActiveDocument } from "../core/dom";
 
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 
@@ -14,8 +14,9 @@ export async function renderTextAsMarkdown(args: {
 
   let wrapper = args.foreignObject.querySelector<HTMLDivElement>(".mindmap-text-markdown-wrapper");
   if (!wrapper) {
-    wrapper = (args.foreignObject.ownerDocument ?? getActiveDocument()).createElement("div");
-    wrapper.className = "mindmap-text-markdown-wrapper";
+    wrapper = createOwnedDiv(args.foreignObject.ownerDocument ?? getActiveDocument(), {
+      cls: "mindmap-text-markdown-wrapper",
+    });
     args.foreignObject.appendChild(wrapper);
   }
 
@@ -44,7 +45,6 @@ export async function renderTextAsMarkdown(args: {
   } catch (error) {
     cleanupForeignObject(args);
     wrapper.textContent = args.markdown;
-    console.warn("[text-markdown-renderer] Markdown render failed, falling back to plain text:", error);
   }
 }
 

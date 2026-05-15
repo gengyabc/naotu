@@ -3,6 +3,7 @@ import type { ProjectedEdge, ProjectedNode } from "../types/mindmap";
 import { isUnderlineNode } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
 import { routeEdge } from "../core/edge-routing";
+import { getActiveWindow } from "../core/dom";
 
 export interface CanvasBackgroundRenderInput {
   canvas: HTMLCanvasElement;
@@ -18,7 +19,7 @@ export class CanvasBackgroundRenderer {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getActiveWindow().devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
 
