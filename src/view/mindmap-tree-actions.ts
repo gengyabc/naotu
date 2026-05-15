@@ -12,12 +12,13 @@ import {
 } from "../core/tree-editing";
 import { buildHierarchy } from "../core/hierarchy";
 import { nodeWorldRect } from "../core/geometry";
+import { toggleTreeControlFromCurrentState } from "../core/tree-control";
 
 type TreeActionOptions = {
   getDocument(): MindmapDocument;
   applyReplacedDocument(doc: MindmapDocument, options?: { commitHistory?: boolean; render?: boolean; autosave?: boolean }): void;
   applyDocumentChange(mutator: () => void, options?: { commitHistory?: boolean; relayout?: boolean; render?: boolean; autosave?: boolean }): void;
-  toggleTreeControl(nodeId: string, zoom: number): void;
+  collapseTreeNode(nodeId: string): void;
   setTreeControl(nodeId: string, control: "manual-expanded" | "manual-collapsed"): void;
   getLayoutHorizontalSpacing(): number;
   getLayoutVerticalSpacing(): number;
@@ -86,13 +87,20 @@ export class MindmapTreeActions {
     const projectedNode = projectedNodes?.find((node) => node.id === selectedId);
     if (projectedNode && !projectedNode.hasChildren) return;
 
-    this.options.applyDocumentChange(() => {
-      if (!projectedNode) {
-        this.options.toggleTreeControl(selectedId, this.options.getDocument().viewport.zoom);
-        return;
-      }
-      this.options.setTreeControl(selectedId, projectedNode.childrenExpanded ? "manual-collapsed" : "manual-expanded");
-    }, { relayout: false });
+    if (!projectedNode) {
+      const doc = this.options.getDocument();
+      const node = doc.nodes.find((item) => item.id === selectedId);
+      if (!node) return;
+      const depth = buildHierarchy(doc).nodes.get(selectedId)?.depth ?? 0;
+      const nextControl = toggleTreeControlFromCurrentState(node.treeControl, doc.viewport.zoom, depth);
+      if (nextControl === "manual-collapsed") this.options.collapseTreeNode(selectedId);
+      else this.options.setTreeControl(selectedId, "manual-expanded");
+      this.options.clearSubtreeVirtualZoomState();
+      return;
+    }
+
+    if (projectedNode.childrenExpanded) this.options.collapseTreeNode(selectedId);
+    else this.options.setTreeControl(selectedId, "manual-expanded");
     this.options.clearSubtreeVirtualZoomState();
   }
 

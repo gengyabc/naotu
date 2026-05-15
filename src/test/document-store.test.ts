@@ -129,6 +129,97 @@ describe("MindmapDocumentStore", () => {
     expect(store.getDocument().nodes[0]?.treeControl).toBe("manual-collapsed");
   });
 
+  it("resets notebook sizes in a subtree on demand", () => {
+    const store = new MindmapDocumentStore({
+      vault: {},
+    } as never);
+
+    store.replaceDocument({
+      version: 1,
+      title: "Edited here",
+      layoutMode: "tree-mirror",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        {
+          id: "root",
+          kind: "text",
+          title: "Root",
+          x: 0,
+          y: 0,
+          width: 180,
+          height: 56,
+          treeControl: "manual-expanded",
+        },
+        {
+          id: "markdown-child",
+          kind: "notebook",
+          title: "Markdown Child",
+          x: 220,
+          y: 0,
+          width: 180,
+          height: 56,
+          customWidth: 420,
+          customHeight: 260,
+          treeControl: "manual-expanded",
+          notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file", targetKind: "markdown" },
+          link: "[[Child]]",
+        },
+        {
+          id: "image-grandchild",
+          kind: "notebook",
+          title: "Image Grandchild",
+          x: 440,
+          y: 0,
+          width: 180,
+          height: 56,
+          customWidth: 500,
+          customHeight: 250,
+          aspectRatio: 2,
+          treeControl: "manual-expanded",
+          notebook: { link: "[[image]]", path: "assets/image.png", targetType: "file", targetKind: "image" },
+          link: "[[image]]",
+        },
+        {
+          id: "outside",
+          kind: "notebook",
+          title: "Outside",
+          x: 220,
+          y: 120,
+          width: 180,
+          height: 56,
+          customWidth: 410,
+          customHeight: 240,
+          treeControl: "manual-expanded",
+          notebook: { link: "[[Outside]]", path: "notes/outside.md", targetType: "file", targetKind: "markdown" },
+          link: "[[Outside]]",
+        },
+      ],
+      edges: [
+        { id: "edge-1", source: "root", target: "markdown-child", relation: "mindmap", type: "curve" },
+        { id: "edge-2", source: "markdown-child", target: "image-grandchild", relation: "mindmap", type: "curve" },
+      ],
+    });
+
+    store.resetNotebookSubtreeSizes("root");
+
+    const doc = store.getDocument();
+    expect(doc.nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-expanded");
+    expect(doc.nodes.find((node) => node.id === "markdown-child")).toMatchObject({
+      customWidth: undefined,
+      customHeight: undefined,
+      aspectRatio: undefined,
+    });
+    expect(doc.nodes.find((node) => node.id === "image-grandchild")).toMatchObject({
+      customWidth: 240,
+      customHeight: 120,
+      aspectRatio: 2,
+    });
+    expect(doc.nodes.find((node) => node.id === "outside")).toMatchObject({
+      customWidth: 410,
+      customHeight: 240,
+    });
+  });
+
   it("keeps manual tree controls stable across viewport zoom changes", () => {
     const store = new MindmapDocumentStore({
       vault: {},

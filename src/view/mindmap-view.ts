@@ -1,5 +1,6 @@
 import { FileView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from "obsidian";
 import type SemanticZoomMindmapPlugin from "../main";
+import { getActiveWindow } from "../core/dom";
 import {
   VIEW_TYPE_MINDMAP,
 } from "../constants";
@@ -92,7 +93,7 @@ export class MindmapView extends FileView {
       getDocument: () => this.store.getDocument(),
       applyReplacedDocument: (doc, options) => this.applyReplacedDocument(doc, options),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
-      toggleTreeControl: (id, zoom) => this.store.toggleTreeControl(id, zoom),
+      collapseTreeNode: (id) => this.collapseTreeNodeWithNotebookResize(id),
       setTreeControl: (id, control) => this.store.setTreeControl(id, control),
       getLayoutHorizontalSpacing: () => this.plugin.settings.layoutHorizontalSpacing,
       getLayoutVerticalSpacing: () => this.plugin.settings.layoutVerticalSpacing,
@@ -117,7 +118,7 @@ export class MindmapView extends FileView {
       deleteSelectedNodes: (mode) => this.deleteSelectedNodes(mode),
       undo: () => this.undo(),
       redo: () => this.redo(),
-      applyTreeControls: (controls) => this.store.applyTreeControls(controls),
+      applyTreeControlsWithPreCollapseResize: (controls) => this.applyTreeControlsWithPreCollapseResize(controls),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
       onSelectionChange: () => this.updateToolbarButtonStates(),
     });
@@ -138,8 +139,9 @@ export class MindmapView extends FileView {
       onZoomInput: (factor) => this.handleZoomInput(factor),
       onSelectNode: (id, mode) => this.interactions.handleNodeSelection(id, mode),
       onToggleTree: (id, expanded) => {
-        this.applyDocumentChange(() => {
-          this.store.setTreeControl(id, expanded ? "manual-collapsed" : "manual-expanded");
+        if (expanded) this.collapseTreeNodeWithNotebookResize(id);
+        else this.applyDocumentChange(() => {
+          this.store.setTreeControl(id, "manual-expanded");
         }, { relayout: false });
         this.clearSubtreeVirtualZoomState();
       },
@@ -640,6 +642,49 @@ export class MindmapView extends FileView {
     if (!id) return;
     if (!this.hasNodeChildren(id)) return;
     this.treeActions.toggleSelectedTree(id, this.rendererCoordinator.getLastProjectedNodes());
+  }
+
+  private applyTreeControlsWithPreCollapseResize(
+    controls: ReadonlyMap<MindmapDocument["nodes"][number]["id"], MindmapDocument["nodes"][number]["treeControl"]>,
+  ): void {
+    const collapseIds = [...controls.entries()]
+      .filter(([, control]) => control === "manual-collapsed")
+      .map(([id]) => id);
+
+    if (collapseIds.length === 0) {
+      this.applyDocumentChange(() => {
+        this.store.applyTreeControls(controls);
+      }, { relayout: false });
+      return;
+    }
+
+    this.applyDocumentChange(() => {
+      for (const id of collapseIds) this.store.resetNotebookSubtreeSizes(id);
+    }, { relayout: false, autosave: false });
+
+    this.scheduleDeferredTreeMutation(() => {
+      this.applyDocumentChange(() => {
+        this.store.applyTreeControls(controls);
+      }, { commitHistory: false, relayout: false });
+    });
+  }
+
+  private collapseTreeNodeWithNotebookResize(id: string): void {
+    this.applyDocumentChange(() => {
+      this.store.resetNotebookSubtreeSizes(id);
+    }, { relayout: false, autosave: false });
+
+    this.scheduleDeferredTreeMutation(() => {
+      this.applyDocumentChange(() => {
+        this.store.setTreeControl(id, "manual-collapsed");
+      }, { commitHistory: false, relayout: false });
+      this.clearSubtreeVirtualZoomState();
+    });
+  }
+
+  private scheduleDeferredTreeMutation(callback: () => void): void {
+    const ownerWindow = this.contentEl.ownerDocument.defaultView ?? getActiveWindow();
+    ownerWindow.setTimeout(callback, 0);
   }
 
   private markDirty(): void {

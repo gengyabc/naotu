@@ -34,7 +34,7 @@ type MindmapInteractionOptions = {
   deleteSelectedNodes(mode?: "promote" | "recursive"): void;
   undo(): void;
   redo(): void;
-  applyTreeControls(controls: Map<string, MindmapDocument["nodes"][number]["treeControl"]>): void;
+  applyTreeControlsWithPreCollapseResize(controls: Map<string, MindmapDocument["nodes"][number]["treeControl"]>): void;
   applyDocumentChange(mutator: () => void, options?: ApplyDocumentChangeOptions): void;
   onSelectionChange?(): void;
 };
@@ -274,9 +274,7 @@ export class MindmapInteractions {
       return true;
     }
 
-    this.options.applyDocumentChange(() => {
-      this.options.applyTreeControls(plan.controls);
-    }, { relayout: false });
+    this.options.applyTreeControlsWithPreCollapseResize(plan.controls);
     return true;
   }
 

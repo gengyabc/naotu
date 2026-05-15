@@ -55,11 +55,9 @@ function createHarness(args: { document?: MindmapDocument } = {}) {
       appliedChanges.push({ type: "change" });
     }),
     commitHistory: vi.fn(),
-    toggleTreeControl: vi.fn((id: string, zoom: number) => {
+    collapseTreeNode: vi.fn((id: string) => {
       const node = currentDoc.nodes.find((n) => n.id === id);
-      if (node) {
-        node.treeControl = node.treeControl === "manual-expanded" ? "manual-collapsed" : "manual-expanded";
-      }
+      if (node) node.treeControl = "manual-collapsed";
     }),
     setTreeControl: vi.fn((id: string, control: "manual-expanded" | "manual-collapsed") => {
       const node = currentDoc.nodes.find((n) => n.id === id);
@@ -206,16 +204,27 @@ describe("MindmapTreeActions", () => {
 
       harness.actions.toggleSelectedTree("root", projectedNodes);
 
-      expect(harness.options.setTreeControl).toHaveBeenCalledWith("root", "manual-collapsed");
+      expect(harness.options.collapseTreeNode).toHaveBeenCalledWith("root");
     });
 
-    it("uses toggleTreeControl when projected node not available", () => {
+    it("collapses from current state when projected node not available", () => {
       const doc = createSmallTestDocument();
       const harness = createHarness({ document: doc });
 
       harness.actions.toggleSelectedTree("root", undefined);
 
-      expect(harness.options.toggleTreeControl).toHaveBeenCalledWith("root", 1);
+      expect(harness.options.collapseTreeNode).toHaveBeenCalledWith("root");
+    });
+
+    it("expands from current state when projected node not available", () => {
+      const doc = createSmallTestDocument();
+      const root = doc.nodes.find((n) => n.id === "root");
+      if (root) root.treeControl = "manual-collapsed";
+      const harness = createHarness({ document: doc });
+
+      harness.actions.toggleSelectedTree("root", undefined);
+
+      expect(harness.options.setTreeControl).toHaveBeenCalledWith("root", "manual-expanded");
     });
   });
 

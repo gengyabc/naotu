@@ -4,6 +4,8 @@ import { DEFAULT_MINDMAP_DOCUMENT } from "../constants";
 import { ExternalConflictError } from "./external-conflict-error";
 import { migrateDocument } from "./document-migration";
 import { createId } from "./id";
+import { clampEmbeddedNotebookSize, getDefaultEmbeddedSize } from "./file-dimensions";
+import { isEmbeddedFileNodeTargetKind } from "./file-node-support";
 import { buildHierarchy } from "./hierarchy";
 import { toggleTreeControlFromCurrentState } from "./tree-control";
 import { getSubtreeNodeIds, findParentId } from "./tree-editing";
@@ -145,6 +147,42 @@ export class MindmapDocumentStore {
     }
 
     if (changed) this.emit();
+  }
+
+  resetNotebookSubtreeSizes(rootId: string): boolean {
+    let changed = false;
+    for (const nodeId of getSubtreeNodeIds(this.doc, rootId)) {
+      const node = this.doc.nodes.find((item) => item.id === nodeId);
+      if (!node) continue;
+      changed = this.resetNotebookNodeToDefaultSize(node) || changed;
+    }
+    return changed;
+  }
+
+  private resetNotebookNodeToDefaultSize(node: MindmapNode): boolean {
+    if (node.kind !== "notebook") return false;
+
+    if (isEmbeddedFileNodeTargetKind(node.notebook?.targetKind)) {
+      const defaultSize = node.aspectRatio && node.aspectRatio > 0
+        ? clampEmbeddedNotebookSize({ width: 0, height: 0, aspectRatio: node.aspectRatio })
+        : getDefaultEmbeddedSize();
+      if (node.customWidth === defaultSize.width && node.customHeight === defaultSize.height) return false;
+      node.customWidth = defaultSize.width;
+      node.customHeight = defaultSize.height;
+      return true;
+    }
+
+    if (
+      typeof node.customWidth !== "number"
+      && typeof node.customHeight !== "number"
+      && typeof node.aspectRatio !== "number"
+    ) {
+      return false;
+    }
+    node.customWidth = undefined;
+    node.customHeight = undefined;
+    node.aspectRatio = undefined;
+    return true;
   }
 
   addNode(node: MindmapNode): void {

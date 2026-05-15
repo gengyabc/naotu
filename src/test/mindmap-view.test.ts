@@ -662,6 +662,8 @@ describe("MindmapView", () => {
     (harness.view as any).setSelectionOnly("root");
     (harness.view as any).handleZoomInput(0.2);
 
+    await vi.advanceTimersByTimeAsync(0);
+
     expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
     expect(renderer.zoomBy).not.toHaveBeenCalled();
 
@@ -680,6 +682,8 @@ describe("MindmapView", () => {
 
     (harness.view as any).clearSelection();
     (harness.view as any).handleZoomInput(0.2);
+
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(getSubtreeVirtualZoomState(harness.view)).toMatchObject({ nodeId: "root" });
     expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
@@ -700,8 +704,73 @@ describe("MindmapView", () => {
     (harness.view as any).setSelectionOnly("root");
     (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: " ", target: harness.view.contentEl as never }));
 
+    await vi.advanceTimersByTimeAsync(0);
+
     expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
     expect(getDirtyState(harness.view)).toBe("dirty");
+  });
+
+  it("shrinks notebook subtree before collapsing through keyboard flow", async () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file", targetKind: "markdown" },
+      link: "[[Child]]",
+      customWidth: 420,
+      customHeight: 260,
+    };
+    const harness = createHarness({ document: doc });
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+    renderer.projectedNodes = [
+      createProjectedNode({ id: "root", title: "Root", x: 0, y: 0, hasChildren: true, childrenExpanded: true }),
+      createProjectedNode({ id: "child", title: "Child", x: 220, y: 0, kind: "notebook" }),
+    ];
+
+    (harness.view as any).setSelectionOnly("root");
+    (harness.view as any).handleCanvasKeydown(createKeyEvent({ key: " ", target: harness.view.contentEl as never }));
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-expanded");
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "child")).toMatchObject({
+      customWidth: undefined,
+      customHeight: undefined,
+    });
+    expect(getDirtyState(harness.view)).toBe("saved");
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
+    expect(getDirtyState(harness.view)).toBe("dirty");
+  });
+
+  it("shrinks notebook subtree before subtree semantic zoom collapse", async () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    doc.nodes[1] = {
+      ...doc.nodes[1]!,
+      kind: "notebook",
+      notebook: { link: "[[Child]]", path: "notes/child.md", targetType: "file", targetKind: "markdown" },
+      link: "[[Child]]",
+      customWidth: 420,
+      customHeight: 260,
+    };
+    const harness = createHarness({ document: doc });
+    await harness.view.setFile(harness.sourceFile);
+
+    (harness.view as any).setSelectionOnly("root");
+    (harness.view as any).handleZoomInput(0.2);
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-expanded");
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "child")).toMatchObject({
+      customWidth: undefined,
+      customHeight: undefined,
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-collapsed");
   });
 
   it("switches layout mode and relayouts the document", async () => {
