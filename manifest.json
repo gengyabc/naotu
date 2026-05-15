@@ -1,7 +1,7 @@
 {
   "id": "mindcanvas",
   "name": "MindCanvas",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "minAppVersion": "1.8.7",
   "description": "A mindmap that is really a map. 真正的思维投影.",
   "author": "Geng",
