@@ -16,6 +16,11 @@ export interface TextLayoutResult {
   isOverflow: boolean;
 }
 
+export interface TextClampResult {
+  text: string;
+  wasClamped: boolean;
+}
+
 function measureCharWidth(char: string): number {
   if (char === " ") return CHAR_WIDTH_SPACE;
   if (/[\u4e00-\u9fa5]/.test(char)) return CHAR_WIDTH_CHINESE;
@@ -88,6 +93,34 @@ export function layoutText(args: { text: string; fontSize: number }): TextLayout
 export function shouldSuggestNotebook(text: string): boolean {
   const result = layoutText({ text, fontSize: BASE_FONT_SIZE });
   return result.isOverflow;
+}
+
+export function clampTextNodeText(args: { text: string; fontSize: number }): TextClampResult {
+  const { text, fontSize } = args;
+  const scaleFactor = fontSize / BASE_FONT_SIZE;
+  const maxWidth = TITLE_MAX_WIDTH_CHARS * CHAR_WIDTH_CHINESE * scaleFactor;
+
+  let currentLineWidth = 0;
+  let currentLineCount = 1;
+  let accepted = "";
+
+  for (const char of text) {
+    const charWidth = measureCharWidth(char) * scaleFactor;
+    if (currentLineWidth + charWidth > maxWidth) {
+      if (currentLineCount >= TITLE_MAX_LINES) {
+        return { text: accepted, wasClamped: true };
+      }
+      currentLineCount += 1;
+      currentLineWidth = charWidth;
+      accepted += char;
+      continue;
+    }
+
+    currentLineWidth += charWidth;
+    accepted += char;
+  }
+
+  return { text: accepted, wasClamped: false };
 }
 
 export function getTextNodeDisplaySize(args: { title: string; fontSize: number }): { width: number; height: number } {

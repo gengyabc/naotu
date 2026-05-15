@@ -1,12 +1,15 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { createOwnedDiv, getActiveDocument } from "../core/dom";
+import { clampTextNodeText } from "../core/text-layout";
 
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
+const renderVersionByElement = new WeakMap<SVGForeignObjectElement, number>();
 
 export async function renderTextAsMarkdown(args: {
   app: App;
   foreignObject: SVGForeignObjectElement | null;
   markdown: string;
+  fontSize: number;
   sourcePath: string;
   component: Component;
 }): Promise<void> {
@@ -22,6 +25,17 @@ export async function renderTextAsMarkdown(args: {
 
   wrapper.classList.toggle("is-underline", args.foreignObject.closest(".is-underline") !== null);
 
+  const nextVersion = (renderVersionByElement.get(args.foreignObject) ?? 0) + 1;
+  renderVersionByElement.set(args.foreignObject, nextVersion);
+
+  const { text: clampedMarkdown, wasClamped } = clampTextNodeText({ text: args.markdown, fontSize: args.fontSize });
+  if (wasClamped) {
+    cleanupForeignObject(args);
+    wrapper.empty();
+    wrapper.textContent = clampedMarkdown;
+    return;
+  }
+
   const prev = childComponentByElement.get(args.foreignObject);
   if (prev) {
     args.component.removeChild(prev);
@@ -29,6 +43,8 @@ export async function renderTextAsMarkdown(args: {
   }
 
   wrapper.empty();
+  const renderHost = createOwnedDiv(args.foreignObject.ownerDocument ?? getActiveDocument());
+  wrapper.appendChild(renderHost);
 
   const child = new Component();
   args.component.addChild(child);
@@ -37,15 +53,29 @@ export async function renderTextAsMarkdown(args: {
   try {
     await MarkdownRenderer.render(
       args.app,
-      args.markdown,
-      wrapper,
+      clampedMarkdown,
+      renderHost,
       args.sourcePath,
       child,
     );
+    if (renderVersionByElement.get(args.foreignObject) !== nextVersion) {
+      cleanupSpecificChild(args.component, child);
+      renderHost.remove();
+      return;
+    }
   } catch {
-    cleanupForeignObject(args);
-    wrapper.textContent = args.markdown;
+    cleanupSpecificChild(args.component, child);
+    renderHost.remove();
+    if (renderVersionByElement.get(args.foreignObject) !== nextVersion) {
+      return;
+    }
+    childComponentByElement.delete(args.foreignObject);
+    wrapper.textContent = clampedMarkdown;
   }
+}
+
+function cleanupSpecificChild(component: Component, child: Component): void {
+  component.removeChild(child);
 }
 
 function cleanupForeignObject(args: {

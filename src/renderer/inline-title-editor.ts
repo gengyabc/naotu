@@ -1,4 +1,4 @@
-import { shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
+import { clampTextNodeText, shouldSuggestNotebook, BASE_FONT_SIZE, TITLE_MAX_WIDTH_CHARS, CHAR_WIDTH_CHINESE } from "../core/text-layout";
 import { createOwnedDiv, createOwnedElement, getActiveDocument, isNodeLike, setDynamicCssProps } from "../core/dom";
 import { t } from "../i18n";
 
@@ -42,12 +42,14 @@ export class InlineTitleEditor {
   private maxWidth: number;
   private fontFamily: string;
   private ownerDocument: Document;
+  private initialValue: string;
   private _cleanupClickOutside: (() => void) | null = null;
 
   constructor(private options: InlineTitleEditorOptions) {
     this.ownerDocument = options.layer.ownerDocument ?? getActiveDocument();
     const fontFace = getComputedStyle(this.ownerDocument.documentElement).getPropertyValue("--font-interface").trim() || "sans-serif";
     this.fontFamily = fontFace;
+    this.initialValue = options.value;
     const scaleFactor = options.fontSize / BASE_FONT_SIZE;
     this.maxWidth = TITLE_MAX_WIDTH_CHARS * CHAR_WIDTH_CHINESE * scaleFactor + TEXTAREA_CHROME_HORIZONTAL;
   }
@@ -84,9 +86,34 @@ export class InlineTitleEditor {
       }
     });
 
+    textarea.addEventListener("beforeinput", (event) => {
+      const currentTextarea = this.textarea;
+      if (!currentTextarea) return;
+
+      if (event.inputType.startsWith("delete") || event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+        return;
+      }
+
+      const nextValue = this.getNextValueForBeforeInput(event);
+      if (nextValue === null) return;
+
+      const currentValue = currentTextarea.value;
+      const currentClamp = clampTextNodeText({ text: currentValue, fontSize: this.options.fontSize });
+      const nextClamp = clampTextNodeText({ text: nextValue, fontSize: this.options.fontSize });
+      if (!nextClamp.wasClamped) return;
+
+      const currentOverflow = currentClamp.wasClamped;
+      const reducesOverflow = nextValue.length < currentValue.length;
+      if (currentOverflow && reducesOverflow) return;
+
+      event.preventDefault();
+      this.showWarning();
+    });
+
     textarea.addEventListener("input", () => {
+      const wasClamped = this.enforceTextLimit();
       this.autoResize();
-      this.checkLengthWarning();
+      this.checkLengthWarning(wasClamped);
     });
 
     textarea.addEventListener("blur", () => {
@@ -108,7 +135,31 @@ export class InlineTitleEditor {
     this._cleanupClickOutside = cleanup;
 
     this.autoResize();
-    this.checkLengthWarning();
+    this.checkLengthWarning(false);
+  }
+
+  private getNextValueForBeforeInput(event: InputEvent): string | null {
+    if (!this.textarea) return null;
+
+    const start = this.textarea.selectionStart ?? this.textarea.value.length;
+    const end = this.textarea.selectionEnd ?? start;
+    const insertedText = event.data ?? "";
+    return `${this.textarea.value.slice(0, start)}${insertedText}${this.textarea.value.slice(end)}`;
+  }
+
+  private enforceTextLimit(): boolean {
+    if (!this.textarea) return false;
+
+    if (this.textarea.value === this.initialValue) {
+      return false;
+    }
+
+    const { text, wasClamped } = clampTextNodeText({ text: this.textarea.value, fontSize: this.options.fontSize });
+    if (!wasClamped) return false;
+
+    this.textarea.value = text;
+    this.textarea.setSelectionRange(text.length, text.length);
+    return true;
   }
 
   private getInitialWidth(): number {
@@ -139,11 +190,11 @@ export class InlineTitleEditor {
     setDynamicCssProps(this.textarea, { height: `${Math.max(scrollHeight, minHeight)}px` });
   }
 
-  private checkLengthWarning(): void {
+  private checkLengthWarning(forceShow = false): void {
     if (!this.textarea) return;
 
     const value = this.textarea.value;
-    if (shouldSuggestNotebook(value)) {
+    if (forceShow || shouldSuggestNotebook(value)) {
       this.showWarning();
     } else {
       this.hideWarning();

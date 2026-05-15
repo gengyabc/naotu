@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { truncateTextForNotebook, layoutDescription } from "../core/text-layout";
+import { truncateTextForNotebook, layoutDescription, clampTextNodeText } from "../core/text-layout";
 
 describe("truncateTextForNotebook", () => {
   it("should return original text if it fits", () => {
@@ -148,5 +148,22 @@ describe("layoutDescription", () => {
     const lastLine = lines[lines.length - 1];
     expect(lastLine.endsWith("...")).toBe(true);
     expect(lastLine.length).toBeGreaterThan(3);
+  });
+});
+
+describe("clampTextNodeText", () => {
+  it("preserves short text", () => {
+    expect(clampTextNodeText({ text: "short text", fontSize: 14 })).toEqual({
+      text: "short text",
+      wasClamped: false,
+    });
+  });
+
+  it("clamps long text to the text-node budget", () => {
+    const longText = "这是一段很长的文本节点内容".repeat(8);
+    const result = clampTextNodeText({ text: longText, fontSize: 14 });
+
+    expect(result.wasClamped).toBe(true);
+    expect(result.text.length).toBeLessThan(longText.length);
   });
 });

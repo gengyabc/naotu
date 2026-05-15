@@ -398,6 +398,7 @@ export function renderProjectedNodes(args: {
         app: args.app,
         foreignObject: textForeignObject.node(),
         markdown: node.title,
+        fontSize: visual.titleFontSize,
         sourcePath: args.sourcePath,
         component: args.component,
       });
