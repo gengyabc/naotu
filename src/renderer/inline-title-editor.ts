@@ -245,11 +245,16 @@ export class InlineTitleEditor {
   }
 
   close(): void {
-    this._cleanupClickOutside?.();
+    const cleanupClickOutside = this._cleanupClickOutside;
+    const textarea = this.textarea;
+    const warning = this.warning;
+
     this._cleanupClickOutside = null;
-    this.textarea?.remove();
     this.textarea = null;
-    this.warning?.remove();
     this.warning = null;
+
+    cleanupClickOutside?.();
+    textarea?.remove();
+    warning?.remove();
   }
 }

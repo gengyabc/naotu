@@ -1,9 +1,11 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { createOwnedDiv, getActiveDocument } from "../core/dom";
+import { containsUnsafeMarkdownBlocks } from "../core/markdown-safety";
 import { clampTextNodeText } from "../core/text-layout";
 
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 const renderVersionByElement = new WeakMap<SVGForeignObjectElement, number>();
+const renderedKeyByElement = new WeakMap<SVGForeignObjectElement, string>();
 
 export async function renderTextAsMarkdown(args: {
   app: App;
@@ -25,22 +27,23 @@ export async function renderTextAsMarkdown(args: {
 
   wrapper.classList.toggle("is-underline", args.foreignObject.closest(".is-underline") !== null);
 
+  const { text: clampedMarkdown, wasClamped } = clampTextNodeText({ text: args.markdown, fontSize: args.fontSize });
+  const renderAsPlainText = wasClamped || containsUnsafeMarkdownBlocks(clampedMarkdown);
+  const renderKey = `${renderAsPlainText ? "plain" : "markdown"}::${args.fontSize}::${args.sourcePath}::${clampedMarkdown}`;
+  if (renderedKeyByElement.get(args.foreignObject) === renderKey) return;
+  renderedKeyByElement.set(args.foreignObject, renderKey);
+
   const nextVersion = (renderVersionByElement.get(args.foreignObject) ?? 0) + 1;
   renderVersionByElement.set(args.foreignObject, nextVersion);
 
-  const { text: clampedMarkdown, wasClamped } = clampTextNodeText({ text: args.markdown, fontSize: args.fontSize });
-  if (wasClamped) {
-    cleanupForeignObject(args);
+  if (renderAsPlainText) {
+    cleanupRenderedTextMarkdown(args.foreignObject, args.component);
     wrapper.empty();
     wrapper.textContent = clampedMarkdown;
     return;
   }
 
-  const prev = childComponentByElement.get(args.foreignObject);
-  if (prev) {
-    args.component.removeChild(prev);
-    childComponentByElement.delete(args.foreignObject);
-  }
+  removeMountedChild(args.foreignObject, args.component);
 
   wrapper.empty();
   const renderHost = createOwnedDiv(args.foreignObject.ownerDocument ?? getActiveDocument());
@@ -59,33 +62,34 @@ export async function renderTextAsMarkdown(args: {
       child,
     );
     if (renderVersionByElement.get(args.foreignObject) !== nextVersion) {
-      cleanupSpecificChild(args.component, child);
+      cleanupSpecificChild(args.component, child, args.foreignObject);
       renderHost.remove();
       return;
     }
   } catch {
-    cleanupSpecificChild(args.component, child);
+    cleanupSpecificChild(args.component, child, args.foreignObject);
     renderHost.remove();
     if (renderVersionByElement.get(args.foreignObject) !== nextVersion) {
       return;
     }
-    childComponentByElement.delete(args.foreignObject);
     wrapper.textContent = clampedMarkdown;
   }
 }
 
-function cleanupSpecificChild(component: Component, child: Component): void {
-  component.removeChild(child);
+export function cleanupRenderedTextMarkdown(foreignObject: SVGForeignObjectElement | null, component: Component): void {
+  if (!foreignObject) return;
+  renderVersionByElement.delete(foreignObject);
+  renderedKeyByElement.delete(foreignObject);
+  removeMountedChild(foreignObject, component);
 }
 
-function cleanupForeignObject(args: {
-  foreignObject: SVGForeignObjectElement | null;
-  component: Component;
-}): void {
-  if (!args.foreignObject) return;
-  const child = childComponentByElement.get(args.foreignObject);
-  if (child) {
-    args.component.removeChild(child);
-    childComponentByElement.delete(args.foreignObject);
-  }
+function removeMountedChild(foreignObject: SVGForeignObjectElement, component: Component): void {
+  const child = childComponentByElement.get(foreignObject);
+  if (!child) return;
+  cleanupSpecificChild(component, child, foreignObject);
+}
+
+function cleanupSpecificChild(component: Component, child: Component, foreignObject: SVGForeignObjectElement): void {
+  component.removeChild(child);
+  childComponentByElement.delete(foreignObject);
 }

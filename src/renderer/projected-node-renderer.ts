@@ -8,8 +8,8 @@ import type { ViewTransform } from "../core/screen-transform";
 import { worldToScreen } from "../core/screen-transform";
 import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
 import { getFontSizeForDepth, getObsidianBaseFontSize } from "../core/font-size";
-import { renderNotebookPreview } from "./notebook-preview-renderer";
-import { renderTextAsMarkdown } from "./text-markdown-renderer";
+import { cleanupNotebookPreview, renderNotebookPreview } from "./notebook-preview-renderer";
+import { cleanupRenderedTextMarkdown, renderTextAsMarkdown } from "./text-markdown-renderer";
 import { t } from "../i18n";
 import { clampEmbeddedNotebookSize } from "../core/file-dimensions";
 import {
@@ -186,7 +186,11 @@ export function renderProjectedNodes(args: {
   const dragDrafts = new Map<string, { x: number; y: number }>();
   let activeDragNodeIds: string[] = [];
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
-  selection.exit().remove();
+  selection.exit().each(function () {
+    const group = d3.select(this);
+    cleanupRenderedTextMarkdown(group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-text-foreign").node(), args.component);
+    cleanupNotebookPreview(group.select<SVGForeignObjectElement>("foreignObject.mindmap-node-preview").node());
+  }).remove();
 
   const entered = selection.enter().append("g").attr("class", "mindmap-node");
   entered.append("rect").attr("class", "mindmap-node-bg").attr("rx", 12).attr("ry", 12);
@@ -412,10 +416,12 @@ export function renderProjectedNodes(args: {
         .text(truncatedTitle);
       
       textForeignObject.style("display", "none");
+      cleanupRenderedTextMarkdown(textForeignObject.node(), args.component);
       textForeignObject.selectAll("*").remove();
     } else {
       titleText.style("display", "none");
       textForeignObject.style("display", "none");
+      cleanupRenderedTextMarkdown(textForeignObject.node(), args.component);
       textForeignObject.selectAll("*").remove();
     }
 
@@ -592,6 +598,7 @@ export function renderProjectedNodes(args: {
       });
     } else {
       preview.style("display", "none");
+      cleanupNotebookPreview(preview.node());
     }
 
     // Keep controls above foreignObject previews so embedded files do not block clicks/drags.

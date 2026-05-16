@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { App, Component, MarkdownRenderer } from "obsidian";
-import { renderTextAsMarkdown } from "../renderer/text-markdown-renderer";
+import { cleanupRenderedTextMarkdown, renderTextAsMarkdown } from "../renderer/text-markdown-renderer";
 
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve = () => {};
@@ -150,6 +150,30 @@ describe("text-markdown-renderer", () => {
     expect((wrapper as any).textContent.length).toBeLessThan(longMarkdown.length);
   });
 
+  it("falls back to plain text for fenced code blocks in text nodes", async () => {
+    const wrapper = createFakeElement();
+    const foreignObject = {
+      querySelector: vi.fn(() => wrapper),
+      appendChild: vi.fn(),
+      closest: vi.fn(() => null),
+    } as unknown as SVGForeignObjectElement;
+
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+    const codeBlockMarkdown = "```ts\nconst x = 1\n```";
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown: codeBlockMarkdown,
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect((wrapper as any).textContent).toBe(codeBlockMarkdown);
+  });
+
   it("ignores stale async renders without clearing newer content", async () => {
     const foreignObject = createFakeForeignObject();
     const app = new App();
@@ -193,5 +217,61 @@ describe("text-markdown-renderer", () => {
     await firstRender;
 
     expect(wrapper.textContent).toBe("second");
+  });
+
+  it("skips rerendering when markdown input is unchanged across redraws", async () => {
+    const foreignObject = createFakeForeignObject();
+    const app = new App();
+    const component = new Component();
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+
+    await renderTextAsMarkdown({
+      app,
+      foreignObject,
+      markdown: "**same** _content_",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component,
+    });
+
+    await renderTextAsMarkdown({
+      app,
+      foreignObject,
+      markdown: "**same** _content_",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component,
+    });
+
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores async render completion after cleanup", async () => {
+    const foreignObject = createFakeForeignObject();
+    const app = new App();
+    const component = new Component();
+    const deferred = createDeferred();
+
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _markdown, wrapper) => {
+      await deferred.promise;
+      (wrapper as { textContent?: string }).textContent = "late content";
+    });
+
+    const renderPromise = renderTextAsMarkdown({
+      app,
+      foreignObject,
+      markdown: "pending",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component,
+    });
+
+    cleanupRenderedTextMarkdown(foreignObject, component);
+    deferred.resolve();
+    await renderPromise;
+
+    const wrapper = foreignObject.children[0] as HTMLElement;
+    expect(wrapper.children).toHaveLength(0);
+    expect(wrapper.textContent).not.toBe("late content");
   });
 });

@@ -63,4 +63,44 @@ describe("InlineTitleEditor", () => {
     await editor.commit();
     expect(onCommitText).toHaveBeenCalledWith(longValue);
   });
+
+  it("commits safely when close re-enters during textarea removal", async () => {
+    const layer = document.body.createDiv();
+    const onCommitText = vi.fn();
+    const onCancel = vi.fn();
+
+    const editor = new InlineTitleEditor({
+      layer,
+      x: 0,
+      y: 0,
+      width: 120,
+      height: 40,
+      fontSize: 14,
+      isBold: false,
+      value: "节点标题",
+      onCommitText,
+      onCancel,
+    });
+
+    editor.open();
+
+    const textarea = layer.children[0] as HTMLTextAreaElement;
+    let removeCalls = 0;
+    textarea.remove = vi.fn(() => {
+      removeCalls += 1;
+      if (removeCalls > 1) {
+        throw new DOMException(
+          "Failed to execute 'remove' on 'Element': The node to be removed is no longer a child of this node.",
+          "NotFoundError"
+        );
+      }
+      textarea.parentNode?.removeChild(textarea);
+      editor.close();
+    });
+
+    await expect(editor.commit()).resolves.toBeUndefined();
+    expect(onCommitText).toHaveBeenCalledWith("节点标题");
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(removeCalls).toBe(1);
+  });
 });

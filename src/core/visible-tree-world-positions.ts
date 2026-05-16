@@ -117,7 +117,7 @@ function computeVisibleSubtreeSpans(args: {
 
     let total = 0;
     for (let index = 0; index < children.length; index++) {
-      total += visit(children[index]!);
+      total += visit(children[index]);
       if (index < children.length - 1) total += args.verticalSpacing;
     }
 

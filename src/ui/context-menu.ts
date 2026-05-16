@@ -120,15 +120,17 @@ class MindmapContextMenu {
   }
 
   close(): void {
+    const containerEl = this.containerEl;
+
     if (MindmapContextMenu.activeMenu === this) MindmapContextMenu.activeMenu = null;
     if ((Menu as unknown as { lastShown?: unknown }).lastShown === this) {
       (Menu as unknown as { lastShown?: unknown }).lastShown = null;
     }
-    this.containerEl?.remove();
     this.containerEl = null;
     this.ownerDocument.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
     this.ownerDocument.defaultView?.removeEventListener("blur", this.onWindowBlur);
     this.ownerDocument.defaultView?.removeEventListener("keydown", this.onKeydown, true);
+    containerEl?.remove();
   }
 
   private positionContainer(x: number, y: number): void {

@@ -1,9 +1,17 @@
 import { describe, expect, it, vi, beforeAll, afterAll } from "vitest";
-import { TFile, Component } from "obsidian";
+import { TFile, Component, MarkdownRenderer } from "obsidian";
 
 import { globalPreviewCache } from "../core/preview-cache";
-import { getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-preview-renderer";
+import { cleanupNotebookPreview, getPreviewMaxLines, renderNotebookPreview } from "../renderer/notebook-preview-renderer";
 import { setLocale, t } from "../i18n";
+
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = () => {};
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 beforeAll(() => {
   setLocale("zh");
@@ -35,6 +43,7 @@ interface FakeWrapper {
   removeAttribute: (name: string) => void;
   renderedMarkdown?: string;
   renderedSourcePath?: string;
+  textContent?: string;
 }
 
 interface FakeForeignObject {
@@ -67,6 +76,7 @@ function createWrapper(): FakeWrapper {
       wrapper.children = [];
       wrapper.renderedMarkdown = undefined;
       wrapper.renderedSourcePath = undefined;
+      wrapper.textContent = undefined;
     }),
     setCssProps: vi.fn((props: Record<string, string>) => {
       for (const [key, value] of Object.entries(props)) {
@@ -514,6 +524,113 @@ describe("renderNotebookPreview", () => {
       });
 
       expect(wrapper.renderedSourcePath).toBe("notebooks/华强集团.md");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("falls back to plain text for notebook previews with fenced code blocks", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\n```ts\nconst x = 1\n```");
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    stubActiveDocument(wrapper);
+
+    try {
+      const notebookFile = createFile("notebooks/code.md", "code");
+      const app = {
+        vault: {
+          getAbstractFileByPath: vi.fn().mockReturnValue(notebookFile),
+          read,
+        },
+        metadataCache: {
+          getFirstLinkpathDest: vi.fn().mockReturnValue(notebookFile),
+        },
+      } as never;
+
+      const component = new Component();
+      component.load();
+
+      await renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[code]]",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 120,
+        component,
+      });
+
+      expect(renderSpy).not.toHaveBeenCalled();
+      expect(wrapper.textContent).toBe("# Note\n```ts\nconst x = 1\n```");
+
+      component.unload();
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalDocument) vi.stubGlobal("document", originalDocument);
+    }
+  });
+
+  it("ignores async preview render completion after cleanup", async () => {
+    globalPreviewCache.clear();
+
+    const read = vi.fn().mockResolvedValue("# Note\nAsync content");
+    const deferred = createDeferred();
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, wrapper, sourcePath) => {
+      await deferred.promise;
+      (wrapper as unknown as FakeWrapper).renderedMarkdown = markdown;
+      (wrapper as unknown as FakeWrapper).renderedSourcePath = sourcePath;
+    });
+
+    const foreignObject: FakeForeignObject = {
+      wrapper: null,
+      querySelector: vi.fn(function (this: FakeForeignObject) {
+        return this.wrapper;
+      }),
+      appendChild: vi.fn(function (this: FakeForeignObject, wrapper: FakeWrapper) {
+        this.wrapper = wrapper;
+      }),
+    };
+
+    const wrapper = createWrapper();
+    const originalDocument = globalThis.document;
+    stubActiveDocument(wrapper);
+
+    try {
+      const app = createApp(read);
+      const component = new Component();
+      component.load();
+
+      const renderPromise = renderNotebookPreview({
+        app,
+        foreignObject: foreignObject as never,
+        link: "[[Right]]",
+        storedPath: "notes/right.md",
+        sourcePath: "maps/source.naotu",
+        previewHeight: 120,
+        component,
+      });
+
+      cleanupNotebookPreview(foreignObject as never);
+      deferred.resolve();
+      await renderPromise;
+
+      expect(wrapper.renderedMarkdown).toBeUndefined();
+      expect(wrapper.renderedSourcePath).toBeUndefined();
 
       component.unload();
     } finally {

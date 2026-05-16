@@ -1,4 +1,5 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
+import { containsUnsafeMarkdownBlocks } from "../core/markdown-safety";
 import { globalPreviewCache } from "../core/preview-cache";
 import { readNotebookPreviewMarkdown } from "../core/notebook-content-extractor";
 import { buildEmbeddedPreviewMarkdown } from "../core/file-node-support";
@@ -260,6 +261,28 @@ export async function renderNotebookPreview(args: {
   await renderNotebookPreviewLines(args.foreignObject, requestedLines);
 }
 
+export function cleanupNotebookPreview(foreignObject: SVGForeignObjectElement | null): void {
+  if (!foreignObject) return;
+  renderRunIdByElement.delete(foreignObject);
+  renderedKeyByElement.delete(foreignObject);
+
+  const wrapper = foreignObject.querySelector<HTMLDivElement>(".mindmap-preview-wrapper");
+  if (wrapper) {
+    embeddedObserverByElement.get(wrapper)?.disconnect();
+    embeddedObserverByElement.delete(wrapper);
+    embeddedResizeObserverByElement.get(wrapper)?.disconnect();
+    embeddedResizeObserverByElement.delete(wrapper);
+  }
+
+  const child = childComponentByElement.get(foreignObject);
+  const state = previewStateByElement.get(foreignObject);
+  if (child && state) {
+    state.component.removeChild(child);
+  }
+  childComponentByElement.delete(foreignObject);
+  previewStateByElement.delete(foreignObject);
+}
+
 async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement, maxLines: number): Promise<void> {
   const state = previewStateByElement.get(foreignObject);
   if (!state) return;
@@ -356,13 +379,19 @@ async function renderNotebookPreviewLines(foreignObject: SVGForeignObjectElement
       return;
     }
 
+    state.requestedLines = maxLines;
+    state.totalLines = result.totalLines;
+
+    if (containsUnsafeMarkdownBlocks(result.markdown)) {
+      wrapper.textContent = result.markdown;
+      wrapper.scrollTop = previousScrollTop;
+      return;
+    }
+
     // Use the notebook file's own path so image links resolve relative to it.
     const child = new Component();
     state.component.addChild(child);
     childComponentByElement.set(foreignObject, child);
-
-    state.requestedLines = maxLines;
-    state.totalLines = result.totalLines;
 
     await MarkdownRenderer.render(state.app, result.markdown, wrapper, result.resolvedPath, child);
     if (renderRunIdByElement.get(foreignObject) !== renderRunId) {
