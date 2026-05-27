@@ -85,6 +85,16 @@ type WheelNotebookResizeSession = {
   timeoutId: number;
 };
 
+const BOX_SELECT_MIN_DRAG_PX = 5;
+
+export function shouldUseTouchZoom(eventType: string, touchCount: number): boolean {
+  return eventType !== "touchstart" || touchCount >= 2;
+}
+
+export function isMeaningfulBoxSelectDrag(dx: number, dy: number): boolean {
+  return Math.hypot(dx, dy) >= BOX_SELECT_MIN_DRAG_PX;
+}
+
 export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
   protected overlayScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -126,7 +136,12 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.12, 4])
-      .filter((event) => "touches" in event)
+      .filter((event) => {
+        if (event.type === "wheel") return false;
+        if (event.type === "mousedown") return false;
+        if (event.type === "touchstart" && "touches" in event) return shouldUseTouchZoom(event.type, event.touches.length);
+        return true;
+      })
       .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
         const t = event.transform;
         this.options.onViewportChange(t.x, t.y, t.k);
@@ -451,11 +466,31 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     }
 
     event.preventDefault();
-    const zoomSpeed = this.options.getSettings().zoomSpeed;
-    const factor = Math.exp(-event.deltaY * zoomSpeed);
-    if (!Number.isFinite(factor) || factor === 1) return;
-    this.handleZoomInput(factor);
+
+    if (event.ctrlKey || event.metaKey) {
+      const zoomSpeed = this.options.getSettings().zoomSpeed;
+      const factor = Math.exp(-event.deltaY * zoomSpeed);
+      if (!Number.isFinite(factor) || factor === 1) return;
+      this.handleZoomInput(factor);
+    } else {
+      this.applyWheelPan(event.deltaX, event.deltaY);
+    }
   };
+
+  private applyWheelPan(deltaX: number, deltaY: number): void {
+    const svgNode = this.svg.node();
+    if (!svgNode) return;
+
+    const t = d3.zoomTransform(svgNode);
+    const k = t.k;
+    const panScale = Math.sqrt(k);
+    const nextX = t.x - deltaX * panScale;
+    const nextY = t.y - deltaY * panScale;
+
+    this.svg.call((selection) => {
+      this.zoomBehavior.transform(selection, d3.zoomIdentity.translate(nextX, nextY).scale(k));
+    });
+  }
 
   private handleNotebookWheelResize(event: WheelEvent): boolean {
     if (event.metaKey || event.ctrlKey) return false;
@@ -522,7 +557,8 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
 
   private bindBoxSelect(): void {
     this.svg.on("mousedown.boxselect", (event: MouseEvent) => {
-      if (!event.shiftKey) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey) return;
       if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
 
       event.preventDefault();
@@ -547,6 +583,13 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       const y = Math.min(startScreen[1], currentScreen[1]);
       const width = Math.abs(currentScreen[0] - startScreen[0]);
       const height = Math.abs(currentScreen[1] - startScreen[1]);
+      const dx = currentScreen[0] - startScreen[0];
+      const dy = currentScreen[1] - startScreen[1];
+
+      if (!isMeaningfulBoxSelectDrag(dx, dy)) {
+        this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");
+        return;
+      }
 
       this.overlayScreenLayer
         .select<SVGRectElement>("rect.selection-box")
@@ -561,9 +604,19 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       if (!this.selecting || !this.selectionStartWorld) return;
 
       const transform = d3.zoomTransform(this.svg.node()!);
+      const startScreen = [
+        this.selectionStartWorld.x * transform.k + transform.x,
+        this.selectionStartWorld.y * transform.k + transform.y,
+      ];
+      const currentScreen = d3.pointer(event, this.svg.node());
+      const dx = currentScreen[0] - startScreen[0];
+      const dy = currentScreen[1] - startScreen[1];
       const [x2, y2] = transform.invert(d3.pointer(event, this.svg.node()));
-      const rect = normalizeRect(this.selectionStartWorld.x, this.selectionStartWorld.y, x2, y2);
-      this.options.onBoxSelect(rect);
+
+      if (isMeaningfulBoxSelectDrag(dx, dy)) {
+        const rect = normalizeRect(this.selectionStartWorld.x, this.selectionStartWorld.y, x2, y2);
+        this.options.onBoxSelect(rect);
+      }
 
       this.selecting = false;
       this.selectionStartWorld = null;
@@ -607,11 +660,10 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       svgEl.ownerDocument.addEventListener("touchmove", this.panDocTouch, { passive: false });
       svgEl.ownerDocument.addEventListener("touchend", this.panEndDoc);
     };
-    svgEl.addEventListener("touchstart", this.panTouchCapture, { passive: false, capture: true });
+    svgEl.addEventListener("touchstart", this.panTouchCapture, { passive: false });
 
     this.svg.on("mousedown.custompan", (event: MouseEvent) => {
-      if (event.button !== 0) return;
-      if (event.shiftKey) return;
+      if (event.button !== 1) return;
       if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
 
       event.preventDefault();
@@ -668,7 +720,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.panActive = false;
     const svgEl = this.svg.node();
     if (svgEl && this.panTouchCapture) {
-      svgEl.removeEventListener("touchstart", this.panTouchCapture, true);
+      svgEl.removeEventListener("touchstart", this.panTouchCapture);
     }
     const ownerDocument = this.options.container.ownerDocument;
     this.svg.on("mousedown.custompan", null);
