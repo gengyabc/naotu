@@ -13,8 +13,6 @@ type ApplyDocumentChangeOptions = {
   autosave?: boolean;
 };
 
-type SelectionMode = "replace" | "toggle" | "add";
-
 type MindmapInteractionOptions = {
   selection: SelectionState;
   getDocument(): MindmapDocument;
@@ -180,10 +178,8 @@ export class MindmapInteractions {
     }
   }
 
-  handleNodeSelection(id: string, mode: SelectionMode): void {
-    if (mode === "replace") this.setSelectionOnly(id);
-    if (mode === "toggle") this.toggleSelection(id);
-    if (mode === "add") this.addSelection(id);
+  handleNodeSelection(id: string): void {
+    this.setSelectionOnly(id);
     this.options.setLastFocusNodeId(id);
     const ownerWindow = getActiveWindow();
     if (typeof ownerWindow.requestAnimationFrame === "function") {

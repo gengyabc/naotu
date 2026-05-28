@@ -1,7 +1,6 @@
 import * as d3 from "d3";
 import { App, Component } from "obsidian";
 
-import { normalizeRect } from "../core/geometry";
 import { PerformanceMonitor } from "../core/performance-monitor";
 import { createSemanticProjection } from "../core/semantic-projection";
 import { cullProjectionToViewport, shouldCullProjection } from "../core/viewport-culling";
@@ -28,7 +27,7 @@ export type MindmapRendererOptions = {
   getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onViewportChange: (x: number, y: number, zoom: number) => void;
   onZoomInput?: (factor: number) => boolean;
-  onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
+  onSelectNode: (id: string) => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
   onInlineTextCommit: (id: string, title: string) => Promise<void>;
@@ -45,7 +44,6 @@ export type MindmapRendererOptions = {
   onNotebookResizeStart: (id: string) => void;
   onNotebookResize: (args: { id: string; width: number; height: number }) => void;
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
-  onBoxSelect: (rect: Rect) => void;
   onClearSelection: () => void;
   getSettings: () => SemanticMindmapSettings;
   onRenderStats?: (stats: RenderStats) => void;
@@ -70,6 +68,7 @@ type PreparedRenderData = {
   projection: { nodes: ProjectedNode[]; edges: MindmapDocument["edges"] };
   renderNodes: ProjectedNode[];
   renderEdges: MindmapDocument["edges"];
+  projectionNodes: ProjectedNode[];
   transform: RenderTransform;
 };
 
@@ -99,14 +98,8 @@ type WheelNotebookResizeSession = {
   timeoutId: number;
 };
 
-const BOX_SELECT_MIN_DRAG_PX = 5;
-
 export function shouldUseTouchZoom(eventType: string, touchCount: number): boolean {
   return eventType !== "touchstart" || touchCount >= 2;
-}
-
-export function isMeaningfulBoxSelectDrag(dx: number, dy: number): boolean {
-  return Math.hypot(dx, dy) >= BOX_SELECT_MIN_DRAG_PX;
 }
 
 export abstract class SharedMindmapRendererBase implements RendererAdapter {
@@ -120,8 +113,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected readonly forcedDetailLevel = new Map<string, NodeDetailLevel>();
   protected frozenNotebookLevels = new Map<string, NodeDetailLevel>();
   protected searchResultIds = new Set<string>();
-  protected selecting = false;
-  protected selectionStartWorld: { x: number; y: number } | null = null;
   protected dragging = false;
   protected renderScheduled = false;
   protected lastProjectedNodes: ProjectedNode[] = [];
@@ -166,7 +157,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.svg.call(this.zoomBehavior);
     this.svg.on("dblclick.zoom", null);
     this.svg.node()?.addEventListener("wheel", this.handleWheelZoom, { passive: false });
-    this.bindBoxSelect();
     this.bindFocusRestore();
     this.bindCustomPan();
 
@@ -343,6 +333,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
     doc: MindmapDocument;
     nodes: ProjectedNode[];
+    fullProjectionNodes?: ProjectedNode[];
     transform: RenderTransform;
   }): void {
     renderProjectedNodes({
@@ -351,18 +342,19 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       layoutMode: args.doc.layoutMode,
       nodeLayer: args.nodeLayer,
       nodes: args.nodes,
+      fullProjectionNodes: args.fullProjectionNodes,
       transform: args.transform,
       sourcePath: this.options.sourcePath,
       getSelectedNodeIds: this.options.getSelectedNodeIds,
       getDragNodeIds: this.options.getDragNodeIds,
       getDragRootNodeIds: this.options.getDragRootNodeIds,
-      onSelectNode: (id, mode) => {
+      onSelectNode: (id) => {
         this.lastFocusNodeId = id;
         const selectedNode = args.doc.nodes.find((node) => node.id === id);
-        if (mode === "replace" && selectedNode?.kind === "notebook") {
+        if (selectedNode?.kind === "notebook") {
           this.clearForcedDetailExcept(id);
         }
-        this.options.onSelectNode(id, mode);
+        this.options.onSelectNode(id);
         this.render();
       },
       onHoverNode: (id) => {
@@ -411,15 +403,26 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
         if (!targetId || !pointerWorld) return "";
         const targetNode = args.nodes.find((node) => node.id === targetId);
         if (!targetNode) return "";
-        const start = {
-          x: targetNode.projectedX * args.transform.k + args.transform.x,
-          y: targetNode.projectedY * args.transform.k + args.transform.y,
-        };
+        
+        // Calculate reconnection start point from target node side midpoints
+        // projectedX/Y represent top-left coordinates, so we calculate actual boundaries
+        const nodeLeft = targetNode.projectedX * args.transform.k + args.transform.x;
+        const nodeTop = targetNode.projectedY * args.transform.k + args.transform.y;
+        const nodeRight = nodeLeft + targetNode.displayWidth;
+        const nodeCenterX = nodeLeft + targetNode.displayWidth / 2;
+        const nodeCenterY = nodeTop + targetNode.displayHeight / 2;
+        
+        const pointerScreenX = pointerWorld.x * args.transform.k + args.transform.x;
+        // Determine if pointer is on right side of target node to choose connection side
+        const pointerIsOnRight = pointerScreenX > nodeCenterX;
+        const startX = pointerIsOnRight ? nodeRight : nodeLeft;
+        const startY = nodeCenterY;
+        
         const end = {
           x: pointerWorld.x * args.transform.k + args.transform.x,
           y: pointerWorld.y * args.transform.k + args.transform.y,
         };
-        return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+        return `M ${startX} ${startY} L ${end.x} ${end.y}`;
       });
   }
 
@@ -487,7 +490,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       renderEdges = culled.edges;
     }
 
-    return { doc, projection, renderNodes, renderEdges, transform };
+    return { doc, projection, renderNodes, renderEdges, projectionNodes: projection.nodes, transform };
   }
 
   private openInlineTitleEditor(node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number; isBold: boolean }): void {
@@ -601,75 +604,6 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       height: this.wheelNotebookResizeSession.height,
     });
     this.wheelNotebookResizeSession = null;
-  }
-
-  private bindBoxSelect(): void {
-    this.svg.on("mousedown.boxselect", (event: MouseEvent) => {
-      if (event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey) return;
-      if (isElementLike(event.target) && event.target.closest(".mindmap-node")) return;
-
-      event.preventDefault();
-
-      const transform = d3.zoomTransform(this.svg.node()!);
-      const [x, y] = transform.invert(d3.pointer(event, this.svg.node()));
-      this.selecting = true;
-      this.selectionStartWorld = { x, y };
-    });
-
-    this.svg.on("mousemove.boxselect", (event: MouseEvent) => {
-      if (!this.selecting || !this.selectionStartWorld) return;
-
-      const transform = d3.zoomTransform(this.svg.node()!);
-      const startScreen = [
-        this.selectionStartWorld.x * transform.k + transform.x,
-        this.selectionStartWorld.y * transform.k + transform.y,
-      ];
-      const currentScreen = d3.pointer(event, this.svg.node());
-
-      const x = Math.min(startScreen[0], currentScreen[0]);
-      const y = Math.min(startScreen[1], currentScreen[1]);
-      const width = Math.abs(currentScreen[0] - startScreen[0]);
-      const height = Math.abs(currentScreen[1] - startScreen[1]);
-      const dx = currentScreen[0] - startScreen[0];
-      const dy = currentScreen[1] - startScreen[1];
-
-      if (!isMeaningfulBoxSelectDrag(dx, dy)) {
-        this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");
-        return;
-      }
-
-      this.overlayScreenLayer
-        .select<SVGRectElement>("rect.selection-box")
-        .style("display", null)
-        .attr("x", x)
-        .attr("y", y)
-        .attr("width", width)
-        .attr("height", height);
-    });
-
-    this.svg.on("mouseup.boxselect", (event: MouseEvent) => {
-      if (!this.selecting || !this.selectionStartWorld) return;
-
-      const transform = d3.zoomTransform(this.svg.node()!);
-      const startScreen = [
-        this.selectionStartWorld.x * transform.k + transform.x,
-        this.selectionStartWorld.y * transform.k + transform.y,
-      ];
-      const currentScreen = d3.pointer(event, this.svg.node());
-      const dx = currentScreen[0] - startScreen[0];
-      const dy = currentScreen[1] - startScreen[1];
-      const [x2, y2] = transform.invert(d3.pointer(event, this.svg.node()));
-
-      if (isMeaningfulBoxSelectDrag(dx, dy)) {
-        const rect = normalizeRect(this.selectionStartWorld.x, this.selectionStartWorld.y, x2, y2);
-        this.options.onBoxSelect(rect);
-      }
-
-      this.selecting = false;
-      this.selectionStartWorld = null;
-      this.overlayScreenLayer.select<SVGRectElement>("rect.selection-box").style("display", "none");
-    });
   }
 
   private bindCustomPan(): void {

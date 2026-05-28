@@ -20,7 +20,6 @@ export class HybridMindmapRenderer extends SharedMindmapRendererBase {
     this.svgEdgeLayer = svg.append("g").attr("class", "svg-edge-layer");
     this.svgNodeLayer = svg.append("g").attr("class", "svg-node-layer");
     const overlayScreenLayer = svg.append("g").attr("class", "overlay-screen-layer");
-    overlayScreenLayer.append("rect").attr("class", "selection-box").style("display", "none");
     const inlineEditorLayer = this.root.createDiv({ cls: "inline-editor-layer" });
     return { svg, overlayScreenLayer, inlineEditorLayer };
   }
@@ -33,6 +32,7 @@ export class HybridMindmapRenderer extends SharedMindmapRendererBase {
     doc: import("../types/mindmap").MindmapDocument;
     renderNodes: import("../types/mindmap").ProjectedNode[];
     renderEdges: import("../types/mindmap").MindmapDocument["edges"];
+    projectionNodes: import("../types/mindmap").ProjectedNode[];
     transform: { x: number; y: number; k: number };
   }): { renderedNodes: number; renderedEdges: number } {
     const partition = partitionForHybridRender(data.renderNodes, data.renderEdges);
@@ -52,6 +52,7 @@ export class HybridMindmapRenderer extends SharedMindmapRendererBase {
       nodeLayer: this.svgNodeLayer,
       doc: data.doc,
       nodes: partition.svgNodes,
+      fullProjectionNodes: data.projectionNodes,
       transform: data.transform,
     });
     this.renderReconnectOverlay({ transform: data.transform, nodes: partition.svgNodes });

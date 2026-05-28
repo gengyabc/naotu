@@ -443,25 +443,6 @@ describe("MindmapView", () => {
     expect(contentEl.children[1]?.classNames.has("semantic-mindmap-canvas")).toBe(true);
   });
 
-  it("uses projected node positions for box selection", async () => {
-    const doc = createSmallTestDocument();
-    doc.layoutMode = "tree-right";
-    doc.viewport.zoom = 1;
-    doc.nodes[1] = { ...doc.nodes[1]!, y: 300 };
-
-    const harness = createHarness({ document: doc });
-    await harness.view.setFile(harness.sourceFile);
-    const renderer = harness.getRenderer();
-    renderer.projectedNodes = [
-      createProjectedNode({ id: "root", title: "Root", x: 0, y: 0, hasChildren: true, childrenExpanded: true }),
-      createProjectedNode({ id: "child", title: "Child", x: 220, y: 0 }),
-    ];
-
-    renderer.options.onBoxSelect({ x: 200, y: -10, width: 40, height: 20 });
-
-    expect(getSelection(harness.view)).toEqual(["child"]);
-  });
-
   it("snaps reconnect drags beside the target in free layout", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "free";
@@ -978,7 +959,7 @@ describe("MindmapView", () => {
     input.classList.add("mindmap-inline-title-input");
     (document as unknown as { activeElement: unknown }).activeElement = input;
 
-    renderer.options.onSelectNode("child", "replace");
+    renderer.options.onSelectNode("child");
 
     expect((document as unknown as { activeElement: unknown }).activeElement).toBe(input);
     expect(focusSpy).not.toHaveBeenCalled();

@@ -192,12 +192,13 @@ export function renderProjectedNodes(args: {
   layoutMode: LayoutMode;
   nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
   nodes: ProjectedNode[];
+  fullProjectionNodes?: ProjectedNode[];
   transform: ViewTransform;
   sourcePath: string;
   getSelectedNodeIds: () => string[];
   getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
-  onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
+  onSelectNode: (id: string) => void;
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
   onToggleTree: (id: string, expanded: boolean) => void;
@@ -267,7 +268,7 @@ export function renderProjectedNodes(args: {
       const selectedIds = args.getSelectedNodeIds();
       activeDragNodeIds = args.getDragNodeIds(node.id, selectedIds);
       if (!selectedIds.includes(node.id)) {
-        args.onSelectNode(node.id, "replace");
+        args.onSelectNode(node.id);
       }
     })
     .on("drag", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
@@ -324,7 +325,7 @@ export function renderProjectedNodes(args: {
 
     let selectedIds = args.getSelectedNodeIds();
     if (!selectedIds.includes(node.id)) {
-      args.onSelectNode(node.id, "replace");
+      args.onSelectNode(node.id);
       selectedIds = args.getSelectedNodeIds();
     }
 
@@ -339,7 +340,7 @@ export function renderProjectedNodes(args: {
     const draggedNodeIds = activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id];
     const excludedIds = new Set(draggedNodeIds);
     const targetNodeId = resolveReconnectTargetNodeId({
-      nodes: args.nodes,
+      nodes: args.fullProjectionNodes ?? args.nodes,
       zoom: args.transform.k,
       excludedIds,
       point: pointerWorld,
@@ -386,9 +387,7 @@ export function renderProjectedNodes(args: {
       }
       event.stopPropagation();
 
-      if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
-      else if (event.shiftKey) args.onSelectNode(node.id, "add");
-      else args.onSelectNode(node.id, "replace");
+      args.onSelectNode(node.id);
     })
     .on("dblclick", (event: MouseEvent, node) => {
       if (shouldOpenEmbeddedFileOnDoubleClick(node)) {
@@ -465,7 +464,7 @@ export function renderProjectedNodes(args: {
       const pointerWorld = screenToWorld({ x: moveEvent.clientX - svgRect.left, y: moveEvent.clientY - svgRect.top }, args.transform);
       const reconnectTargetNodeId = dragMode === "reconnect"
         ? resolveReconnectTargetNodeId({
-            nodes: args.nodes,
+            nodes: args.fullProjectionNodes ?? args.nodes,
             zoom: args.transform.k,
             excludedIds: new Set(activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id]),
             point: pointerWorld,
@@ -634,9 +633,7 @@ export function renderProjectedNodes(args: {
       .style("cursor", "pointer")
       .on("click.title-hitbox", (event: MouseEvent) => {
         event.stopPropagation();
-        if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
-        else if (event.shiftKey) args.onSelectNode(node.id, "add");
-        else args.onSelectNode(node.id, "replace");
+        args.onSelectNode(node.id);
       });
 
     const badgeText = group.select<SVGTextElement>("text.mindmap-node-kind-badge");

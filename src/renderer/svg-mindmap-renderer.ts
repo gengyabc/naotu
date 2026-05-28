@@ -13,7 +13,6 @@ export class SvgMindmapRenderer extends SharedMindmapRendererBase {
     this.edgeWorldLayer = svg.append("g").attr("class", "edge-world-layer");
     this.nodeScreenLayer = svg.append("g").attr("class", "node-screen-layer");
     const overlayScreenLayer = svg.append("g").attr("class", "overlay-screen-layer");
-    overlayScreenLayer.append("rect").attr("class", "selection-box").style("display", "none");
     const inlineEditorLayer = this.options.container.createDiv({ cls: "inline-editor-layer" });
     return { svg, overlayScreenLayer, inlineEditorLayer };
   }
@@ -26,6 +25,7 @@ export class SvgMindmapRenderer extends SharedMindmapRendererBase {
     doc: import("../types/mindmap").MindmapDocument;
     renderNodes: import("../types/mindmap").ProjectedNode[];
     renderEdges: import("../types/mindmap").MindmapDocument["edges"];
+    projectionNodes: import("../types/mindmap").ProjectedNode[];
     transform: { x: number; y: number; k: number };
   }): { renderedNodes: number; renderedEdges: number } {
     this.renderSvgEdges({
@@ -38,6 +38,7 @@ export class SvgMindmapRenderer extends SharedMindmapRendererBase {
       nodeLayer: this.nodeScreenLayer,
       doc: data.doc,
       nodes: data.renderNodes,
+      fullProjectionNodes: data.projectionNodes,
       transform: data.transform,
     });
     this.renderReconnectOverlay({ transform: data.transform, nodes: data.renderNodes });

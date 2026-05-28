@@ -31,7 +31,7 @@ type MindmapRendererCoordinatorOptions = {
   getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onViewportChange: (x: number, y: number, zoom: number) => void;
   onZoomInput: (factor: number) => boolean;
-  onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
+  onSelectNode: (id: string) => void;
   onToggleTree: (id: string, expanded: boolean) => void;
   onOpenNotebook: (id: string) => void;
   onInlineTextCommit: (id: string, title: string) => Promise<void>;
@@ -48,7 +48,6 @@ type MindmapRendererCoordinatorOptions = {
   onNotebookResizeStart: (id: string) => void;
   onNotebookResize: (args: { id: string; width: number; height: number }) => void;
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
-  onBoxSelect: (rect: Rect) => void;
   onClearSelection: () => void;
 };
 
@@ -190,7 +189,6 @@ export class MindmapRendererCoordinator {
       onNotebookResizeStart: this.options.onNotebookResizeStart,
       onNotebookResize: this.options.onNotebookResize,
       onNotebookResizeEnd: this.options.onNotebookResizeEnd,
-      onBoxSelect: this.options.onBoxSelect,
       onClearSelection: this.options.onClearSelection,
       getSettings: this.options.getSettings,
       onRenderStats: (stats) => this.handleRenderStats(container, stats),

@@ -22,7 +22,7 @@ import {
   getMindmapChildIds,
 } from "../core/tree-editing";
 import { findRootNodeId } from "../core/keyboard-navigation";
-import { nodeWorldRect, projectedNodeWorldRect, rectIntersects } from "../core/geometry";
+import { nodeWorldRect, projectedNodeWorldRect } from "../core/geometry";
 import { showErrorNotice } from "../ui/error-notice";
 import { setCanvasA11y } from "../core/accessibility";
 import type { DirtyState } from "../core/dirty-state";
@@ -139,7 +139,7 @@ export class MindmapView extends FileView {
         this.editSession.scheduleAutosave();
       },
       onZoomInput: (factor) => this.handleZoomInput(factor),
-      onSelectNode: (id, mode) => this.interactions.handleNodeSelection(id, mode),
+      onSelectNode: (id) => this.interactions.handleNodeSelection(id),
       onToggleTree: (id, expanded) => {
         if (expanded) this.collapseTreeNodeWithNotebookResize(id);
         else this.applyDocumentChange(() => {
@@ -230,22 +230,6 @@ export class MindmapView extends FileView {
       },
       onNotebookResizeEnd: (args) => {
         this.handleNotebookResizeEnd(args);
-      },
-      onBoxSelect: (rect) => {
-        const zoom = this.store.getDocument().viewport.zoom;
-        const projectedNodes = this.rendererCoordinator.getLastProjectedNodes();
-        const ids = projectedNodes && projectedNodes.length > 0
-          ? projectedNodes
-            .filter((node) => rectIntersects(rect, projectedNodeWorldRect(node, zoom)))
-            .map((node) => node.id)
-          : this.store
-            .getDocument()
-            .nodes
-            .filter((node) => rectIntersects(rect, nodeWorldRect(node)))
-            .map((node) => node.id);
-
-        this.replaceSelection(ids);
-        this.rendererCoordinator.render();
       },
       onClearSelection: () => {
         this.clearSelection();
