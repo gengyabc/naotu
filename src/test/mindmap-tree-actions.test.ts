@@ -355,6 +355,27 @@ describe("MindmapTreeActions", () => {
     });
   });
 
+  describe("applyBranchReconnect", () => {
+    it("reconnects multiple selected roots under a new parent in free layout", () => {
+      const doc = createSmallTestDocument();
+      doc.layoutMode = "free";
+      doc.nodes.push(
+        { id: "child2", kind: "text", title: "Child2", x: 200, y: 80, width: 180, height: 56, treeControl: "auto" },
+        { id: "target", kind: "text", title: "Target", x: 400, y: 0, width: 180, height: 56, treeControl: "auto" },
+      );
+      doc.edges.push(
+        { id: "edge2", source: "root", target: "child2", relation: "mindmap", type: "curve" },
+        { id: "edge3", source: "root", target: "target", relation: "mindmap", type: "curve" },
+      );
+      const harness = createHarness({ document: doc });
+
+      harness.actions.applyBranchReconnect({ draggedNodeId: "child", selectedIds: ["child", "child2"], newParentId: "target" });
+
+      const next = harness.getDocument();
+      expect(next.edges.filter((edge) => edge.source === "target" && edge.relation === "mindmap").map((edge) => edge.target)).toEqual(["child", "child2"]);
+    });
+  });
+
   describe("handleLayoutSettingsChanged", () => {
     it("relayouts document in tree mode", () => {
       const doc = createSmallTestDocument();

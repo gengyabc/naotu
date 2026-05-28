@@ -2,112 +2,85 @@
 
 ## Project
 
-Obsidian plugin: "MindCanvas 思维画布" (`mindcanvas`). Mindmaps saved as `.naotu` JSON files with nodes/edges.
+Obsidian plugin "MindCanvas 思维画布" (`mindcanvas`). Mindmaps saved as `.naotu` JSON files.
 
 ## Commands
 
-```bash
-npm run dev          # esbuild watch (no typecheck)
-npm run build        # tsc --noEmit --skipLibCheck THEN esbuild production
-npm run test         # vitest run
-npm run test:watch   # vitest watch
-```
+- `npm run dev` — esbuild watch (no typecheck)
+- `npm run build` — `tsc --noEmit --skipLibCheck` THEN esbuild production
+- `npm run test` — vitest run
+- `npm run test:watch` — vitest watch
+- Single test: `npx vitest run src/test/<file>.test.ts`
+- `obsidian` module aliased to `src/test/obsidian-stub.ts` in vitest
 
-- **Build order matters**: `build` runs typecheck first; `dev` does NOT typecheck. Run `tsc --noEmit` manually after dev-session changes.
-- No linter or formatter is configured.
+## Workflow
 
-## Testing
+After every code change, run in order:
+1. `npx tsc --noEmit` — catch type errors
+2. `npm run test` — catch regressions
+3. `npm run build` — verify production bundle
 
-Vitest aliases `obsidian` to `src/test/obsidian-stub.ts`. This stub is minimal — extend it when tests need more Obsidian API surface.
+### Bug fixing
+- Add/extend regression test before or alongside code change. Create `src/test/<name>.test.ts` if no suitable file exists.
+- Check [DEVELOPMENT.md](./DEVELOPMENT.md) for similar past issues when stuck.
+- Keep domain logic in `src/core/` testable. Avoid adding new behavior directly in view/render wiring.
 
-Run a single test: `npx vitest run src/test/<file>.test.ts`
+### Hotspots (extra care needed)
+- `src/view/mindmap-view.ts` — main integration hub, easy to regress
+- Changes spanning `src/view/` + `src/renderer/` + `src/core/` — tight verification
+- `src/core/semantic-projection.ts` — changes ripple to rendering and zoom
 
-## Stability workflow
-
-- When fixing a bug, add or extend a regression test in the nearest existing test file before or alongside the code change. If no suitable test file exists, create one in `src/test/` for the touched behavior.
-- If the change touches `src/view/mindmap-view.ts`, treat it as integration-sensitive work. Verify both automated coverage and the user flow you changed.
-- If the change touches renderer or projection code, run the most relevant focused tests plus `npm run test` before finishing.
-- After any `npm run dev` session or incremental edit, run `tsc --noEmit` before considering the work stable.
-- Prefer small diffs that keep domain logic in `src/core/` testable. Avoid adding new behavior directly into view/render wiring when it can live in a pure helper.
-- Do not close a bugfix after only reproducing it manually. Capture the solved case in a test so the same issue does not re-enter through a later diff.
-- **When a bug is hard to solve, check [DEVELOPMENT.md](./DEVELOPMENT.md) for similar past issues and their solutions.**
-
-Manual checks for cross-feature UI changes:
-
-- Selection and keyboard shortcuts still work.
-- Tree expand/collapse and semantic zoom still behave correctly.
-- Dragging/resizing still marks the document dirty and autosaves.
-- Notebook binding, rename, moved-file sync, and missing-link warnings still behave correctly.
-- Search, minimap, and export still render after the change.
+### Mandatory manual checks for cross-feature changes
+- Selection and keyboard shortcuts still work
+- Tree expand/collapse and semantic zoom behave correctly
+- Dragging/resizing marks document dirty and autosaves
+- Notebook binding, rename, moved-file sync, missing-link warnings work
+- Search, minimap, export render correctly
 
 ## Architecture
 
-- `src/main.ts` — plugin entrypoint, registers view/commands/settings
-- `src/constants.ts` — shared constants (view type, defaults, default document template)
-- `src/core/` — domain logic (50 modules, see breakdown below)
-- `src/renderer/` — SVG, Canvas, hybrid renderers; shared base; node/edge projection; minimap; markdown rendering (11 files)
-- `src/view/` — Obsidian `ItemView` and extracted subsystems (6 files, see breakdown below)
-- `src/types/` — shared type definitions (`mindmap.ts`, `renderer.ts`, `settings.ts`)
-- `src/ui/` — settings tab, context menu, toolbar, debug overlays (8 files)
-- `src/migrations/` — document version migrations (`migration-runner.ts`)
-- `src/test/` — tests and `obsidian-stub.ts` / `test-fixtures.ts` (31 test files)
-
-### Core modules (`src/core/`)
-
-Data & document layer: `document-store`, `document-migration`, `versioning`, `id`, `autosave`, `dirty-state`, `history`
-
-Tree layout: `tree-layout`, `tree-control`, `tree-editing`, `hierarchy`
-
-Semantic zoom & projection: `semantic-projection`, `semantic-zoom-policy`, `detail-level`, `subtree-semantic-zoom`, `focus`
-
-Layout relaxation: `layout-collision`, `layout-relaxation`
-
-Rendering mode & performance: `render-mode`, `render-partition`, `performance-monitor`, `viewport-culling`, `tile-index`
-
-Notebook system: `notebook-service`, `notebook-content-extractor`, `notebook-size`, `obsidian-link`, `missing-link-detector`, `preview-cache`
-
-Embedded file nodes: `file-node-support`, `file-dimensions`
-
-Text & sizing: `text-layout`, `font-size`, `branch-color`
-
-Interaction: `keyboard-navigation`, `selection`, `search`, `edge-routing`, `screen-transform`, `geometry`
-
-Import/generation: `mindmap-from-markdown`, `markdown-heading-parser`, `local-knowledge-map`, `sample-data`
-
-Infrastructure: `accessibility`, `command-registry`, `error-boundary`, `i18n`, `sanitize-filename`, `telemetry-disabled`
-
-### View decomposition (`src/view/`)
-
-- `mindmap-view.ts` — `ItemView` subclass, integration hub
-- `mindmap-edit-session.ts` — orchestrates history, dirty state, autosave
-- `mindmap-interactions.ts` — keyboard shortcuts, search, connection mode, subtree zoom
-- `mindmap-notebook-actions.ts` — notebook CRUD, bind/unbind, rename, missing-link detection
-- `mindmap-tree-actions.ts` — add/delete/move nodes, tree structure mutations
-- `mindmap-renderer-coordinator.ts` — renderer lifecycle, mode switching, render scheduling
-
-### UI modules (`src/ui/`)
-
-`settings-tab`, `context-menu`, `mindmap-toolbar`, `error-notice`, `debug-overlay`, `performance-debug-overlay`, `file-suggest-modal`, `mindmap-file-suggest-modal`
-
-### Renderer modules (`src/renderer/`)
-
-`shared-mindmap-renderer-base` (shared logic for SVG & hybrid), `svg-mindmap-renderer`, `hybrid-mindmap-renderer`, `canvas-background-renderer`, `projected-node-renderer`, `projected-edge-renderer`, `notebook-preview-renderer`, `text-markdown-renderer`, `inline-title-editor`, `minimap-renderer`, `renderer-adapter`
-
-Hotspots:
-
-- `src/view/mindmap-view.ts` is the main integration hub and is easy to regress with broad edits.
-- Changes that span `src/view/`, `src/renderer/`, and `src/core/` deserve extra skepticism and a tighter verification loop.
-- `src/core/semantic-projection.ts` is the largest and most complex projection engine — changes here ripple to rendering and zoom behavior.
+```
+src/
+├── main.ts              — entrypoint, registers view/commands/settings
+├── constants.ts         — view type, defaults, template
+├── core/                — domain logic (50 modules)
+│   ├── data: document-store, document-migration, versioning, id, autosave, dirty-state, history
+│   ├── layout: tree-layout, tree-control, tree-editing, hierarchy
+│   ├── projection: semantic-projection, semantic-zoom-policy, detail-level, subtree-semantic-zoom, focus
+│   ├── relaxation: layout-collision, layout-relaxation
+│   ├── render-mode: render-mode, render-partition, performance-monitor, viewport-culling, tile-index
+│   ├── notebook: notebook-service, notebook-content-extractor, notebook-size, obsidian-link, missing-link-detector, preview-cache
+│   ├── file-node: file-node-support, file-dimensions
+│   ├── text: text-layout, font-size, branch-color
+│   ├── interaction: keyboard-navigation, selection, search, edge-routing, screen-transform, geometry
+│   ├── import: mindmap-from-markdown, markdown-heading-parser, local-knowledge-map, sample-data
+│   └── infra: accessibility, command-registry, error-boundary, i18n, sanitize-filename, telemetry-disabled
+├── renderer/            — SVG/Canvas/hybrid renderers (11 files)
+│   shared-mindmap-renderer-base, svg-mindmap-renderer, hybrid-mindmap-renderer,
+│   canvas-background-renderer, projected-node-renderer, projected-edge-renderer,
+│   notebook-preview-renderer, text-markdown-renderer, inline-title-editor,
+│   minimap-renderer, renderer-adapter
+├── view/                — ItemView + extracted subsystems (6 files)
+│   mindmap-view, mindmap-edit-session, mindmap-interactions,
+│   mindmap-notebook-actions, mindmap-tree-actions, mindmap-renderer-coordinator
+├── types/               — mindmap.ts, renderer.ts, settings.ts
+├── ui/                  — settings-tab, context-menu, mindmap-toolbar, error-notice,
+│                          debug-overlay, performance-debug-overlay, file-suggest-modal,
+│                          mindmap-file-suggest-modal
+├── migrations/          — migration-runner.ts
+└── test/                — tests + obsidian-stub.ts + test-fixtures.ts (31 test files)
+```
 
 ## Build specifics
 
-- esbuild bundles `src/main.ts` → `main.js`; `obsidian` module is **external** (provided by Obsidian at runtime)
+- esbuild bundles `src/main.ts` → `main.js`; `obsidian` is external (provided at runtime)
 - Target: ES2018, CommonJS
-- `main.js` and `data.json` are gitignored (build output and Obsidian settings data)
-- `d3` is a runtime dependency, not dev — it's bundled into `main.js` by esbuild
+- `main.js` and `data.json` are gitignored
+- `d3` is bundled as runtime dependency
 
 ## Conventions
 
-- Default node titles and UI strings are in Chinese (e.g. `"中心主题"`, `"新节点"`)
-- `styles.css` at repo root is the plugin CSS — Obsidian loads it automatically, do not move into `src/`
+- Default node titles and UI strings in Chinese (e.g. `"中心主题"`, `"新节点"`)
+- `styles.css` at repo root — Obsidian loads it automatically, do not move into `src/`
 - Plugin ID: `semantic-zoom-mindmap`, view type: `semantic-zoom-mindmap-view`, file extension: `.naotu`
+- No linter or formatter configured

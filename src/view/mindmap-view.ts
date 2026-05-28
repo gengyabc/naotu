@@ -18,6 +18,7 @@ import type { MindmapDocument } from "../types/mindmap";
 import {
   expandDraggedNodeMoves,
   resolveDraggedNodeIds,
+  resolveDraggedRootIds,
   getMindmapChildIds,
 } from "../core/tree-editing";
 import { findRootNodeId } from "../core/keyboard-navigation";
@@ -130,6 +131,7 @@ export class MindmapView extends FileView {
       getDocument: () => this.store.getDocument(),
       getSelectedNodeIds: () => this.selection.getIds(),
       getDragNodeIds: (nodeId, selectedIds) => resolveDraggedNodeIds(this.store.getDocument(), nodeId, selectedIds),
+      getDragRootNodeIds: (nodeId, selectedIds) => resolveDraggedRootIds(this.store.getDocument(), nodeId, selectedIds),
       onViewportChange: (x, y, zoom) => {
         this.store.setViewportAndSyncTreeControls(x, y, zoom);
         this.clearSubtreeVirtualZoomState();
@@ -167,7 +169,7 @@ export class MindmapView extends FileView {
           this.rendererCoordinator.render();
         }
       },
-      onNodesMove: ({ node, moves }) => {
+      onNodesMove: ({ node, moves, mode, reconnectTargetNodeId }) => {
         if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
           this.applyDocumentChange(() => {
             this.store.updateNodePositions(moves);
@@ -181,12 +183,33 @@ export class MindmapView extends FileView {
           selectedIds: this.selection.getIds(),
           moves,
         });
-        this.store.updateNodePositions(expandedMoves);
+        const nextMoves = mode === "reconnect" && reconnectTargetNodeId
+          ? this.snapReconnectMovesToTarget(node.id, this.selection.getIds(), expandedMoves, reconnectTargetNodeId)
+          : expandedMoves;
+        this.store.updateNodePositions(nextMoves);
         this.rendererCoordinator.render();
         this.markDirty();
         this.editSession.scheduleAutosave();
       },
-      onNodeDragEnd: ({ node }) => {
+      onNodeDragEnd: ({ node, mode, dropPosition }) => {
+        if (mode === "reconnect" && dropPosition) {
+          const targetNodeId = this.findReconnectTargetNodeId(node.id, this.selection.getIds(), dropPosition.x, dropPosition.y);
+          if (targetNodeId) {
+            this.treeDragStartPosition = null;
+            this.treeActions.applyBranchReconnect({
+              draggedNodeId: node.id,
+              selectedIds: this.selection.getIds(),
+              newParentId: targetNodeId,
+            });
+            return;
+          }
+          if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
+            this.treeDragStartPosition = null;
+            this.applyReplacedDocument(this.relayoutDocument(structuredClone(this.store.getDocument())), { commitHistory: false });
+            return;
+          }
+        }
+
         if (isTreeLayoutMode(this.store.getDocument().layoutMode)) {
           const start = this.treeDragStartPosition;
           if (start) {
@@ -573,6 +596,79 @@ export class MindmapView extends FileView {
     });
 
     this.clearSelection();
+  }
+
+  private findReconnectTargetNodeId(draggedNodeId: string, selectedIds: string[], x: number, y: number): string | null {
+    const doc = this.store.getDocument();
+    const excludedIds = new Set(resolveDraggedNodeIds(doc, draggedNodeId, selectedIds));
+    const zoom = doc.viewport.zoom;
+    const projectedNodes = this.rendererCoordinator.getLastProjectedNodes();
+
+    if (projectedNodes && projectedNodes.length > 0) {
+      for (const node of projectedNodes) {
+        if (excludedIds.has(node.id)) continue;
+        const rect = projectedNodeWorldRect(node, zoom);
+        if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
+          return node.id;
+        }
+      }
+    }
+
+    for (const node of doc.nodes) {
+      if (excludedIds.has(node.id)) continue;
+      const rect = nodeWorldRect(node);
+      if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
+        return node.id;
+      }
+    }
+
+    return null;
+  }
+
+  private snapReconnectMovesToTarget(
+    draggedNodeId: string,
+    selectedIds: string[],
+    moves: Array<{ id: string; x: number; y: number }>,
+    targetNodeId: string,
+  ): Array<{ id: string; x: number; y: number }> {
+    const doc = this.store.getDocument();
+    const targetNode = doc.nodes.find((node) => node.id === targetNodeId);
+    if (!targetNode) return moves;
+
+    const moveMap = new Map(moves.map((move) => [move.id, move]));
+    const movedNodeIds = resolveDraggedNodeIds(doc, draggedNodeId, selectedIds);
+    if (movedNodeIds.length === 0) return moves;
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const nodeId of movedNodeIds) {
+      const baseNode = doc.nodes.find((node) => node.id === nodeId);
+      if (!baseNode) continue;
+      const moved = moveMap.get(nodeId) ?? { id: nodeId, x: baseNode.x, y: baseNode.y };
+      const rect = nodeWorldRect({ ...baseNode, x: moved.x, y: moved.y });
+      minX = Math.min(minX, rect.x);
+      maxX = Math.max(maxX, rect.x + rect.width);
+      minY = Math.min(minY, rect.y);
+      maxY = Math.max(maxY, rect.y + rect.height);
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+      return moves;
+    }
+
+    const targetRect = nodeWorldRect(targetNode);
+    const groupCenterX = (minX + maxX) / 2;
+    const snapGap = 32;
+    const placeOnRight = groupCenterX >= targetNode.x;
+    const targetEdgeX = placeOnRight
+      ? targetRect.x + targetRect.width + snapGap
+      : targetRect.x - snapGap;
+    const deltaX = placeOnRight ? targetEdgeX - minX : targetEdgeX - maxX;
+
+    return moves.map((move) => ({ ...move, x: move.x + deltaX }));
   }
 
   private selectRootNode(): void {

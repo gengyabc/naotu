@@ -28,6 +28,7 @@ type MindmapRendererCoordinatorOptions = {
   getDocument: () => MindmapDocument;
   getSelectedNodeIds: () => string[];
   getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
+  getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onViewportChange: (x: number, y: number, zoom: number) => void;
   onZoomInput: (factor: number) => boolean;
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
@@ -37,8 +38,13 @@ type MindmapRendererCoordinatorOptions = {
   onContextMenu: (id: string, x: number, y: number) => void;
   onEdgeContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
-  onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
-  onNodeDragEnd: (args: { node: ProjectedNode }) => void;
+  onNodesMove: (args: {
+    node: ProjectedNode;
+    moves: Array<{ id: string; x: number; y: number }>;
+    mode?: "move" | "reconnect";
+    reconnectTargetNodeId?: string;
+  }) => void;
+  onNodeDragEnd: (args: { node: ProjectedNode; mode?: "move" | "reconnect"; dropPosition?: { x: number; y: number } }) => void;
   onNotebookResizeStart: (id: string) => void;
   onNotebookResize: (args: { id: string; width: number; height: number }) => void;
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
@@ -169,6 +175,7 @@ export class MindmapRendererCoordinator {
       getDocument: this.options.getDocument,
       getSelectedNodeIds: this.options.getSelectedNodeIds,
       getDragNodeIds: this.options.getDragNodeIds,
+      getDragRootNodeIds: this.options.getDragRootNodeIds,
       onViewportChange: this.options.onViewportChange,
       onZoomInput: this.options.onZoomInput,
       onSelectNode: this.options.onSelectNode,

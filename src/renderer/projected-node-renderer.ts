@@ -5,7 +5,7 @@ import { isUnderlineNode } from "../types/mindmap";
 import type { LayoutMode } from "../types/mindmap";
 import type { NotebookTargetKind } from "../types/mindmap";
 import type { ViewTransform } from "../core/screen-transform";
-import { worldToScreen } from "../core/screen-transform";
+import { screenToWorld, worldToScreen } from "../core/screen-transform";
 import { getVisualSpec, type DetailVisualSpec } from "../core/detail-level";
 import { getFontSizeForDepth, getObsidianBaseFontSize } from "../core/font-size";
 import { cleanupNotebookPreview, renderNotebookPreview } from "./notebook-preview-renderer";
@@ -21,6 +21,8 @@ import { isEmbeddedFileNodeTargetKind } from "../core/file-node-support";
 import { resolveObsidianLinkFile } from "../core/obsidian-link";
 import { globalPreviewCache } from "../core/preview-cache";
 import { truncateTextForNotebook, layoutDescription } from "../core/text-layout";
+import { projectedNodeWorldRect } from "../core/geometry";
+import { getActiveWindow } from "../core/dom";
 
 function getEventTarget(event: unknown): EventTarget | null {
   return event instanceof Event ? event.target : null;
@@ -49,6 +51,8 @@ const BADGE_LINE_HEIGHT_FACTOR = 1.27;
 const NOTEBOOK_SUMMARY_TEXT_Y = 68;
 const NOTEBOOK_SUMMARY_MAX_LINES = 3;
 const SECONDARY_FONT_SIZE_OFFSET = -1;
+const LONG_PRESS_RECONNECT_MS = 750;
+const DRAG_START_DISTANCE_PX = 4;
 
 const descriptionCache = new Map<string, string | null>();
 let descriptionCacheVersion = -1;
@@ -128,6 +132,31 @@ export function canDragNodes(layoutMode: LayoutMode): boolean {
   return layoutMode === "free";
 }
 
+export function isMeaningfulNodeDrag(dx: number, dy: number): boolean {
+  return Math.hypot(dx, dy) >= DRAG_START_DISTANCE_PX;
+}
+
+export function resolveReconnectTargetNodeId(args: {
+  nodes: ProjectedNode[];
+  zoom: number;
+  excludedIds: Set<string>;
+  point: { x: number; y: number };
+}): string | undefined {
+  for (const node of args.nodes) {
+    if (args.excludedIds.has(node.id)) continue;
+    const rect = projectedNodeWorldRect(node, args.zoom);
+    if (
+      args.point.x >= rect.x
+      && args.point.x <= rect.x + rect.width
+      && args.point.y >= rect.y
+      && args.point.y <= rect.y + rect.height
+    ) {
+      return node.id;
+    }
+  }
+  return undefined;
+}
+
 export function shouldRenderEmbeddedFilePreview(args: {
   kind: ProjectedNode["kind"];
   targetKind?: NotebookTargetKind;
@@ -167,6 +196,7 @@ export function renderProjectedNodes(args: {
   sourcePath: string;
   getSelectedNodeIds: () => string[];
   getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
+  getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
   onHoverNode: (id: string) => void;
   onLeaveNode: () => void;
@@ -175,16 +205,30 @@ export function renderProjectedNodes(args: {
   onStartInlineEdit: (node: ProjectedNode, rect: { x: number; y: number; width: number; height: number; fontSize: number; isBold: boolean }) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
-  onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
-  onNodeDragEnd: (args: { node: ProjectedNode }) => void;
+  onNodesMove: (args: {
+    node: ProjectedNode;
+    moves: Array<{ id: string; x: number; y: number }>;
+    mode?: "move" | "reconnect";
+    reconnectTargetNodeId?: string;
+  }) => void;
+  onNodeDragEnd: (args: { node: ProjectedNode; mode?: "move" | "reconnect"; dropPosition?: { x: number; y: number } }) => void;
+  onReconnectPreviewChange?: (preview: {
+    draggedNodeId: string;
+    disconnectedRootIds: string[];
+    draggedNodeIds: string[];
+    pointerWorld: { x: number; y: number };
+    targetNodeId?: string;
+  } | null) => void;
   onNotebookResizeStart: (id: string) => void;
   onNotebookResize: (args: { id: string; width: number; height: number }) => void;
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
   onDragStateChange?: (dragging: boolean) => void;
+  reconnectTargetNodeId?: string;
 }): void {
   const resizeDrafts = new Map<string, { width: number; height: number; axis: "width" | "height" }>();
   const dragDrafts = new Map<string, { x: number; y: number }>();
   let activeDragNodeIds: string[] = [];
+  let suppressClickForNodeId: string | null = null;
   const selection = args.nodeLayer.selectAll<SVGGElement, ProjectedNode>("g.mindmap-node").data(args.nodes, (n) => n.id);
   selection.exit().each(function () {
     const group = d3.select(this);
@@ -248,8 +292,67 @@ export function renderProjectedNodes(args: {
       dragDrafts.clear();
       activeDragNodeIds = [];
       args.onDragStateChange?.(false);
-      args.onNodeDragEnd({ node });
+      args.onNodeDragEnd({ node, mode: "move" });
     });
+
+  const moveDraggedNodes = (
+    node: ProjectedNode,
+    deltaX: number,
+    deltaY: number,
+    options?: { mode?: "move" | "reconnect"; reconnectTargetNodeId?: string },
+  ) => {
+    const movingIds = activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id];
+    const projectedMap = new Map(args.nodes.map((item) => [item.id, item]));
+    const delta = screenDragDeltaToWorldDelta({ dx: deltaX, dy: deltaY });
+
+    const moves = movingIds
+      .map((id) => {
+        const item = projectedMap.get(id);
+        if (!item) return null;
+        const base = dragDrafts.get(id) ?? { x: item.worldX, y: item.worldY };
+        const next = { id, x: base.x + delta.dx, y: base.y + delta.dy };
+        dragDrafts.set(id, { x: next.x, y: next.y });
+        return next;
+      })
+      .filter(Boolean) as Array<{ id: string; x: number; y: number }>;
+
+    args.onNodesMove({ node, moves, mode: options?.mode, reconnectTargetNodeId: options?.reconnectTargetNodeId });
+  };
+
+  const startNodeDrag = (node: ProjectedNode) => {
+    args.onDragStateChange?.(true);
+
+    let selectedIds = args.getSelectedNodeIds();
+    if (!selectedIds.includes(node.id)) {
+      args.onSelectNode(node.id, "replace");
+      selectedIds = args.getSelectedNodeIds();
+    }
+
+    args.onBeforeNodeDragStart(node);
+    activeDragNodeIds = args.getDragNodeIds(node.id, selectedIds);
+  };
+
+  const updateReconnectPreview = (node: ProjectedNode, clientX: number, clientY: number, svgRect: DOMRect) => {
+    const pointerWorld = screenToWorld({ x: clientX - svgRect.left, y: clientY - svgRect.top }, args.transform);
+    const selectedIds = args.getSelectedNodeIds();
+    const disconnectedRootIds = args.getDragRootNodeIds(node.id, selectedIds);
+    const draggedNodeIds = activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id];
+    const excludedIds = new Set(draggedNodeIds);
+    const targetNodeId = resolveReconnectTargetNodeId({
+      nodes: args.nodes,
+      zoom: args.transform.k,
+      excludedIds,
+      point: pointerWorld,
+    });
+
+    args.onReconnectPreviewChange?.({
+      draggedNodeId: node.id,
+      disconnectedRootIds,
+      draggedNodeIds,
+      pointerWorld,
+      targetNodeId,
+    });
+  };
 
   const resizeBehavior = d3.drag<SVGGElement, ProjectedNode>().on("start", (event: d3.D3DragEvent<SVGGElement, ProjectedNode, ProjectedNode>, node) => {
     stopEventPropagation(event.sourceEvent);
@@ -275,6 +378,12 @@ export function renderProjectedNodes(args: {
 
   merged
     .on("click", (event: MouseEvent, node) => {
+      if (suppressClickForNodeId === node.id) {
+        suppressClickForNodeId = null;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       event.stopPropagation();
 
       if (event.metaKey || event.ctrlKey) args.onSelectNode(node.id, "toggle");
@@ -305,6 +414,92 @@ export function renderProjectedNodes(args: {
       event.stopPropagation();
       args.onContextMenu(node.id, event.clientX, event.clientY);
     });
+
+  merged.on("mousedown.reconnect", function (event: MouseEvent, node) {
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (!shouldStartNodeDrag(event.target)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    const ownerDocument = this.ownerDocument;
+    const svgRect = args.nodeLayer.node()?.ownerSVGElement?.getBoundingClientRect();
+    if (!svgRect) return;
+
+    const startClient = { x: event.clientX, y: event.clientY };
+    let lastClient = startClient;
+    let dragMode: "move" | "reconnect" | null = null;
+    const activeWin = getActiveWindow();
+    let longPressTimer: number | null = activeWin.setTimeout(() => {
+      longPressTimer = null;
+      dragMode = "reconnect";
+      startNodeDrag(node);
+      updateReconnectPreview(node, startClient.x, startClient.y, svgRect);
+    }, LONG_PRESS_RECONNECT_MS);
+
+    const stopTracking = () => {
+      if (longPressTimer !== null) activeWin.clearTimeout(longPressTimer);
+      ownerDocument.removeEventListener("mousemove", handleMouseMove);
+      ownerDocument.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startClient.x;
+      const dy = moveEvent.clientY - startClient.y;
+
+      if (!dragMode && isMeaningfulNodeDrag(dx, dy)) {
+        if (longPressTimer !== null) {
+          ownerDocument.defaultView?.clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+        if (canDragNodes(args.layoutMode)) {
+          dragMode = "move";
+          startNodeDrag(node);
+        }
+      }
+
+      if (!dragMode) return;
+
+      moveEvent.preventDefault();
+      const pointerWorld = screenToWorld({ x: moveEvent.clientX - svgRect.left, y: moveEvent.clientY - svgRect.top }, args.transform);
+      const reconnectTargetNodeId = dragMode === "reconnect"
+        ? resolveReconnectTargetNodeId({
+            nodes: args.nodes,
+            zoom: args.transform.k,
+            excludedIds: new Set(activeDragNodeIds.length > 0 ? activeDragNodeIds : [node.id]),
+            point: pointerWorld,
+          })
+        : undefined;
+      const deltaX = moveEvent.clientX - lastClient.x;
+      const deltaY = moveEvent.clientY - lastClient.y;
+      lastClient = { x: moveEvent.clientX, y: moveEvent.clientY };
+      moveDraggedNodes(node, deltaX, deltaY, { mode: dragMode ?? undefined, reconnectTargetNodeId });
+      if (dragMode === "reconnect") {
+        updateReconnectPreview(node, moveEvent.clientX, moveEvent.clientY, svgRect);
+      }
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      stopTracking();
+
+      if (!dragMode) return;
+
+      suppressClickForNodeId = node.id;
+      dragDrafts.clear();
+      activeDragNodeIds = [];
+      args.onDragStateChange?.(false);
+      args.onReconnectPreviewChange?.(null);
+
+      const dropPosition = dragMode === "reconnect"
+        ? screenToWorld({ x: upEvent.clientX - svgRect.left, y: upEvent.clientY - svgRect.top }, args.transform)
+        : undefined;
+      args.onNodeDragEnd({ node, mode: dragMode, dropPosition });
+    };
+
+    ownerDocument.addEventListener("mousemove", handleMouseMove);
+    ownerDocument.addEventListener("mouseup", handleMouseUp);
+  });
 
   merged.call(dragBehavior);
 
@@ -361,6 +556,7 @@ export function renderProjectedNodes(args: {
     group.classed("is-root-or-child", node.depth <= 1);
     group.classed("is-focus", node.isFocus);
     group.classed("is-selected", node.isSelected);
+    group.classed("is-reconnect-target", node.id === args.reconnectTargetNodeId);
     group.classed("is-ancestor-path", node.isAncestorPath);
     group.classed("is-search-match", Boolean(node.isSearchMatch));
     group.classed("is-missing-notebook", Boolean(node.isMissingNotebook));

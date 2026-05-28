@@ -462,6 +462,25 @@ describe("MindmapView", () => {
     expect(getSelection(harness.view)).toEqual(["child"]);
   });
 
+  it("snaps reconnect drags beside the target in free layout", async () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "free";
+    doc.nodes.push({ id: "target", kind: "text", title: "Target", x: 400, y: 0, width: 180, height: 56, treeControl: "auto" });
+    const harness = createHarness({ document: doc });
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+
+    (harness.view as any).setSelectionOnly("child");
+    renderer.options.onNodesMove({
+      node: createProjectedNode({ id: "child", title: "Child", x: 450, y: 0 }),
+      moves: [{ id: "child", x: 450, y: 0 }],
+      mode: "reconnect",
+      reconnectTargetNodeId: "target",
+    });
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "child")?.x).toBeGreaterThan(500);
+  });
+
   it("undoes and redoes document edits through keyboard shortcuts", async () => {
     const harness = createHarness();
     await harness.view.setFile(harness.sourceFile);

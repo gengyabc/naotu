@@ -54,6 +54,7 @@ export class HybridMindmapRenderer extends SharedMindmapRendererBase {
       nodes: partition.svgNodes,
       transform: data.transform,
     });
+    this.renderReconnectOverlay({ transform: data.transform, nodes: partition.svgNodes });
     return {
       renderedNodes: partition.svgNodes.length + partition.canvasNodes.length,
       renderedEdges: partition.svgEdges.length + partition.canvasEdges.length,

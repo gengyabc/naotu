@@ -48,8 +48,7 @@ export function getSubtreeNodeIds(doc: MindmapDocument, rootId: string): string[
 
 export function resolveDraggedNodeIds(doc: MindmapDocument, draggedNodeId: string, selectedIds: string[]): string[] {
   const childrenById = getMindmapChildrenById(doc);
-  const baseIds = selectedIds.includes(draggedNodeId) ? selectedIds : [draggedNodeId];
-  const rootIds = baseIds.filter((id) => !baseIds.some((otherId) => otherId !== id && isDescendantNodeInChildren(childrenById, otherId, id)));
+  const rootIds = resolveDraggedRootIds(doc, draggedNodeId, selectedIds);
   const resolved: string[] = [];
   const seen = new Set<string>();
 
@@ -62,6 +61,12 @@ export function resolveDraggedNodeIds(doc: MindmapDocument, draggedNodeId: strin
   }
 
   return resolved;
+}
+
+export function resolveDraggedRootIds(doc: MindmapDocument, draggedNodeId: string, selectedIds: string[]): string[] {
+  const childrenById = getMindmapChildrenById(doc);
+  const baseIds = selectedIds.includes(draggedNodeId) ? selectedIds : [draggedNodeId];
+  return baseIds.filter((id) => !baseIds.some((otherId) => otherId !== id && isDescendantNodeInChildren(childrenById, otherId, id)));
 }
 
 export function expandDraggedNodeMoves(
@@ -122,15 +127,25 @@ export function moveMindmapNode(
   doc: MindmapDocument,
   args: { nodeId: string; newParentId: string; targetIndex: number },
 ): MindmapDocument {
+  return moveMindmapNodes(doc, { nodeIds: [args.nodeId], newParentId: args.newParentId, targetIndex: args.targetIndex });
+}
+
+export function moveMindmapNodes(
+  doc: MindmapDocument,
+  args: { nodeIds: string[]; newParentId: string; targetIndex: number },
+): MindmapDocument {
   const next = structuredClone(doc);
-  if (args.nodeId === args.newParentId) return next;
-  const incomingIndex = next.edges.findIndex((edge) => edge.relation === "mindmap" && edge.target === args.nodeId);
-  if (incomingIndex < 0) return next;
+  const rootIds = args.nodeIds.filter((id, index, ids) => ids.indexOf(id) === index);
+  if (rootIds.length === 0) return next;
+  if (rootIds.some((nodeId) => nodeId === args.newParentId)) return next;
+  if (rootIds.some((nodeId) => isDescendantNode(next, nodeId, args.newParentId))) return next;
 
-  if (isDescendantNode(next, args.nodeId, args.newParentId)) return next;
+  const incomingEdges = rootIds
+    .map((nodeId) => next.edges.find((edge) => edge.relation === "mindmap" && edge.target === nodeId))
+    .filter(Boolean) as MindmapDocument["edges"][number][];
+  if (incomingEdges.length !== rootIds.length) return next;
 
-  const incomingEdge = next.edges[incomingIndex];
-  next.edges.splice(incomingIndex, 1);
+  next.edges = next.edges.filter((edge) => !incomingEdges.includes(edge));
 
   const parentChildIndices = next.edges
     .map((edge, index) => ({ edge, index }))
@@ -139,8 +154,10 @@ export function moveMindmapNode(
   const clamped = Math.max(0, Math.min(args.targetIndex, parentChildIndices.length));
   const insertAt = clamped >= parentChildIndices.length ? next.edges.length : parentChildIndices[clamped].index;
 
-  incomingEdge.source = args.newParentId;
-  next.edges.splice(insertAt, 0, incomingEdge);
+  incomingEdges.forEach((incomingEdge, index) => {
+    incomingEdge.source = args.newParentId;
+    next.edges.splice(insertAt + index, 0, incomingEdge);
+  });
   return next;
 }
 

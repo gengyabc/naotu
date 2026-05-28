@@ -290,6 +290,7 @@ export function createSemanticProjection(
       settleUntilNoOverlap: hasExpandedNotebook,
       maxSettlePasses: hasExpandedNotebook ? 8 : 12,
       overlapPadding: hasExpandedNotebook ? 16 : 14,
+      ignoredNodeIds: context.ignoredOverlapNodeIds,
     });
   }
 

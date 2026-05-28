@@ -40,6 +40,7 @@ export class SvgMindmapRenderer extends SharedMindmapRendererBase {
       nodes: data.renderNodes,
       transform: data.transform,
     });
+    this.renderReconnectOverlay({ transform: data.transform, nodes: data.renderNodes });
     return { renderedNodes: data.renderNodes.length, renderedEdges: data.renderEdges.length };
   }
 }

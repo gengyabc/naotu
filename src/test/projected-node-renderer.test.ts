@@ -4,6 +4,8 @@ import {
   canDragNodes,
   clampNotebookResizeSize,
   getNotebookPreviewFrame,
+  isMeaningfulNodeDrag,
+  resolveReconnectTargetNodeId,
   screenDragDeltaToWorldDelta,
   shouldOpenEmbeddedFileOnDoubleClick,
   shouldRenderEmbeddedFilePreview,
@@ -22,6 +24,70 @@ describe("projected node dragging", () => {
     const second = screenDragDeltaToWorldDelta({ dx: 4, dy: -2 });
 
     expect({ x: first.dx + second.dx, y: first.dy + second.dy }).toEqual({ x: 9, y: 1 });
+  });
+
+  it("ignores tiny mouse movements before node dragging starts", () => {
+    expect(isMeaningfulNodeDrag(0, 0)).toBe(false);
+    expect(isMeaningfulNodeDrag(3, 2)).toBe(false);
+    expect(isMeaningfulNodeDrag(4, 0)).toBe(true);
+  });
+
+  it("finds reconnect targets while excluding dragged nodes", () => {
+    expect(resolveReconnectTargetNodeId({
+      nodes: [
+        {
+          id: "dragged",
+          sourceNodeId: "dragged",
+          kind: "text",
+          title: "Dragged",
+          worldX: 0,
+          worldY: 0,
+          projectedX: 0,
+          projectedY: 0,
+          displayWidth: 180,
+          displayHeight: 56,
+          detailLevel: 3,
+          depth: 1,
+          isRoot: false,
+          isFocus: false,
+          isSelected: true,
+          isHovered: false,
+          isAncestorPath: false,
+          hasChildren: false,
+          childrenExpanded: true,
+          showOpenNotebookButton: false,
+          showResizeHandle: false,
+          usesCustomSize: false,
+        },
+        {
+          id: "target",
+          sourceNodeId: "target",
+          kind: "text",
+          title: "Target",
+          worldX: 240,
+          worldY: 0,
+          projectedX: 240,
+          projectedY: 0,
+          displayWidth: 180,
+          displayHeight: 56,
+          detailLevel: 3,
+          depth: 1,
+          isRoot: false,
+          isFocus: false,
+          isSelected: false,
+          isHovered: false,
+          isAncestorPath: false,
+          hasChildren: false,
+          childrenExpanded: true,
+          showOpenNotebookButton: false,
+          showResizeHandle: false,
+          usesCustomSize: false,
+        },
+      ],
+      zoom: 1,
+      excludedIds: new Set(["dragged"]),
+      point: { x: 240, y: 0 },
+    })).toBe("target");
   });
 
   it("clamps notebook resize size to minimum bounds", () => {

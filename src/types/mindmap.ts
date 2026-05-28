@@ -84,6 +84,7 @@ export interface ProjectionContext {
   treeVerticalSpacing?: number;
   hoveredNodeId?: string;
   lastFocusNodeId?: string;
+  ignoredOverlapNodeIds?: string[];
 }
 
 export interface ProjectedNode {

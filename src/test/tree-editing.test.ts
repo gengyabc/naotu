@@ -7,7 +7,9 @@ import {
   expandDraggedNodeMoves,
   getSubtreeNodeIds,
   moveMindmapNode,
+  moveMindmapNodes,
   resolveDraggedNodeIds,
+  resolveDraggedRootIds,
 } from "../core/tree-editing";
 import { createSmallTestDocument } from "./test-fixtures";
 
@@ -101,6 +103,7 @@ describe("tree editing", () => {
     doc.edges.push({ id: "edge2", source: "child", target: "grandchild", relation: "mindmap", type: "curve" });
 
     expect(resolveDraggedNodeIds(doc, "child", ["child", "grandchild"])).toEqual(["child", "grandchild"]);
+    expect(resolveDraggedRootIds(doc, "child", ["child", "grandchild"])).toEqual(["child"]);
   });
 
   it("keeps leaf dragging scoped to the leaf node", () => {
@@ -121,5 +124,23 @@ describe("tree editing", () => {
       { id: "child", x: 240, y: 20 },
       { id: "grandchild", x: 360, y: 60 },
     ]);
+  });
+
+  it("can reconnect multiple selected roots under a new parent while preserving order", () => {
+    const doc = createSmallTestDocument();
+    doc.nodes.push(
+      { id: "child2", kind: "text", title: "Child2", x: 0, y: 80, width: 180, height: 56, treeControl: "auto" },
+      { id: "target", kind: "text", title: "Target", x: 400, y: 0, width: 180, height: 56, treeControl: "auto" },
+    );
+    doc.edges.push(
+      { id: "edge2", source: "root", target: "child2", relation: "mindmap", type: "curve" },
+      { id: "edge3", source: "root", target: "target", relation: "mindmap", type: "curve" },
+    );
+
+    const next = moveMindmapNodes(doc, { nodeIds: ["child", "child2"], newParentId: "target", targetIndex: 0 });
+    const hierarchy = buildHierarchy(next);
+
+    expect(hierarchy.childrenById.get("root")).toEqual(["target"]);
+    expect(hierarchy.childrenById.get("target")).toEqual(["child", "child2"]);
   });
 });

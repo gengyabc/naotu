@@ -9,6 +9,8 @@ import {
   getMindmapChildIds,
   isDescendantNode,
   moveMindmapNode,
+  moveMindmapNodes,
+  resolveDraggedRootIds,
 } from "../core/tree-editing";
 import { buildHierarchy } from "../core/hierarchy";
 import { nodeWorldRect } from "../core/geometry";
@@ -158,6 +160,20 @@ export class MindmapTreeActions {
     }
 
     this.options.applyReplacedDocument(this.relayoutDocument(next), { commitHistory: false });
+  }
+
+  applyBranchReconnect(args: { draggedNodeId: string; selectedIds: string[]; newParentId: string }): void {
+    const doc = this.options.getDocument();
+    const rootIds = resolveDraggedRootIds(doc, args.draggedNodeId, args.selectedIds);
+    if (rootIds.length === 0) return;
+
+    const next = moveMindmapNodes(doc, {
+      nodeIds: rootIds,
+      newParentId: args.newParentId,
+      targetIndex: getMindmapChildIds(doc, args.newParentId).length,
+    });
+
+    this.options.applyReplacedDocument(isTreeLayoutMode(doc.layoutMode) ? this.relayoutDocument(next) : next, { commitHistory: false });
   }
 
   handleLayoutSettingsChanged(): void {

@@ -10,6 +10,7 @@ export function renderProjectedEdges(args: {
   edges: ProjectedEdge[];
   transform: ViewTransform;
   onEdgeContextMenu?: (id: string, x: number, y: number) => void;
+  disconnectedTargetIds?: Set<string>;
 }): void {
   const nodeMap = new Map(
     args.nodes.map((node) => {
@@ -30,6 +31,7 @@ export function renderProjectedEdges(args: {
     .classed("mindmap-edge-mindmap", (edge) => edge.relation === "mindmap")
     .classed("mindmap-edge-reference", (edge) => edge.relation === "reference")
     .classed("mindmap-edge-from-root", (edge) => edge.isFromRoot === true)
+    .classed("is-disconnecting", (edge) => Boolean(args.disconnectedTargetIds?.has(edge.target)))
     .attr("fill", "none")
     .attr("d", (edge) => {
       const source = nodeMap.get(edge.source);

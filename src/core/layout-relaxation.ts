@@ -9,6 +9,7 @@ export interface RelaxProjectionOptions {
   settleUntilNoOverlap?: boolean;
   maxSettlePasses?: number;
   overlapPadding?: number;
+  ignoredNodeIds?: Iterable<string>;
 }
 
 export function relaxProjectedNodes(nodes: ProjectedNode[], options: RelaxProjectionOptions = {}): ProjectedNode[] {
@@ -19,16 +20,17 @@ export function relaxProjectedNodes(nodes: ProjectedNode[], options: RelaxProjec
   const settleUntilNoOverlap = options.settleUntilNoOverlap ?? false;
   const maxSettlePasses = options.maxSettlePasses ?? 0;
   const overlapPadding = options.overlapPadding ?? 12;
+  const ignoredNodeIds = new Set(options.ignoredNodeIds ?? []);
   const next = nodes.map((node) => ({ ...node }));
 
   for (let iter = 0; iter < iterations; iter++) {
-    resolveOverlaps(next, { zoom, pushStrength, maxMove, overlapPadding });
+    resolveOverlaps(next, { zoom, pushStrength, maxMove, overlapPadding, ignoredNodeIds });
   }
 
   if (settleUntilNoOverlap) {
     for (let pass = 0; pass < maxSettlePasses; pass++) {
       if (!hasAnyOverlap(next, zoom, overlapPadding)) break;
-      const moved = resolveOverlaps(next, { zoom, pushStrength, maxMove, overlapPadding });
+      const moved = resolveOverlaps(next, { zoom, pushStrength, maxMove, overlapPadding, ignoredNodeIds });
       if (!moved) break;
     }
   }
@@ -38,7 +40,7 @@ export function relaxProjectedNodes(nodes: ProjectedNode[], options: RelaxProjec
 
 function resolveOverlaps(
   nodes: ProjectedNode[],
-  options: { zoom: number; pushStrength: number; maxMove: number; overlapPadding: number },
+  options: { zoom: number; pushStrength: number; maxMove: number; overlapPadding: number; ignoredNodeIds: Set<string> },
 ): boolean {
   let moved = false;
 
@@ -46,6 +48,7 @@ function resolveOverlaps(
     for (let j = i + 1; j < nodes.length; j++) {
       const a = nodes[i];
       const b = nodes[j];
+      if (options.ignoredNodeIds.has(a.id) || options.ignoredNodeIds.has(b.id)) continue;
       const aRect = projectedNodeScreenRect(a, options.zoom);
       const bRect = projectedNodeScreenRect(b, options.zoom);
       if (!rectsOverlap(aRect, bRect, options.overlapPadding)) continue;

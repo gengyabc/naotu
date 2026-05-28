@@ -25,6 +25,7 @@ export type MindmapRendererOptions = {
   getDocument: () => MindmapDocument;
   getSelectedNodeIds: () => string[];
   getDragNodeIds: (nodeId: string, selectedIds: string[]) => string[];
+  getDragRootNodeIds: (nodeId: string, selectedIds: string[]) => string[];
   onViewportChange: (x: number, y: number, zoom: number) => void;
   onZoomInput?: (factor: number) => boolean;
   onSelectNode: (id: string, mode: "replace" | "toggle" | "add") => void;
@@ -34,8 +35,13 @@ export type MindmapRendererOptions = {
   onContextMenu: (id: string, x: number, y: number) => void;
   onEdgeContextMenu: (id: string, x: number, y: number) => void;
   onBeforeNodeDragStart: (node: ProjectedNode) => void;
-  onNodesMove: (args: { node: ProjectedNode; moves: Array<{ id: string; x: number; y: number }> }) => void;
-  onNodeDragEnd: (args: { node: ProjectedNode }) => void;
+  onNodesMove: (args: {
+    node: ProjectedNode;
+    moves: Array<{ id: string; x: number; y: number }>;
+    mode?: "move" | "reconnect";
+    reconnectTargetNodeId?: string;
+  }) => void;
+  onNodeDragEnd: (args: { node: ProjectedNode; mode?: "move" | "reconnect"; dropPosition?: { x: number; y: number } }) => void;
   onNotebookResizeStart: (id: string) => void;
   onNotebookResize: (args: { id: string; width: number; height: number }) => void;
   onNotebookResizeEnd: (args: { id: string; width: number; height: number }) => void;
@@ -70,6 +76,14 @@ type PreparedRenderData = {
 type DrawResult = {
   renderedNodes: number;
   renderedEdges: number;
+};
+
+type ReconnectPreview = {
+  draggedNodeId: string;
+  disconnectedRootIds: string[];
+  draggedNodeIds: string[];
+  pointerWorld: { x: number; y: number };
+  targetNodeId?: string;
 };
 
 type SharedScene = {
@@ -112,6 +126,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected renderScheduled = false;
   protected lastProjectedNodes: ProjectedNode[] = [];
   protected missingNotebookNodeIds = new Set<string>();
+  protected reconnectPreview: ReconnectPreview | null = null;
   private wheelNotebookResizeSession: WheelNotebookResizeSession | null = null;
   private panActive = false;
   private panPrev = { x: 0, y: 0 };
@@ -320,6 +335,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       edges: args.edges,
       transform: args.transform,
       onEdgeContextMenu: this.options.onEdgeContextMenu,
+      disconnectedTargetIds: new Set(this.reconnectPreview?.disconnectedRootIds ?? []),
     });
   }
 
@@ -339,6 +355,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       sourcePath: this.options.sourcePath,
       getSelectedNodeIds: this.options.getSelectedNodeIds,
       getDragNodeIds: this.options.getDragNodeIds,
+      getDragRootNodeIds: this.options.getDragRootNodeIds,
       onSelectNode: (id, mode) => {
         this.lastFocusNodeId = id;
         const selectedNode = args.doc.nodes.find((node) => node.id === id);
@@ -367,13 +384,43 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
       onBeforeNodeDragStart: this.options.onBeforeNodeDragStart,
       onNodesMove: this.options.onNodesMove,
       onNodeDragEnd: this.options.onNodeDragEnd,
+      onReconnectPreviewChange: (preview) => {
+        this.reconnectPreview = preview;
+        this.scheduleRender();
+      },
       onNotebookResizeStart: this.options.onNotebookResizeStart,
       onNotebookResize: this.options.onNotebookResize,
       onNotebookResizeEnd: this.options.onNotebookResizeEnd,
       onDragStateChange: (dragging) => {
         this.dragging = dragging;
       },
+      reconnectTargetNodeId: this.reconnectPreview?.targetNodeId,
     });
+  }
+
+  protected renderReconnectOverlay(args: { transform: RenderTransform; nodes: ProjectedNode[] }): void {
+    const targetId = this.reconnectPreview?.targetNodeId;
+    const pointerWorld = this.reconnectPreview?.pointerWorld;
+    const previewLine = this.overlayScreenLayer.selectAll<SVGPathElement, number>("path.reconnect-preview-line").data(targetId && pointerWorld ? [1] : []);
+
+    previewLine.exit().remove();
+
+    previewLine.enter().append("path").attr("class", "reconnect-preview-line")
+      .merge(previewLine)
+      .attr("d", () => {
+        if (!targetId || !pointerWorld) return "";
+        const targetNode = args.nodes.find((node) => node.id === targetId);
+        if (!targetNode) return "";
+        const start = {
+          x: targetNode.projectedX * args.transform.k + args.transform.x,
+          y: targetNode.projectedY * args.transform.k + args.transform.y,
+        };
+        const end = {
+          x: pointerWorld.x * args.transform.k + args.transform.x,
+          y: pointerWorld.y * args.transform.k + args.transform.y,
+        };
+        return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+      });
   }
 
   protected scheduleRender(): void {
@@ -409,6 +456,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
         treeVerticalSpacing: this.options.getSettings().layoutVerticalSpacing,
         hoveredNodeId: this.hoveredNodeId,
         lastFocusNodeId: this.lastFocusNodeId,
+        ignoredOverlapNodeIds: this.reconnectPreview?.draggedNodeIds,
       },
       {
         searchResultIds: this.searchResultIds,
