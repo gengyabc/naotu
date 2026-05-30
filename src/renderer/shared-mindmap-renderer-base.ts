@@ -102,6 +102,16 @@ export function shouldUseTouchZoom(eventType: string, touchCount: number): boole
   return eventType !== "touchstart" || touchCount >= 2;
 }
 
+export function canWheelResizeNotebookNode(args: {
+  nodeId: string;
+  nodeKind: ProjectedNode["kind"];
+  selectedNodeIds: string[];
+  lastFocusNodeId?: string;
+}): boolean {
+  if (args.nodeKind !== "notebook") return false;
+  return args.selectedNodeIds.includes(args.nodeId) || args.lastFocusNodeId === args.nodeId;
+}
+
 export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
   protected overlayScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -551,7 +561,12 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     if (!nodeId) return false;
 
     const node = this.lastProjectedNodes.find((item) => item.id === nodeId);
-    if (!node || node.kind !== "notebook") {
+    if (!node || !canWheelResizeNotebookNode({
+      nodeId: node.id,
+      nodeKind: node.kind,
+      selectedNodeIds: this.options.getSelectedNodeIds(),
+      lastFocusNodeId: this.lastFocusNodeId,
+    })) {
       return false;
     }
 

@@ -195,29 +195,10 @@ export class MindmapInteractions {
     this.options.onSelectionChange?.();
   }
 
-  toggleSelection(id: string): void {
-    this.options.selection.toggle(id);
-    this.clearSubtreeVirtualZoomState();
-    this.options.onSelectionChange?.();
-  }
-
-  addSelection(id: string): void {
-    this.options.selection.add(id);
-    this.clearSubtreeVirtualZoomState();
-    this.options.onSelectionChange?.();
-  }
-
   clearSelection(): void {
     this.options.selection.clear();
     const rootId = findRootNodeId(this.options.getDocument());
     if (rootId) this.options.setLastFocusNodeId(rootId);
-    this.clearSubtreeVirtualZoomState();
-    this.options.onSelectionChange?.();
-  }
-
-  replaceSelection(ids: Iterable<string>): void {
-    this.options.selection.clear();
-    for (const id of ids) this.options.selection.add(id);
     this.clearSubtreeVirtualZoomState();
     this.options.onSelectionChange?.();
   }

@@ -8,6 +8,7 @@
     "allowJs": true,
     "noImplicitAny": true,
     "moduleResolution": "node",
+    "skipLibCheck": true,
     "isolatedModules": true,
     "strict": true,
     "lib": [

@@ -572,11 +572,11 @@ export class MindmapView extends FileView {
   }
 
   private deleteSelectedNodes(mode: "promote" | "recursive" = "promote"): void {
-    const ids = this.selection.getIds();
-    if (ids.length === 0) return;
+    const selectedId = this.selection.getIds()[0];
+    if (!selectedId) return;
 
     this.applyDocumentChange(() => {
-      for (const id of ids) this.store.deleteNode(id, mode);
+      this.store.deleteNode(selectedId, mode);
     });
 
     this.clearSelection();
@@ -847,20 +847,8 @@ export class MindmapView extends FileView {
     this.interactions.setSelectionOnly(id);
   }
 
-  private toggleSelection(id: string): void {
-    this.interactions.toggleSelection(id);
-  }
-
-  private addSelection(id: string): void {
-    this.interactions.addSelection(id);
-  }
-
   private clearSelection(): void {
     this.interactions.clearSelection();
-  }
-
-  private replaceSelection(ids: Iterable<string>): void {
-    this.interactions.replaceSelection(ids);
   }
 
   private clearSubtreeVirtualZoomState(): void {

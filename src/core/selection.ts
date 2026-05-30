@@ -14,15 +14,6 @@ export class SelectionState {
     this.ids.add(id);
   }
 
-  toggle(id: string): void {
-    if (this.ids.has(id)) this.ids.delete(id);
-    else this.ids.add(id);
-  }
-
-  add(id: string): void {
-    this.ids.add(id);
-  }
-
   clear(): void {
     this.ids.clear();
   }
