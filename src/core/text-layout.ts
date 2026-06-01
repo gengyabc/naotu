@@ -1,13 +1,19 @@
 export const BASE_FONT_SIZE = 14;
 export const CHAR_WIDTH_CHINESE = 14;
 const CHAR_WIDTH_ENGLISH = 8;
+const CHAR_WIDTH_ENGLISH_UPPERCASE = 10;
 const CHAR_WIDTH_SPACE = 4;
 export const TITLE_MAX_WIDTH_CHARS = 30;
-const TITLE_MAX_LINES = 2;
+const TITLE_MAX_LINES = 3;
 const TITLE_PADDING_HORIZONTAL = 24;
 const TITLE_PADDING_VERTICAL_SINGLE_LINE = 30;
 const TITLE_PADDING_VERTICAL_TWO_LINES = 48;
 const TITLE_LINE_HEIGHT_FACTOR = 1.4;
+const TITLE_TEXT_WIDTH_SAFETY_PADDING = 10;
+
+export function getTextLineHeight(fontSize: number): number {
+  return fontSize * TITLE_LINE_HEIGHT_FACTOR;
+}
 
 export interface TextLayoutResult {
   lines: string[];
@@ -24,6 +30,7 @@ export interface TextClampResult {
 function measureCharWidth(char: string): number {
   if (char === " ") return CHAR_WIDTH_SPACE;
   if (/[\u4e00-\u9fa5]/.test(char)) return CHAR_WIDTH_CHINESE;
+  if (/[A-Z]/.test(char)) return CHAR_WIDTH_ENGLISH_UPPERCASE;
   return CHAR_WIDTH_ENGLISH;
 }
 
@@ -45,8 +52,26 @@ export function layoutText(args: { text: string; fontSize: number }): TextLayout
   let currentLine = "";
   let currentWidth = 0;
   let isOverflow = false;
+  let endedWithExplicitBreak = false;
 
   for (const char of text) {
+    if (char === "\r") {
+      continue;
+    }
+
+    if (char === "\n") {
+      if (lines.length >= TITLE_MAX_LINES - 1) {
+        isOverflow = true;
+        break;
+      }
+      lines.push(currentLine);
+      currentLine = "";
+      currentWidth = 0;
+      endedWithExplicitBreak = true;
+      continue;
+    }
+
+    endedWithExplicitBreak = false;
     const charWidth = measureCharWidth(char) * scaleFactor;
     
     if (currentWidth + charWidth > maxWidth) {
@@ -63,7 +88,7 @@ export function layoutText(args: { text: string; fontSize: number }): TextLayout
     }
   }
 
-  if (currentLine && lines.length < TITLE_MAX_LINES) {
+  if ((currentLine || endedWithExplicitBreak) && lines.length < TITLE_MAX_LINES) {
     lines.push(currentLine);
   }
 
@@ -71,13 +96,13 @@ export function layoutText(args: { text: string; fontSize: number }): TextLayout
     lines.push("");
   }
 
-  const lineHeight = fontSize * TITLE_LINE_HEIGHT_FACTOR;
+  const lineHeight = getTextLineHeight(fontSize);
   const numLines = lines.length;
   
-  const actualTextWidth = measureTextWidth(lines[0] || "", fontSize);
-  const secondLineTextWidth = lines[1] ? measureTextWidth(lines[1], fontSize) : 0;
-  const maxLineWidth = Math.max(actualTextWidth, secondLineTextWidth);
-  const width = maxLineWidth + TITLE_PADDING_HORIZONTAL;
+  const maxLineWidth = lines.reduce((maxWidthSoFar, line) => {
+    return Math.max(maxWidthSoFar, measureTextWidth(line, fontSize));
+  }, 0);
+  const width = maxLineWidth + TITLE_PADDING_HORIZONTAL + TITLE_TEXT_WIDTH_SAFETY_PADDING;
   
   const paddingVertical = numLines === 1 ? TITLE_PADDING_VERTICAL_SINGLE_LINE : TITLE_PADDING_VERTICAL_TWO_LINES;
   const height = numLines * lineHeight + paddingVertical;
@@ -105,6 +130,20 @@ export function clampTextNodeText(args: { text: string; fontSize: number }): Tex
   let accepted = "";
 
   for (const char of text) {
+    if (char === "\r") {
+      continue;
+    }
+
+    if (char === "\n") {
+      if (currentLineCount >= TITLE_MAX_LINES) {
+        return { text: accepted, wasClamped: true };
+      }
+      currentLineCount += 1;
+      currentLineWidth = 0;
+      accepted += char;
+      continue;
+    }
+
     const charWidth = measureCharWidth(char) * scaleFactor;
     if (currentLineWidth + charWidth > maxWidth) {
       if (currentLineCount >= TITLE_MAX_LINES) {

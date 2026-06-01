@@ -9,7 +9,11 @@ export class SvgMindmapRenderer extends SharedMindmapRendererBase {
   }
 
   protected createScene() {
-    const svg = d3.select(this.options.container).append("svg").attr("class", "semantic-mindmap-svg").attr("width", "100%").attr("height", "100%");
+    const svg = d3.select(this.options.container)
+      .append("svg")
+      .attr("class", "semantic-mindmap-svg")
+      .attr("width", "100%")
+      .attr("height", "100%");
     this.edgeWorldLayer = svg.append("g").attr("class", "edge-world-layer");
     this.nodeScreenLayer = svg.append("g").attr("class", "node-screen-layer");
     const overlayScreenLayer = svg.append("g").attr("class", "overlay-screen-layer");

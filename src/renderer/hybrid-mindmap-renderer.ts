@@ -16,7 +16,11 @@ export class HybridMindmapRenderer extends SharedMindmapRendererBase {
   protected createScene() {
     this.root = this.options.container.createDiv({ cls: "hybrid-renderer-root" });
     this.canvas = this.root.createEl("canvas", { cls: "hybrid-background-canvas" });
-    const svg = d3.select(this.root).append("svg").attr("class", "hybrid-interaction-svg").attr("width", "100%").attr("height", "100%");
+    const svg = d3.select(this.root)
+      .append("svg")
+      .attr("class", "hybrid-interaction-svg")
+      .attr("width", "100%")
+      .attr("height", "100%");
     this.svgEdgeLayer = svg.append("g").attr("class", "svg-edge-layer");
     this.svgNodeLayer = svg.append("g").attr("class", "svg-node-layer");
     const overlayScreenLayer = svg.append("g").attr("class", "overlay-screen-layer");

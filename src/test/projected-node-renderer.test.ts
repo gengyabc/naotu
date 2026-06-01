@@ -4,6 +4,7 @@ import {
   canDragNodes,
   clampNotebookResizeSize,
   getNotebookPreviewFrame,
+  getTextNodeContentFrame,
   isMeaningfulNodeDrag,
   resolveReconnectTargetNodeId,
   screenDragDeltaToWorldDelta,
@@ -207,6 +208,15 @@ describe("projected node dragging", () => {
       y: 8,
       width: 344,
       height: 284,
+    });
+  });
+
+  it("uses the full padded content area for text nodes so wrapped markdown is not clipped", () => {
+    expect(getTextNodeContentFrame({ displayWidth: 180, displayHeight: 56 })).toEqual({
+      x: 10,
+      y: 10,
+      width: 160,
+      height: 36,
     });
   });
 });

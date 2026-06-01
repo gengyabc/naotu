@@ -854,6 +854,31 @@
   line-height: 1.4;
   color: var(--text-normal);
   pointer-events: none;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mindmap-text-markdown-wrapper.is-plain-text {
+  white-space: pre-wrap;
+}
+
+.mindmap-text-markdown-wrapper.is-markdown {
+  white-space: normal;
+}
+
+.mindmap-text-markdown-wrapper :is(.markdown-rendered, .markdown-preview-view) {
+  line-height: inherit;
+}
+
+.mindmap-text-markdown-wrapper :is(p, ul, ol, li, blockquote, pre, h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+  line-height: inherit;
+}
+
+.mindmap-text-markdown-wrapper :is(ul, ol) {
+  padding-inline-start: 1.2em;
 }
 
 .mindmap-text-markdown-wrapper a {
@@ -865,6 +890,16 @@
 .mindmap-text-markdown-wrapper p {
   margin: 0;
   text-align: center;
+  line-height: inherit;
+}
+
+.mindmap-text-markdown-wrapper > div {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mindmap-text-markdown-wrapper strong {

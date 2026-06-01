@@ -20,6 +20,9 @@ type RenderStats = {
   isSlow: boolean;
 };
 
+const HYBRID_EXIT_AVERAGE_DURATION_MS = 16;
+const HYBRID_EXIT_CONSECUTIVE_FAST_STATS = 3;
+
 type MindmapRendererCoordinatorOptions = {
   app: App;
   component: Component;
@@ -59,6 +62,7 @@ export class MindmapRendererCoordinator {
   private missingNotebookNodeIds = new Set<string>();
   private averageRenderDurationMs = 0;
   private degradedForSession = false;
+  private fastRenderRecoveryStreak = 0;
   private renderMode: "svg" | "hybrid" | null = null;
 
   constructor(private options: MindmapRendererCoordinatorOptions) {}
@@ -67,6 +71,7 @@ export class MindmapRendererCoordinator {
     this.container = container;
     this.averageRenderDurationMs = 0;
     this.degradedForSession = false;
+    this.fastRenderRecoveryStreak = 0;
     this.dispose();
 
     this.mountRenderer(this.chooseMode(), true);
@@ -137,6 +142,15 @@ export class MindmapRendererCoordinator {
     this.averageRenderDurationMs = stats.averageDurationMs;
     if (stats.isSlow) {
       this.degradedForSession = true;
+      this.fastRenderRecoveryStreak = 0;
+    } else if (this.degradedForSession && this.canRecoverFromHybrid(stats)) {
+      this.fastRenderRecoveryStreak += 1;
+      if (this.fastRenderRecoveryStreak >= HYBRID_EXIT_CONSECUTIVE_FAST_STATS) {
+        this.degradedForSession = false;
+        this.fastRenderRecoveryStreak = 0;
+      }
+    } else {
+      this.fastRenderRecoveryStreak = 0;
     }
     const nextMode = this.chooseMode();
     if (this.container && this.renderMode !== nextMode) {
@@ -157,6 +171,19 @@ export class MindmapRendererCoordinator {
       settings: this.options.getSettings(),
       averageRenderDurationMs: this.averageRenderDurationMs,
     });
+  }
+
+  private canRecoverFromHybrid(stats: RenderStats): boolean {
+    if (this.renderMode !== "hybrid") return false;
+    if (stats.averageDurationMs > HYBRID_EXIT_AVERAGE_DURATION_MS) return false;
+
+    const doc = this.options.getDocument();
+    return chooseRenderMode({
+      nodeCount: doc.nodes.length,
+      edgeCount: doc.edges.length,
+      settings: this.options.getSettings(),
+      averageRenderDurationMs: 0,
+    }) === "svg";
   }
 
   private mountRenderer(mode: "svg" | "hybrid", isInitialMount: boolean): void {

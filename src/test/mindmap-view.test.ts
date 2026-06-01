@@ -1047,6 +1047,58 @@ describe("MindmapView", () => {
     expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
   });
 
+  it("returns to the svg renderer after consecutive fast hybrid renders", async () => {
+    const harness = createHarness();
+
+    await harness.view.setFile(harness.sourceFile);
+
+    const renderer = harness.getRenderer();
+    renderer.options.onRenderStats({
+      mode: "svg",
+      zoom: 1,
+      totalNodes: 2,
+      renderedNodes: 2,
+      totalEdges: 1,
+      renderedEdges: 1,
+      durationMs: 40,
+      averageDurationMs: 40,
+      isSlow: true,
+    });
+
+    const hybridRenderer = harness.getRenderer();
+    for (let i = 0; i < 2; i += 1) {
+      hybridRenderer.options.onRenderStats({
+        mode: "hybrid",
+        zoom: 1,
+        totalNodes: 2,
+        renderedNodes: 2,
+        totalEdges: 1,
+        renderedEdges: 1,
+        durationMs: 8,
+        averageDurationMs: 8,
+        isSlow: false,
+      });
+    }
+
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+
+    hybridRenderer.options.onRenderStats({
+      mode: "hybrid",
+      zoom: 1,
+      totalNodes: 2,
+      renderedNodes: 2,
+      totalEdges: 1,
+      renderedEdges: 1,
+      durationMs: 8,
+      averageDurationMs: 8,
+      isSlow: false,
+    });
+
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(2);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+  });
+
   it("keeps minimap hooks wired through render stats", async () => {
     const harness = createHarness();
     harness.plugin.settings.showMinimap = true;

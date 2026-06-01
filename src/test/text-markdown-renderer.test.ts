@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { cleanupRenderedTextMarkdown, renderTextAsMarkdown } from "../renderer/text-markdown-renderer";
+import { layoutText } from "../core/text-layout";
 
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve = () => {};
@@ -32,6 +33,7 @@ function createFakeElement() {
   const children: HTMLElement[] = [];
   return {
     children,
+    style: {} as Record<string, string>,
     classList: {
       contains: (name: string) => classList.has(name),
       add: (name: string) => classList.add(name),
@@ -124,6 +126,116 @@ describe("text-markdown-renderer", () => {
     })).resolves.toBeUndefined();
 
     expect((wrapper as any).textContent).toBe("fallback content");
+  });
+
+  it("renders plain text titles without invoking MarkdownRenderer", async () => {
+    const wrapper = createFakeElement();
+    const foreignObject = {
+      querySelector: vi.fn(() => wrapper),
+      appendChild: vi.fn(),
+      closest: vi.fn(() => null),
+    } as unknown as SVGForeignObjectElement;
+
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown: "根据连续作答日志追踪“会不会正在学会”，决定继续练还是切换",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(wrapper.classList.contains("is-plain-text")).toBe(true);
+    expect(wrapper.classList.contains("is-markdown")).toBe(false);
+    expect((wrapper as any).textContent).toBe(layoutText({
+      text: "根据连续作答日志追踪“会不会正在学会”，决定继续练还是切换",
+      fontSize: 14,
+    }).lines.join("\n"));
+  });
+
+  it("renders wrapped plain text using the measured line breaks", async () => {
+    const wrapper = createFakeElement();
+    const foreignObject = {
+      querySelector: vi.fn(() => wrapper),
+      appendChild: vi.fn(),
+      closest: vi.fn(() => null),
+    } as unknown as SVGForeignObjectElement;
+
+    const markdown = "BKT：根据连续作答日志追踪‘会不会正在学会’，决定继续练还是切换";
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown,
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect((wrapper as any).textContent).toBe(layoutText({ text: markdown, fontSize: 14 }).lines.join("\n"));
+  });
+
+  it("still uses MarkdownRenderer for supported syntax outside the plain-text fast path", async () => {
+    const foreignObject = createFakeForeignObject();
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown: "==高亮文本==",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect(renderSpy).toHaveBeenCalledOnce();
+  });
+
+  it("still uses MarkdownRenderer for bare URLs that rely on autolinking", async () => {
+    const foreignObject = createFakeForeignObject();
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown: "https://example.com/semantic-zoom",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect(renderSpy).toHaveBeenCalledOnce();
+    const wrapper = foreignObject.children[0] as HTMLElement;
+    expect(wrapper.classList.contains("is-markdown")).toBe(true);
+    expect(wrapper.classList.contains("is-plain-text")).toBe(false);
+  });
+
+  it("converts single markdown newlines into tight line breaks for text nodes", async () => {
+    const foreignObject = createFakeForeignObject();
+    const renderSpy = vi.spyOn(MarkdownRenderer, "render");
+
+    await renderTextAsMarkdown({
+      app: new App(),
+      foreignObject,
+      markdown: "**第一行**\n第二行",
+      fontSize: 14,
+      sourcePath: "test.md",
+      component: new Component(),
+    });
+
+    expect(renderSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      "**第一行**  \n第二行",
+      expect.anything(),
+      "test.md",
+      expect.anything(),
+    );
+    const wrapper = foreignObject.children[0] as HTMLElement;
+    expect(wrapper.classList.contains("is-markdown")).toBe(true);
+    expect(wrapper.classList.contains("is-plain-text")).toBe(false);
   });
 
   it("skips markdown rendering for oversized text-node content", async () => {

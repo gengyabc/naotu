@@ -1,7 +1,7 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { createOwnedDiv, getActiveDocument } from "../core/dom";
 import { containsUnsafeMarkdownBlocks } from "../core/markdown-safety";
-import { clampTextNodeText } from "../core/text-layout";
+import { clampTextNodeText, layoutText } from "../core/text-layout";
 
 const childComponentByElement = new WeakMap<SVGForeignObjectElement, Component>();
 const renderVersionByElement = new WeakMap<SVGForeignObjectElement, number>();
@@ -26,10 +26,15 @@ export async function renderTextAsMarkdown(args: {
   }
 
   wrapper.classList.toggle("is-underline", args.foreignObject.closest(".is-underline") !== null);
+  wrapper.style.fontSize = `${args.fontSize}px`;
+  wrapper.style.lineHeight = "1.4";
 
   const { text: clampedMarkdown, wasClamped } = clampTextNodeText({ text: args.markdown, fontSize: args.fontSize });
-  const renderAsPlainText = wasClamped || containsUnsafeMarkdownBlocks(clampedMarkdown);
-  const renderKey = `${renderAsPlainText ? "plain" : "markdown"}::${args.fontSize}::${args.sourcePath}::${clampedMarkdown}`;
+  const renderAsPlainText = wasClamped || containsUnsafeMarkdownBlocks(clampedMarkdown) || isDefinitelyPlainText(clampedMarkdown);
+  wrapper.classList.toggle("is-plain-text", renderAsPlainText);
+  wrapper.classList.toggle("is-markdown", !renderAsPlainText);
+  const normalizedMarkdown = renderAsPlainText ? clampedMarkdown : normalizeMarkdownLineBreaks(clampedMarkdown);
+  const renderKey = `${renderAsPlainText ? "plain" : "markdown"}::${args.fontSize}::${args.sourcePath}::${normalizedMarkdown}`;
   if (renderedKeyByElement.get(args.foreignObject) === renderKey) return;
   renderedKeyByElement.set(args.foreignObject, renderKey);
 
@@ -39,7 +44,7 @@ export async function renderTextAsMarkdown(args: {
   if (renderAsPlainText) {
     cleanupRenderedTextMarkdown(args.foreignObject, args.component);
     wrapper.empty();
-    wrapper.textContent = clampedMarkdown;
+    wrapper.textContent = layoutText({ text: clampedMarkdown, fontSize: args.fontSize }).lines.join("\n");
     return;
   }
 
@@ -56,7 +61,7 @@ export async function renderTextAsMarkdown(args: {
   try {
     await MarkdownRenderer.render(
       args.app,
-      clampedMarkdown,
+      normalizedMarkdown,
       renderHost,
       args.sourcePath,
       child,
@@ -72,8 +77,37 @@ export async function renderTextAsMarkdown(args: {
     if (renderVersionByElement.get(args.foreignObject) !== nextVersion) {
       return;
     }
+    wrapper.classList.add("is-plain-text");
+    wrapper.classList.remove("is-markdown");
     wrapper.textContent = clampedMarkdown;
   }
+}
+
+function isDefinitelyPlainText(markdown: string): boolean {
+  return !/[*_~`\[\]#!>|=-]/.test(markdown)
+    && !/(^|\n)\s{0,3}(\d+\.\s|[-*+]\s)/m.test(markdown)
+    && !containsAutolinkLikeText(markdown);
+}
+
+function normalizeMarkdownLineBreaks(markdown: string): string {
+  let normalized = "";
+
+  for (let index = 0; index < markdown.length; index += 1) {
+    const char = markdown[index];
+    if (char === "\n" && markdown[index - 1] !== "\n" && markdown[index + 1] !== "\n") {
+      normalized += "  \n";
+      continue;
+    }
+
+    normalized += char;
+  }
+
+  return normalized;
+}
+
+function containsAutolinkLikeText(markdown: string): boolean {
+  return /(?:^|\s)(?:https?:\/\/|mailto:|www\.)\S+/i.test(markdown)
+    || /(?:^|\s)[^\s@]+@[^\s@]+\.[^\s@]+/.test(markdown);
 }
 
 export function cleanupRenderedTextMarkdown(foreignObject: SVGForeignObjectElement | null, component: Component): void {

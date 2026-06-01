@@ -112,6 +112,23 @@ export function canWheelResizeNotebookNode(args: {
   return args.selectedNodeIds.includes(args.nodeId) || args.lastFocusNodeId === args.nodeId;
 }
 
+export function getSvgZoomExtent(
+  svgElement: Pick<SVGSVGElement, "getBoundingClientRect"> | null,
+  containerElement: Pick<HTMLElement, "getBoundingClientRect">,
+): [[number, number], [number, number]] {
+  const { width, height } = getElementViewportSize(svgElement ?? containerElement);
+  return [[0, 0], [width, height]];
+}
+
+export function getElementViewportSize(
+  element: Pick<Element, "getBoundingClientRect">,
+): { width: number; height: number } {
+  const rect = element.getBoundingClientRect();
+  const width = Math.max(1, rect.width);
+  const height = Math.max(1, rect.height);
+  return { width, height };
+}
+
 export abstract class SharedMindmapRendererBase implements RendererAdapter {
   protected svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
   protected overlayScreenLayer!: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -152,6 +169,7 @@ export abstract class SharedMindmapRendererBase implements RendererAdapter {
     this.zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.12, 4])
+      .extent(() => getSvgZoomExtent(this.svg.node(), this.options.container))
       .filter((event) => {
         if (event.type === "wheel") return false;
         if (event.type === "mousedown") return false;

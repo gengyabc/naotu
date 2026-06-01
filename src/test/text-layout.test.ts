@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { truncateTextForNotebook, layoutDescription, clampTextNodeText } from "../core/text-layout";
+import { truncateTextForNotebook, layoutDescription, clampTextNodeText, getTextNodeDisplaySize, layoutText } from "../core/text-layout";
 
 describe("truncateTextForNotebook", () => {
   it("should return original text if it fits", () => {
@@ -165,5 +165,71 @@ describe("clampTextNodeText", () => {
 
     expect(result.wasClamped).toBe(true);
     expect(result.text.length).toBeLessThan(longText.length);
+  });
+
+  it("allows content to span up to three lines before clamping", () => {
+    const text = "这是一段很长的文本节点内容".repeat(4);
+    const result = clampTextNodeText({ text, fontSize: 14 });
+
+    expect(result.wasClamped).toBe(false);
+    expect(result.text).toBe(text);
+  });
+
+  it("preserves explicit line breaks within the three-line budget", () => {
+    const text = "第一行\n第二行\n第三行";
+    const result = clampTextNodeText({ text, fontSize: 14 });
+
+    expect(result).toEqual({
+      text,
+      wasClamped: false,
+    });
+  });
+
+  it("preserves a trailing explicit line break when it still fits within three lines", () => {
+    const text = "第一行\n第二行\n";
+
+    expect(clampTextNodeText({ text, fontSize: 14 })).toEqual({
+      text,
+      wasClamped: false,
+    });
+    expect(layoutText({ text, fontSize: 14 }).lines).toEqual(["第一行", "第二行", ""]);
+  });
+
+  it("clamps explicit line breaks beyond the three-line budget", () => {
+    const result = clampTextNodeText({ text: "第一行\n第二行\n第三行\n第四行", fontSize: 14 });
+
+    expect(result).toEqual({
+      text: "第一行\n第二行\n第三行",
+      wasClamped: true,
+    });
+  });
+});
+
+describe("getTextNodeDisplaySize", () => {
+  it("accounts for all wrapped lines when sizing three-line text nodes", () => {
+    const short = getTextNodeDisplaySize({ title: "短文本", fontSize: 14 });
+    const long = getTextNodeDisplaySize({ title: "这是一段很长的文本节点内容".repeat(4), fontSize: 14 });
+
+    expect(long.height).toBeGreaterThan(short.height);
+  });
+
+  it("keeps enough width budget for short uppercase latin titles", () => {
+    const size = getTextNodeDisplaySize({ title: "CDM", fontSize: 20 });
+
+    expect(size.width).toBeGreaterThan(60);
+  });
+
+  it("counts explicit line breaks when sizing text nodes", () => {
+    const singleLine = getTextNodeDisplaySize({ title: "第一行", fontSize: 14 });
+    const threeLines = getTextNodeDisplaySize({ title: "第一行\n第二行\n第三行", fontSize: 14 });
+
+    expect(threeLines.height).toBeGreaterThan(singleLine.height);
+  });
+
+  it("preserves trailing explicit line breaks when sizing text nodes", () => {
+    const twoLines = getTextNodeDisplaySize({ title: "第一行\n第二行", fontSize: 14 });
+    const threeLines = getTextNodeDisplaySize({ title: "第一行\n第二行\n", fontSize: 14 });
+
+    expect(threeLines.height).toBeGreaterThan(twoLines.height);
   });
 });

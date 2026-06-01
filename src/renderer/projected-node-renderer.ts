@@ -53,6 +53,7 @@ const NOTEBOOK_SUMMARY_MAX_LINES = 3;
 const SECONDARY_FONT_SIZE_OFFSET = -1;
 const LONG_PRESS_RECONNECT_MS = 750;
 const DRAG_START_DISTANCE_PX = 4;
+const TEXT_NODE_CONTENT_PADDING = 10;
 
 const descriptionCache = new Map<string, string | null>();
 let descriptionCacheVersion = -1;
@@ -183,6 +184,18 @@ export function getNotebookPreviewFrame(args: {
     y,
     width: args.displayWidth - NOTEBOOK_PREVIEW_X - NOTEBOOK_PREVIEW_RIGHT_PADDING,
     height: args.displayHeight - y - bottomPadding,
+  };
+}
+
+export function getTextNodeContentFrame(args: {
+  displayWidth: number;
+  displayHeight: number;
+}): { x: number; y: number; width: number; height: number } {
+  return {
+    x: TEXT_NODE_CONTENT_PADDING,
+    y: TEXT_NODE_CONTENT_PADDING,
+    width: Math.max(0, args.displayWidth - TEXT_NODE_CONTENT_PADDING * 2),
+    height: Math.max(0, args.displayHeight - TEXT_NODE_CONTENT_PADDING * 2),
   };
 }
 
@@ -583,15 +596,17 @@ export function renderProjectedNodes(args: {
     
     if (node.kind === "text") {
       titleText.style("display", "none");
-      
-      const padding = 12;
+      const textContentFrame = getTextNodeContentFrame({
+        displayWidth: node.displayWidth,
+        displayHeight: node.displayHeight,
+      });
 
       textForeignObject
         .style("display", "")
-        .attr("x", padding)
-        .attr("y", padding)
-        .attr("width", node.displayWidth - padding * 2)
-        .attr("height", node.displayHeight - padding * 2);
+        .attr("x", textContentFrame.x)
+        .attr("y", textContentFrame.y)
+        .attr("width", textContentFrame.width)
+        .attr("height", textContentFrame.height);
       
       void renderTextAsMarkdown({
         app: args.app,
