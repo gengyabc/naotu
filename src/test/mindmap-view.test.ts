@@ -980,9 +980,8 @@ describe("MindmapView", () => {
     expect(getDirtyState(harness.view)).toBe("dirty");
   });
 
-  it("chooses the hybrid renderer when node count exceeds threshold", async () => {
+  it("always uses the svg renderer regardless of node count", async () => {
     const harness = createHarness();
-    // 创建一个大文档，节点数超过 1200 的阈值
     const largeDoc = createSmallTestDocument();
     for (let i = 0; i < 1300; i++) {
       largeDoc.nodes.push({
@@ -999,16 +998,15 @@ describe("MindmapView", () => {
       } as any);
     }
 
-    // 通过修改文件内容来让 view 加载大文档
     harness.vault.modify(harness.sourceFile, JSON.stringify(largeDoc));
 
     await harness.view.setFile(harness.sourceFile);
 
-    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
-    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(0);
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(0);
   });
 
-  it("switches to the hybrid renderer after slow render stats", async () => {
+  it("stays on svg renderer even after slow render stats", async () => {
     const harness = createHarness();
 
     await harness.view.setFile(harness.sourceFile);
@@ -1026,28 +1024,11 @@ describe("MindmapView", () => {
       isSlow: true,
     });
 
-    expect(renderer.unmount).toHaveBeenCalledTimes(1);
     expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
-    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
-
-    const hybridRenderer = harness.getRenderer();
-    hybridRenderer.options.onRenderStats({
-      mode: "hybrid",
-      zoom: 1,
-      totalNodes: 2,
-      renderedNodes: 2,
-      totalEdges: 1,
-      renderedEdges: 1,
-      durationMs: 8,
-      averageDurationMs: 8,
-      isSlow: false,
-    });
-
-    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
-    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(0);
   });
 
-  it("returns to the svg renderer after consecutive fast hybrid renders", async () => {
+  it("remains on svg renderer regardless of render stats", async () => {
     const harness = createHarness();
 
     await harness.view.setFile(harness.sourceFile);
@@ -1065,26 +1046,9 @@ describe("MindmapView", () => {
       isSlow: true,
     });
 
-    const hybridRenderer = harness.getRenderer();
-    for (let i = 0; i < 2; i += 1) {
-      hybridRenderer.options.onRenderStats({
-        mode: "hybrid",
-        zoom: 1,
-        totalNodes: 2,
-        renderedNodes: 2,
-        totalEdges: 1,
-        renderedEdges: 1,
-        durationMs: 8,
-        averageDurationMs: 8,
-        isSlow: false,
-      });
-    }
-
-    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
-    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
-
-    hybridRenderer.options.onRenderStats({
-      mode: "hybrid",
+    const sameRenderer = harness.getRenderer();
+    sameRenderer.options.onRenderStats({
+      mode: "svg",
       zoom: 1,
       totalNodes: 2,
       renderedNodes: 2,
@@ -1095,8 +1059,8 @@ describe("MindmapView", () => {
       isSlow: false,
     });
 
-    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(2);
-    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeSvgRenderer.instances).toHaveLength(1);
+    expect(hoisted.FakeHybridRenderer.instances).toHaveLength(0);
   });
 
   it("keeps minimap hooks wired through render stats", async () => {

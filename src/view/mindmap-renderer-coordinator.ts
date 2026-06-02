@@ -1,7 +1,5 @@
 import { App, Component } from "obsidian";
 
-import { chooseRenderMode } from "../core/render-mode";
-import { HybridMindmapRenderer } from "../renderer/hybrid-mindmap-renderer";
 import { MinimapRenderer } from "../renderer/minimap-renderer";
 import type { RendererAdapter } from "../renderer/renderer-adapter";
 import { SvgMindmapRenderer } from "../renderer/svg-mindmap-renderer";
@@ -19,9 +17,6 @@ type RenderStats = {
   averageDurationMs: number;
   isSlow: boolean;
 };
-
-const HYBRID_EXIT_AVERAGE_DURATION_MS = 16;
-const HYBRID_EXIT_CONSECUTIVE_FAST_STATS = 3;
 
 type MindmapRendererCoordinatorOptions = {
   app: App;
@@ -61,8 +56,6 @@ export class MindmapRendererCoordinator {
   private searchResultIds = new Set<string>();
   private missingNotebookNodeIds = new Set<string>();
   private averageRenderDurationMs = 0;
-  private degradedForSession = false;
-  private fastRenderRecoveryStreak = 0;
   private renderMode: "svg" | "hybrid" | null = null;
 
   constructor(private options: MindmapRendererCoordinatorOptions) {}
@@ -70,8 +63,6 @@ export class MindmapRendererCoordinator {
   mount(container: HTMLDivElement): void {
     this.container = container;
     this.averageRenderDurationMs = 0;
-    this.degradedForSession = false;
-    this.fastRenderRecoveryStreak = 0;
     this.dispose();
 
     this.mountRenderer(this.chooseMode(), true);
@@ -140,60 +131,20 @@ export class MindmapRendererCoordinator {
 
   private handleRenderStats(_container: HTMLDivElement, stats: RenderStats): void {
     this.averageRenderDurationMs = stats.averageDurationMs;
-    if (stats.isSlow) {
-      this.degradedForSession = true;
-      this.fastRenderRecoveryStreak = 0;
-    } else if (this.degradedForSession && this.canRecoverFromHybrid(stats)) {
-      this.fastRenderRecoveryStreak += 1;
-      if (this.fastRenderRecoveryStreak >= HYBRID_EXIT_CONSECUTIVE_FAST_STATS) {
-        this.degradedForSession = false;
-        this.fastRenderRecoveryStreak = 0;
-      }
-    } else {
-      this.fastRenderRecoveryStreak = 0;
-    }
-    const nextMode = this.chooseMode();
-    if (this.container && this.renderMode !== nextMode) {
-      this.mountRenderer(nextMode, false);
-    }
     this.updateMinimap();
   }
 
   private chooseMode(): "svg" | "hybrid" {
-    if (this.degradedForSession) {
-      return "hybrid";
-    }
-
-    const doc = this.options.getDocument();
-    return chooseRenderMode({
-      nodeCount: doc.nodes.length,
-      edgeCount: doc.edges.length,
-      settings: this.options.getSettings(),
-      averageRenderDurationMs: this.averageRenderDurationMs,
-    });
+    return "svg";
   }
 
-  private canRecoverFromHybrid(stats: RenderStats): boolean {
-    if (this.renderMode !== "hybrid") return false;
-    if (stats.averageDurationMs > HYBRID_EXIT_AVERAGE_DURATION_MS) return false;
-
-    const doc = this.options.getDocument();
-    return chooseRenderMode({
-      nodeCount: doc.nodes.length,
-      edgeCount: doc.edges.length,
-      settings: this.options.getSettings(),
-      averageRenderDurationMs: 0,
-    }) === "svg";
-  }
-
-  private mountRenderer(mode: "svg" | "hybrid", isInitialMount: boolean): void {
+  private mountRenderer(_mode: "svg" | "hybrid", isInitialMount: boolean): void {
     const container = this.container;
     if (!container) return;
 
     this.renderer?.unmount();
 
-    const RendererClass = mode === "hybrid" ? HybridMindmapRenderer : SvgMindmapRenderer;
-    this.renderer = new RendererClass({
+    this.renderer = new SvgMindmapRenderer({
       app: this.options.app,
       component: this.options.component,
       container,
@@ -218,9 +169,9 @@ export class MindmapRendererCoordinator {
       onNotebookResizeEnd: this.options.onNotebookResizeEnd,
       onClearSelection: this.options.onClearSelection,
       getSettings: this.options.getSettings,
-      onRenderStats: (stats) => this.handleRenderStats(container, stats),
+      onRenderStats: (stats: RenderStats) => this.handleRenderStats(container, stats),
     });
-    this.renderMode = mode;
+    this.renderMode = "svg";
 
     this.renderer.mount();
     this.renderer.setSearchResultIds(this.searchResultIds);
