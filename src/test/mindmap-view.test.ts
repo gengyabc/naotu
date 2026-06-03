@@ -729,6 +729,32 @@ describe("MindmapView", () => {
     expect(getDirtyState(harness.view)).toBe("dirty");
   });
 
+  it("expands a collapsed node from the toolbar and marks the document dirty", async () => {
+    const doc = createSmallTestDocument();
+    doc.layoutMode = "tree-right";
+    const root = doc.nodes.find((node) => node.id === "root");
+    if (root) root.treeControl = "manual-collapsed";
+    const harness = createHarness({ document: doc });
+    await harness.view.setFile(harness.sourceFile);
+    const renderer = harness.getRenderer();
+    renderer.projectedNodes = [
+      createProjectedNode({ id: "root", title: "Root", x: 0, y: 0, hasChildren: true, childrenExpanded: false }),
+    ];
+
+    (harness.view as any).setSelectionOnly("root");
+
+    const toolbarEl = harness.view.contentEl.children[0] as unknown as { children: Array<{ tagName: string; textContent: string; onclick: (() => void) | null }> };
+    const toggleButton = toolbarEl.children.find(
+      (child) => child.tagName === "BUTTON" && child.textContent.includes("切换折叠")
+    );
+
+    expect(toggleButton).toBeDefined();
+    toggleButton?.onclick?.();
+
+    expect(getDocument(harness.view).nodes.find((node) => node.id === "root")?.treeControl).toBe("manual-expanded");
+    expect(getDirtyState(harness.view)).toBe("dirty");
+  });
+
   it("shrinks notebook subtree before collapsing through keyboard flow", async () => {
     const doc = createSmallTestDocument();
     doc.layoutMode = "tree-right";

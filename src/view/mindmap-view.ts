@@ -95,7 +95,9 @@ export class MindmapView extends FileView {
       applyReplacedDocument: (doc, options) => this.applyReplacedDocument(doc, options),
       applyDocumentChange: (mutator, options) => this.applyDocumentChange(mutator, options),
       collapseTreeNode: (id) => this.collapseTreeNodeWithNotebookResize(id),
-      setTreeControl: (id, control) => this.store.setTreeControl(id, control),
+      setTreeControl: (id, control) => this.applyDocumentChange(() => {
+        this.store.setTreeControl(id, control);
+      }, { relayout: false }),
       getLayoutHorizontalSpacing: () => this.plugin.settings.layoutHorizontalSpacing,
       getLayoutVerticalSpacing: () => this.plugin.settings.layoutVerticalSpacing,
       clearSubtreeVirtualZoomState: () => { this.clearSubtreeVirtualZoomState(); },
